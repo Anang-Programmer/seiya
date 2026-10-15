@@ -110,6 +110,7 @@ export const geminiProvider: AIProviderAdapter = {
   label: "Google Gemini",
   get model() { return process.env.SEIYA_AI_GEMINI_MODEL?.trim() || "gemini-3.8-flash"; },
   supportsTools: true,
+  requiresToolThoughtSignature: true,
   isConfigured: () => Boolean(process.env.GOOGLE_API_KEY?.trim()),
   async generate(request: ProviderGenerateRequest) {
     const apiKey = process.env.GOOGLE_API_KEY?.trim();

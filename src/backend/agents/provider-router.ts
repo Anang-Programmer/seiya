@@ -93,6 +93,10 @@ export async function generateWithFallback(request: AICompletionRequest): Promis
     ? [request.preferredProvider, ...configuredOrder.filter((id) => id !== request.preferredProvider)]
     : configuredOrder;
   const tools = request.tools ?? [];
+  // A continuation turn replays assistant tool calls plus tool results. Vendors that sign their own
+  // functionCall parts reject messages whose calls came from another provider (HTTP 400), so those
+  // vendors are only eligible for the first model call of a turn.
+  const hasToolRound = request.messages.some((message) => message.role === "tool");
   const candidates: AIProviderAdapter[] = [];
   const privateAllowlist = privateProviderAllowlist();
 
@@ -101,6 +105,7 @@ export async function generateWithFallback(request: AICompletionRequest): Promis
     if (!provider.isConfigured()) continue;
     if (dataClassification === "private" && !privateAllowlist.has(id)) continue;
     if (tools.length && !provider.supportsTools) continue;
+    if (hasToolRound && provider.requiresToolThoughtSignature && request.preferredProvider !== id) continue;
     if (id === "openrouter" && provider.model.endsWith(":free") && dataClassification !== "public") continue;
     candidates.push(provider);
   }
@@ -113,13 +118,16 @@ export async function generateWithFallback(request: AICompletionRequest): Promis
     throw new AIProviderRouterError(
       "NO_CAPABLE_PROVIDER",
       tools.length
-        ? "No configured provider is eligible for function calling and this request's data classification. Check tool support, model IDs, and SEIYA_AI_PRIVATE_PROVIDER_ALLOWLIST."
+        ? hasToolRound
+          ? "No configured provider can continue this tool round: the vendor that produced the tool call is unavailable, and vendors with their own tool-call signatures cannot take it over. Check tool support, model IDs, and SEIYA_AI_PRIVATE_PROVIDER_ALLOWLIST."
+          : "No configured provider is eligible for function calling and this request's data classification. Check tool support, model IDs, and SEIYA_AI_PRIVATE_PROVIDER_ALLOWLIST."
         : "No configured provider is eligible for this request. Check SEIYA_AI_PRIVATE_PROVIDER_ALLOWLIST for private context.",
     );
   }
 
   const attempts: Array<{ provider: string; reason: string; status?: number }> = [];
   let actualAttempts = 0;
+  let sawNonRetryable = false;
   for (const provider of candidates) {
     if (actualAttempts >= maxAttempts) break;
     const now = Date.now();
@@ -157,9 +165,13 @@ export async function generateWithFallback(request: AICompletionRequest): Promis
 
       if (error instanceof AIProviderError) {
         if (shouldCooldown(error)) PROVIDER_COOLDOWN_UNTIL.set(provider.id, Date.now() + cooldownMs(error));
-        // Do not hide client/request/schema mistakes (HTTP 400/413 etc.) behind fallback.
+        // A non-retryable rejection (400/413/422, content block, schema the vendor refuses) is
+        // vendor-specific more often than not. Keep trying the remaining providers instead of
+        // letting one picky vendor take the whole chat down; surface INVALID_REQUEST only when
+        // nobody could serve the request, so a genuine client/schema mistake stays visible.
         if (!error.retryable && !error.providerUnavailable) {
-          throw new AIProviderRouterError("INVALID_REQUEST", "AI provider rejected the request. Check the tool schema and provider/model compatibility.", attempts);
+          sawNonRetryable = true;
+          continue;
         }
       } else {
         PROVIDER_COOLDOWN_UNTIL.set(provider.id, Date.now() + 15_000);
@@ -167,6 +179,13 @@ export async function generateWithFallback(request: AICompletionRequest): Promis
     }
   }
 
+  if (sawNonRetryable) {
+    throw new AIProviderRouterError(
+      "INVALID_REQUEST",
+      "AI provider rejected the request. Check the tool schema and provider/model compatibility.",
+      attempts,
+    );
+  }
   if (Date.now() >= deadline) {
     throw new AIProviderRouterError("DEADLINE_EXCEEDED", "AI provider time budget was exhausted before a provider succeeded.", attempts);
   }

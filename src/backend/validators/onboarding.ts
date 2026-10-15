@@ -40,6 +40,23 @@ export const DISCUSSION_STATUSES = [
   "prefer_not_to_say",
 ] as const;
 
+export const MONEY_MEANINGS = [
+  "rasa_aman",
+  "kebebasan",
+  "pengakuan",
+  "membantu_orang_lain",
+] as const;
+
+export const COMM_STYLES = ["langsung", "waktu_khusus", "lewat_tulisan"] as const;
+
+export const PERMA_GOALS = [
+  "emosi_positif",
+  "keasyikan",
+  "hubungan",
+  "makna",
+  "pencapaian",
+] as const;
+
 export const INCOME_SOURCES = [
   "one_partner",
   "both_partners",
@@ -90,6 +107,16 @@ export type OnboardingInput = {
     accountStructure: ValueOf<typeof ACCOUNT_STRUCTURES>;
     financialChallenges: ValueOf<typeof FINANCIAL_CHALLENGES>[];
     otherChallengeDescription: string | null;
+    /** Part A (behavior scale) and Part B (personalization) from onboarding. */
+    personalization: {
+      spendingHabit: number | null;
+      paymentPain: number | null;
+      planOvershoot: number | null;
+      wishPurchaseReaction: number | null;
+      moneyMeaning: ValueOf<typeof MONEY_MEANINGS> | null;
+      commStyle: ValueOf<typeof COMM_STYLES> | null;
+      permaGoal: ValueOf<typeof PERMA_GOALS> | null;
+    };
   };
 };
 
@@ -109,6 +136,31 @@ function isOneOf<T extends readonly string[]>(
 ): value is T[number] {
   return typeof value === "string" &&
     (options as readonly string[]).includes(value);
+}
+
+function optionalScale(
+  value: unknown,
+  min: number,
+  max: number
+): number | null | undefined {
+  if (value === undefined || value === null) return null;
+  if (
+    typeof value !== "number" ||
+    !Number.isInteger(value) ||
+    value < min ||
+    value > max
+  ) {
+    return undefined;
+  }
+  return value;
+}
+
+function optionalChoice<T extends readonly string[]>(
+  value: unknown,
+  options: T
+): T[number] | null | undefined {
+  if (value === undefined || value === null || value === "") return null;
+  return isOneOf(value, options) ? value : undefined;
 }
 
 function optionalText(
@@ -131,8 +183,7 @@ function optionalText(
 
 export function validateOnboarding(
   value: unknown
-): ValidationResult {
-  if (!isObject(value)) {
+): ValidationResult {  if (!isObject(value)) {
     return { ok: false, message: "Invalid request body." };
   }
 
@@ -279,6 +330,37 @@ export function validateOnboarding(
     };
   }
 
+  const source = answers.personalization;
+  if (source !== undefined && !isObject(source)) {
+    return { ok: false, message: "Invalid personalization answers." };
+  }
+  const personal = isObject(source) ? source : {};
+
+  const spendingHabit = optionalScale(personal.spendingHabit, 1, 11);
+  const paymentPain = optionalScale(personal.paymentPain, 1, 5);
+  const planOvershoot = optionalScale(personal.planOvershoot, 1, 5);
+  const wishPurchaseReaction = optionalScale(personal.wishPurchaseReaction, 1, 5);
+  const moneyMeaning = optionalChoice(personal.moneyMeaning, MONEY_MEANINGS);
+  const commStyle = optionalChoice(personal.commStyle, COMM_STYLES);
+  const permaGoal = optionalChoice(personal.permaGoal, PERMA_GOALS);
+
+  if (
+    spendingHabit === undefined ||
+    paymentPain === undefined ||
+    planOvershoot === undefined ||
+    wishPurchaseReaction === undefined
+  ) {
+    return {
+      ok: false,
+      message:
+        "Behavior scale answers must be whole numbers: spending habit 1-11, the other three items 1-5.",
+    };
+  }
+
+  if (moneyMeaning === undefined || commStyle === undefined || permaGoal === undefined) {
+    return { ok: false, message: "Invalid personalization choice." };
+  }
+
   const { partner: _partner, ...rest } = answers;
 
   return {
@@ -304,6 +386,15 @@ export function validateOnboarding(
         accountStructure: answers.accountStructure,
         financialChallenges: challenges,
         otherChallengeDescription: otherDescription,
+        personalization: {
+          spendingHabit,
+          paymentPain,
+          planOvershoot,
+          wishPurchaseReaction,
+          moneyMeaning,
+          commStyle,
+          permaGoal,
+        },
       },
     },
   };

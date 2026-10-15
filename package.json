@@ -6,7 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:setup": "node --env-file=.env.local scripts/test-setup.mjs",
+    "test:personalization": "node --env-file=.env.local scripts/test-personalization.mjs",
+    "test:wellness": "node --env-file=.env.local scripts/test-wellness.mjs",
+    "test:expense": "node --env-file=.env.local scripts/test-expense.mjs",
+    "test:chat": "node --env-file=.env.local scripts/test-personalization.mjs && node --env-file=.env.local scripts/test-wellness.mjs && node --env-file=.env.local scripts/test-expense.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

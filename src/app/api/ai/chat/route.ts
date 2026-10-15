@@ -4,6 +4,12 @@ import { AIProviderRouterError } from "@/backend/agents";
 import { runSeiyaAgent, type AgentHistoryMessage } from "@/backend/agents/agent.service";
 import { consumeAgentRequestAllowance } from "@/backend/agents/request-limiter";
 import { validateAgentChatInput } from "@/backend/agents/validators";
+import {
+  buildStylePromptBlock,
+  buildWellnessPromptBlock,
+  detectWellnessState,
+  readPersonalizationAnswers,
+} from "@/backend/personalization";
 
 const MAX_BODY_BYTES = 16_000;
 const MAX_HISTORY_MESSAGES = 6;
@@ -151,13 +157,37 @@ export async function POST(request: Request) {
     history = compacted.reverse();
   }
 
+  // Wellbeing takes priority over profiling: in those states no style block is built at all.
+  const wellness = detectWellnessState(input.message);
+  let styleContext: string | null = null;
+
+  if (!wellness) {
+    const { data: onboarding, error: onboardingError } = await supabase
+      .from("onboarding_responses")
+      .select("answers")
+      .eq("user_id", user.id)
+      .not("completed_at", "is", null)
+      .order("response_version", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (onboardingError) {
+      console.warn("[Seiya Agent] onboarding lookup failed", { code: onboardingError.code ?? "unknown" });
+    } else {
+      styleContext = buildStylePromptBlock(readPersonalizationAnswers(onboarding?.answers));
+    }
+  }
+
   let agentResult;
   try {
     agentResult = await runSeiyaAgent({
       supabase,
       householdId: input.householdId,
+      userId: user.id,
       message: input.message,
       history,
+      styleContext: buildWellnessPromptBlock(wellness) ?? styleContext,
+      wellness,
     });
   } catch (error) {
     const mapped = mapAgentError(error);

@@ -158,6 +158,24 @@ Reads or saves onboarding answers and profile preferences. Answers are stored in
 
 Exact request field names should be checked in `src/backend/validators/onboarding.ts`. Do not store partner invitation tokens in onboarding answers.
 
+#### Personalization answers (`answers.personalization`)
+
+Onboarding questions are written in English; the stored keys are internal and are never rendered as research labels to the user. All fields are optional — a missing or invalid value is stored as `null` and that dimension simply does not personalize anything.
+
+| Field | Item | Range / values |
+| --- | --- | --- |
+| `spendingHabit` | General money-spending habit | integer `1–11` |
+| `paymentPain` | How often money still feels painful to spend | integer `1–5` |
+| `planOvershoot` | Buying on impulse then regretting it | integer `1–5` |
+| `wishPurchaseReaction` | Reaction at the register for a non-essential Rp500k item | integer `1–5` |
+| `moneyMeaning` | What money is for | `rasa_aman`, `kebebasan`, `pengakuan`, `membantu_orang_lain` |
+| `commStyle` | How money topics should be raised | `langsung`, `waktu_khusus`, `lewat_tulisan` |
+| `permaGoal` | Shared priority for the year | `emosi_positif`, `keasyikan`, `hubungan`, `makna`, `pencapaian` |
+
+The four scale items sum to 4–26 and are mapped to internal behavior bands server-side in `src/backend/personalization.ts` (`behaviorProfileKey`). The band key, its label, and the score are never written into the API response, chat output, or onboarding results; only the framing, tone, length, and emphasized reasons change. A partial scale returns `null`, which disables profiling instead of guessing.
+
+Reading: `GET /api/onboarding` returns the user's own answers only (`onboarding_responses_select_own` RLS). A partner cannot read them.
+
 ### `POST /api/households`
 
 Creates a household through `public.create_household(...)`. The RPC checks the caller's identity and prevents a user who already belongs to an active household from creating another active household. It creates an owner membership transactionally.
@@ -236,6 +254,8 @@ Submits a proposal for partner approval. Body shape:
 }
 ```
 
+Numbers above are examples only. There is no hardcoded approval limit: `approval.sharedWalletThreshold` and `requirePartnerApprovalAboveThreshold` are whatever the household's mutually approved agreement says, and the backend reads the active rule version (never a fixed constant) when deciding whether an expense needs partner approval.
+
 Response observed: `success`, `message`, and `rule`; a newly proposed rule had `status: "pending_approval"`. The proposer is approved as part of the proposal workflow; the agreement activates only after the required active household members approve.
 
 The route validates UUID, authentication, body JSON, and finance rules. A membership check was added to both `GET` and `POST`; a nonmember POST was tested to return `403`, and member GET returned `200`.
@@ -306,7 +326,7 @@ The transaction engine was tested with the following behaviors:
 **Frontend rules**
 - Never decide that a transaction is approved based on the amount alone; render the server-provided transaction status and approval requirements.
 - Use an idempotency key for transaction creation/payment requests. Reuse the *same* key when retrying the same user action after a timeout; do not generate a fresh key for a retry.
-- The AI model must not directly execute a payment. The UI/backend must keep the approval, cooling-off, and execution flow intact.
+- The AI model must not directly execute a payment, approve, or reject anything. It may only create a transaction *request* through the same backend engine (`record_expense` in chat); the approval, cooling-off, and execution flow stays intact and server-enforced.
 
 Exact request bodies, enum values, and response shapes for these three transaction routes: confirm in their route/validator files before implementing the UI.
 
@@ -413,6 +433,32 @@ Available read-only tools tested:
 - `list_upcoming_bills`
 - `get_household_rules`
 
+### Chat-time expense recording (`record_expense`)
+
+A chat message such as `hari ini aku liburan ke Jepang habis 20 juta` can be recorded in the same turn. This is handled by the agent's single write tool, `record_expense`:
+
+- **Gate:** the tool schema is only offered when the message contains an explicit money amount plus a spending action, and no plan/question/hypothetical marker (`nanti`, `mau beli`, `misal`, `rencana`, `berapa harga`, …). The model may still decline and ask for the amount instead. If the model returns no tool call for such a message, the API answers with a fixed "kirim ulang dengan nominal" message instead of the raw model text, so no recording can be claimed falsely.
+- **Not a bypass:** the tool calls the same `request_simulated_transaction` RPC as `POST /api/households/[householdId]/transactions`. The active agreement still decides the outcome — `executed`, `pending_approval`, or `on_hold` — and the tool result repeats that status verbatim. Approval decisions and held-transaction execution remain in their own endpoints; the AI never approves, rejects, or executes anything.
+- **Wallet resolution:** `wallet: "shared"` picks the household shared wallet; `wallet: "personal"` picks only the authenticated sender's own personal wallet. A currency mismatch, an IDR amount below `1000` (wrong unit, e.g. `20 juta` written as `20`), a non-slug category, or a missing wallet returns an error result instead of recording.
+- **Category:** a lowercase slug (`travel`, `food`, `groceries`, `transport`, `shopping`, `entertainment`, `health`, `utilities`, `education`, `subscriptions`, `gifts`, `bills`, `other`), which is what budget matching compares against.
+- **Idempotency:** the key is derived server-side from `user + household + message + parsed expense` (SHA-256, `ai-expense-<hex>`). A retried or resent identical message reports the stored transaction instead of creating a second one; a `P1003` conflict falls back to reading the existing row.
+- **Result contract:** the tool returns `ok`, `recorded`, optional `duplicate`, `transaction.status`, and an Indonesian `status_note`. If the RPC returns an unexpected status, the tool returns `ok: false` rather than letting the model claim success.
+
+Not yet tested end-to-end against a live database: recording an expense, an insufficient-balance rejection, and the duplicate-send path. Verify before documenting as verified.
+
+### Response personalization and wellbeing override
+
+The chat turn loads the caller's own latest completed onboarding response and appends one private system block (`src/backend/personalization.ts`):
+
+- **Facts never change.** Numbers, Janji Seiya rules, and the available options are identical for every user; only framing, tone, length, and the emphasized reason adjust. The block forbids naming any internal label, research term, score, band, or onboarding answer in the reply.
+- **Profile styling** comes from the Part A total (4–11 / 12–18 / 19–26): permission-and-safety with medium calming length, or shortest fact-only, or short-and-light with at most one emoji — including the avoid-lists (scary risk numbers, long lectures, scolding words).
+- **Layers:** `moneyMeaning` picks the reason framing, `commStyle` decides whether to answer immediately, park it for money date, or lead with a written recap, and `permaGoal` is mentioned only when relevant.
+- **Shared summaries:** if the user asks for a summary to open together with the partner, the block requires the neutral style so neither partner feels singled out.
+- **Wellbeing override:** `detectWellnessState` scans the message. `stress` builds a single neutral, calm, number-light block for everyone and skips profiling entirely. `crisis` additionally disables every tool for that turn (no balances, no numbers, no `record_expense`), forbids product/loan offers and any notification to the partner, and redirects to professional counseling/crisis help. The crisis path returns the model's supportive text without financial-data claims.
+- **Privacy:** the style block and wellness state are server-side only; neither appears in the response body, `meta`, or stored conversation content beyond the assistant text itself.
+
+Crisis and counseling contact lists are **not yet verified by the team**; the model is instructed to mention only services already verified by Seiya and never to invent names or numbers. Do not ship a real crisis list before that verification.
+
 Agent behavior tested:
 - Greeting: one model call, no tool call.
 - Budget question: tool call fetches live SQL-derived data, then model writes the answer.
@@ -462,6 +508,7 @@ The current RAG knowledge base uses `gemini-embedding-001` with 768-dimensional 
 7. Financial agreement, partner approvals, cooling-off, transaction creation, and transaction execution must remain enforced by backend/database rules, never by UI state or an AI model's textual assertion.
 8. For API errors, show a user-safe message; do not surface raw SQL or provider error bodies in the UI.
 9. After an operation times out, consult its status/idempotency result before retrying with a new key.
+10. Onboarding answers (behavior scale, money meaning, communication style, priorities) are private to their owner: never return another partner's answers, never expose the derived behavior band or label in chat, API responses, logs, or onboarding results, and never use them to decide different facts or options for different users.
 
 ## 12. Current verification status and known gaps
 
@@ -485,6 +532,7 @@ The current RAG knowledge base uses `gemini-embedding-001` with 768-dimensional 
 - Full property-based or concurrency testing of RLS/RPCs has not been done.
 - The RAG similarity cutoff still needs an evaluation set: cooling-off retrieval returned two less-relevant chunks as well as the best match.
 - PowerShell output showed Unicode mojibake such as `Rpâ¯`; check response/terminal encoding separately rather than altering financial calculations.
+- Chat personalization (profile styling, money meaning, communication style, PERMA goal) and the wellbeing override are implemented but **not yet verified end-to-end**: no test compares two profiles on the same situation, and no test exercises the stress/crisis path.
 - The current request limiter is in-process, not a distributed/global limiter across multiple server instances.
 - Recurring bills are metadata only; the next recurrence is not automatically generated.
 - The full frontend has not yet been integrated end-to-end.
@@ -501,3 +549,36 @@ The current RAG knowledge base uses `gemini-embedding-001` with 768-dimensional 
 8. Security/error states: handle `401`, `403`, `404`, `409`, `429`, `500`, and `502` distinctly.
 
 Before release, the frontend and backend developers should cross-check the exact request/response fields for endpoints marked **confirm in source**, then run the 12-case cross-household matrix and an HTTP 429 fallback test in a controlled environment.
+
+## 14. Manual terminal tests
+
+Four scripts in `scripts/` drive the real API (signup cookies + RLS-scoped Supabase reads) and print PASS/WARN/FAIL per assertion. They run against the dev server, not a mock, and they create real rows in the development Supabase project.
+
+**Prerequisite:** the dev server must be running first.
+
+```powershell
+npm run dev          # terminal 1
+npm run test:setup   # terminal 2 — one-shot account/household/agreement check
+```
+
+| Command | What it proves |
+| --- | --- |
+| `npm run test:setup` | Test accounts, household, partner membership, **active** finance agreement, wallets. Run this first when anything else fails during setup. |
+| `npm run test:personalization` | Same message → three onboarding profiles. Asserts: internal band labels never appear, emoji per profile limits, unconflicted stays shortest, `record_expense` never offered for discussion messages. |
+| `npm run test:wellness` | Stress + crisis messages with the strongest profile applied. Asserts: no currency numbers, no tools, no emoji, no loan/product offer, professional-help pointer, no internal labels. |
+| `npm run test:expense` | `"hari ini aku habis Rp20 juta untuk liburan ke Jepang"` → `record_expense` → row in `transactions` with category `travel` and status from the active agreement (`pending_approval` above the Rp5 juta test threshold); identical resend stays a single row; a personal wallet with zero balance is never faked. |
+| `npm run test:chat` | Runs the three scenario scripts back to back. |
+
+All of them accept the same overrides when you do not want the defaults:
+
+```powershell
+$env:SEIYA_TEST_EMAIL_A = "suami@gmail.com"   # akun yang SUDAH terkonfirmasi
+$env:SEIYA_TEST_EMAIL_B = "istri@gmail.com"
+$env:SEIYA_TEST_PASSWORD = "<password>"
+$env:SEIYA_TEST_BASE_URL = "http://localhost:3000"
+npm run test:setup
+```
+
+**First-run account caveat (read before reporting a failure):** the harness signs up `seiya.test.a@gmail.com` / `seiya.test.b@gmail.com` with `SEIYA_TEST_PASSWORD` (default `SeiyaTest123!`). This project sends a confirmation email, so either confirm both inboxes once, or add `SUPABASE_SECRET_KEY` (service role) to `.env.local` so the harness creates and confirms both accounts itself. GoTrue rejects `example.com`-style domains, and the dev project's email quota can be exhausted (`over_email_send_rate_limit`) — in that case point the overrides above at accounts you already have. None of these secrets are read by application code, only by the scripts.
+
+Each script exits non-zero when a hard assertion fails; WARN lines (tone, emoji count, length ordering) are model-dependent and are meant to be eyeballed in the printed replies.

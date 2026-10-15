@@ -84,6 +84,12 @@ export interface AIProviderAdapter {
   label: string;
   model: string;
   supportsTools: boolean;
+  /**
+   * True when the vendor signs its own functionCall parts (Gemini thought signatures) and rejects
+   * tool-call messages produced by another provider. Continuation turns then stay with the original
+   * provider or the turn fails over only to vendors without this requirement.
+   */
+  requiresToolThoughtSignature?: boolean;
   isConfigured(): boolean;
   generate(request: ProviderGenerateRequest): Promise<Omit<AICompletionResult, "provider" | "model" | "latencyMs" | "attempts">>;
 }

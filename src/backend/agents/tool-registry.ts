@@ -1,15 +1,27 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import type { createClient } from "@/lib/supabase/server";
 import { getHouseholdBudgetProgress } from "@/backend/services/bill-budget.service";
+import { requestSimulatedTransaction } from "@/backend/services/transaction.service";
+import { validateRecordExpenseInput } from "@/backend/agents/validators";
 import type { AIToolDefinition } from "@/backend/agents";
 
 type UserScopedSupabaseClient = Awaited<ReturnType<typeof createClient>>;
-type ToolName = "get_budget_summary" | "list_upcoming_bills" | "get_household_rules" | "get_wallet_summary";
+type ToolName =
+  | "get_budget_summary"
+  | "list_upcoming_bills"
+  | "get_household_rules"
+  | "get_wallet_summary"
+  | "record_expense";
 
-export interface ReadToolContext {
+export interface SeiyaToolContext {
   supabase: UserScopedSupabaseClient;
   householdId: string;
+  /** Authenticated member who sent this chat message; personal wallets are scoped to this user. */
+  userId: string;
   today: string;
+  /** Server-derived seed (user + household + message) for idempotency keys; never client-supplied. */
+  expenseSeed: string;
 }
 
 const EMPTY_OBJECT_SCHEMA = {
@@ -42,11 +54,64 @@ export const SEIYA_READ_TOOLS: AIToolDefinition[] = [
   },
 ];
 
+/**
+ * The only writing tool. It never approves or executes anything itself: the expense goes through the
+ * same simulated transaction engine as the app, so the active agreement still decides approval and
+ * cooling-off. Approval and hold execution stay in their own endpoints.
+ */
+export const RECORD_EXPENSE_TOOL: AIToolDefinition = {
+  name: "record_expense",
+  description:
+    "Catat SATU pengeluaran yang sudah benar-benar terjadi dan dinyatakan pengguna di pesan ini (mis. \"hari ini aku liburan ke Jepang habis 20 juta\"). " +
+    "Backend yang mencatat lewat transaction engine; status hasil (dieksekusi, menunggu persetujuan pasangan, atau ditahan cooling-off) ditentukan kesepakatan keuangan aktif, bukan olehmu. " +
+    "Jangan dipakai untuk rencana, keinginan, pertanyaan, hipotesis, kutipan cerita orang lain, atau nominal yang tidak disebutkan pengguna. " +
+    "Ubah satuan ke angka penuh dalam mata uang wallet: 20 juta = 20000000, 50 ribu = 50000. " +
+    "wallet: 'shared' adalah DEFAULT untuk semua pengeluaran rumah tangga; pakai 'personal' hanya bila pengguna menyebut milik pribadi (mis. 'dari uang pribadiku'). " +
+    "Saldo belum terlihat di giliran ini, jadi jangan menebak wallet dari isi pesan. " +
+    `category berupa slug huruf kecil tanpa spasi; pilihan yang paling tepat: travel, food, groceries, transport, shopping, entertainment, health, utilities, education, subscriptions, gifts, bills, other. ` +
+    "Panggil hanya sekali per pengeluaran.",
+  parameters: {
+    type: "object",
+    properties: {
+      amount: {
+        type: "number",
+        description: "Nominal penuh dalam mata uang wallet, mis. 20000000 untuk 20 juta.",
+      },
+      description: {
+        type: "string",
+        description: "Ringkasan pengeluaran dalam bahasa pengguna, maksimal 250 karakter, mis. 'Liburan ke Jepang'.",
+      },
+      category: {
+        type: "string",
+        description: "Slug kategori huruf kecil, mis. travel.",
+      },
+      wallet: {
+        type: "string",
+        enum: ["shared", "personal"],
+        description:
+          "shared untuk semua pengeluaran rumah tangga (DEFAULT); personal hanya bila pengguna menyebut milik pribadi.",
+      },
+      currency: {
+        type: "string",
+        description: "Kode mata uang yang disebut pengguna, mis. IDR. Wajib sama dengan mata uang wallet; jangan mengonversi sendiri.",
+      },
+    },
+    required: ["amount", "description", "category", "wallet"],
+    additionalProperties: false,
+  },
+};
+
+export const SEIYA_TOOL_DEFINITIONS: AIToolDefinition[] = [
+  ...SEIYA_READ_TOOLS,
+  RECORD_EXPENSE_TOOL,
+];
+
 const ALLOWED_TOOL_NAMES = new Set<ToolName>([
   "get_budget_summary",
   "list_upcoming_bills",
   "get_household_rules",
   "get_wallet_summary",
+  "record_expense",
 ]);
 
 type PlainRecord = Record<string, unknown>;
@@ -86,7 +151,7 @@ function toJson(value: unknown): string {
   return json;
 }
 
-async function getBudgetSummary(context: ReadToolContext): Promise<unknown> {
+async function getBudgetSummary(context: SeiyaToolContext): Promise<unknown> {
   const { data, error } = await getHouseholdBudgetProgress(context.supabase, context.householdId);
   if (error) {
     console.warn("[Seiya Agent] budget tool failed", { code: error.code ?? "unknown" });
@@ -119,7 +184,7 @@ async function getBudgetSummary(context: ReadToolContext): Promise<unknown> {
   };
 }
 
-async function listUpcomingBills(context: ReadToolContext): Promise<unknown> {
+async function listUpcomingBills(context: SeiyaToolContext): Promise<unknown> {
   const horizonDate = new Date(`${context.today}T00:00:00.000Z`);
   horizonDate.setUTCDate(horizonDate.getUTCDate() + 30);
   const horizon = horizonDate.toISOString().slice(0, 10);
@@ -172,7 +237,7 @@ async function listUpcomingBills(context: ReadToolContext): Promise<unknown> {
   };
 }
 
-async function getHouseholdRules(context: ReadToolContext): Promise<unknown> {
+async function getHouseholdRules(context: SeiyaToolContext): Promise<unknown> {
   const { data, error } = await context.supabase
     .from("household_finance_rules")
     .select("version, rules, activated_at")
@@ -198,7 +263,7 @@ async function getHouseholdRules(context: ReadToolContext): Promise<unknown> {
   };
 }
 
-async function getWalletSummary(context: ReadToolContext): Promise<unknown> {
+async function getWalletSummary(context: SeiyaToolContext): Promise<unknown> {
   const { data, error } = await context.supabase
     .from("wallets")
     .select("wallet_type, name, currency, simulated_balance")
@@ -228,15 +293,242 @@ async function getWalletSummary(context: ReadToolContext): Promise<unknown> {
   };
 }
 
-export async function executeSeiyaReadTool(
+type WalletRow = {
+  id: string;
+  wallet_type: string;
+  owner_user_id: string | null;
+  name: string;
+  currency: string;
+  simulated_balance: number;
+};
+
+function formatAmount(value: number | null, currency: string | null): string {
+  if (value === null) return "jumlah tidak diketahui";
+  try {
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: currency ?? "IDR",
+      maximumFractionDigits: 2,
+    }).format(value);
+  } catch {
+    return `${currency ?? ""} ${value}`.trim();
+  }
+}
+
+type TransactionSummary = {
+  id: string | null;
+  amount: number | null;
+  currency: string | null;
+  category: string | null;
+  description: string | null;
+  status: string | null;
+  requires_approval: boolean | null;
+  hold_until: string | null;
+  wallet_name: string;
+};
+
+function toTransactionSummary(raw: unknown, walletName: string): TransactionSummary {
+  const row = isPlainRecord(raw) ? raw : {};
+  return {
+    id: safeText(row.id, 40),
+    amount: numeric(row.amount),
+    currency: safeText(row.currency, 3),
+    category: safeText(row.category, 40),
+    description: safeText(row.description, 250),
+    status: safeText(row.status, 20),
+    requires_approval: typeof row.requires_approval === "boolean" ? row.requires_approval : null,
+    hold_until: safeText(row.hold_until, 40),
+    wallet_name: walletName,
+  };
+}
+
+/** Human-readable outcome in Indonesian; the model must repeat this instead of inventing a status. */
+function expenseStatusNote(status: string | null, holdUntil: string | null): string {
+  if (status === "executed") {
+    return "Tercatat dan langsung dieksekusi: kesepakatan aktif tidak mensyaratkan persetujuan maupun cooling-off untuk nominal ini.";
+  }
+  if (status === "pending_approval") {
+    return "Tercatat dan sedang menunggu persetujuan pasangan sesuai batas persetujuan yang kalian sepakati. Jangan dianggap disetujui sebelum pasangan benar-benar memutuskan.";
+  }
+  if (status === "on_hold") {
+    return `Tercatat dan ditahan cooling-off${holdUntil ? ` sampai ${holdUntil}` : ""} sebelum dieksekusi sesuai kesepakatan aktif.`;
+  }
+  return `Tercatat dengan status ${status ?? "tidak diketahui"}. Sampaikan status apa adanya; jangan mengarang hasil.`;
+}
+
+const RECORDED_STATUSES = new Set(["executed", "pending_approval", "on_hold", "approved", "rejected"]);
+
+function recordExpenseErrorMessage(code?: string): string {
+  switch (code) {
+    case "42501":
+      return "Kamu tidak punya izin untuk mencatat transaksi ini.";
+    case "P0002":
+      return "Wallet atau household tidak ditemukan.";
+    case "22023":
+      return "Wallet ini tidak diizinkan kesepakatan keuangan yang aktif, atau kesepakatan belum aktif. Minta pengguna memeriksa halaman kesepakatan sebelum mencatat ulang.";
+    case "P1001":
+      return "Saldo simulasi wallet tidak cukup untuk nominal ini. Jangan mencatat; sampaikan kekurangannya apa adanya.";
+    case "P1002":
+      return "Pengaturan kesepakatan keuangan aktif tidak valid sehingga transaksi tidak bisa dicatat. Minta pengguna memperbaikinya di halaman kesepakatan.";
+    case "23505":
+      return "Sudah ada permintaan transaksi serupa yang sedang diproses.";
+    default:
+      return "Pengeluaran gagal dicatat karena gangguan sistem. Minta pengguna mengulang sebentar lagi; jangan mengarang hasil.";
+  }
+}
+
+async function recordExpense(
+  args: Record<string, unknown>,
+  context: SeiyaToolContext,
+): Promise<unknown> {
+  const parsed = validateRecordExpenseInput(args);
+  if (!parsed.ok) return { ok: false, recorded: false, message: parsed.message };
+  const input = parsed.data;
+
+  const { data: walletRows, error: walletError } = await context.supabase
+    .from("wallets")
+    .select("id, wallet_type, owner_user_id, name, currency, simulated_balance")
+    .eq("household_id", context.householdId)
+    .eq("status", "active")
+    .order("wallet_type", { ascending: true })
+    .limit(5);
+
+  if (walletError) {
+    console.warn("[Seiya Agent] record_expense wallet lookup failed", { code: walletError.code ?? "unknown" });
+    return { ok: false, recorded: false, message: "Daftar wallet tidak tersedia sementara. Minta pengguna mengulang sebentar lagi; jangan mengarang hasil." };
+  }
+
+  const wallets = (walletRows ?? []) as WalletRow[];
+  const wallet = input.wallet === "shared"
+    ? wallets.find((item) => item.wallet_type === "shared")
+    : wallets.find((item) => item.wallet_type === "personal" && item.owner_user_id === context.userId);
+
+  if (!wallet) {
+    return {
+      ok: false,
+      recorded: false,
+      message: input.wallet === "shared"
+        ? "Dompet bersama tidak aktif untuk household ini. Jangan mencatat ke wallet lain."
+        : "Kamu tidak memiliki dompet pribadi yang aktif. Bila pengguna ingin mencatat ke dompet bersama, gunakan wallet 'shared'.",
+    };
+  }
+
+  if (input.currency && input.currency !== wallet.currency) {
+    return {
+      ok: false,
+      recorded: false,
+      message: `Pengguna menyebut ${input.currency} tetapi wallet ini memakai ${wallet.currency}. Jangan mengonversi mata uang sendiri; minta nominal dalam ${wallet.currency} terlebih dahulu.`,
+    };
+  }
+
+  if (wallet.currency === "IDR" && input.amount < 1_000) {
+    return {
+      ok: false,
+      recorded: false,
+      message: `Nominal ${input.amount} terlalu kecil untuk wallet ${wallet.currency}; kemungkinan satuan salah. Ubah ke angka penuh (20 juta = 20000000, 50 ribu = 50000) lalu panggil lagi.`,
+    };
+  }
+
+  // Same user + household + day + message + wallet + amount => same key, so a retry, a resend, or a
+  // re-run of the same test cannot double-book. Description and category stay out of the key: the
+  // model worded them differently between runs, which used to create a second row for one message.
+  const idempotencyKey = `ai-expense-${createHash("sha256")
+    .update(`${context.expenseSeed}\n${input.wallet}\n${input.amount.toFixed(2)}`)
+    .digest("hex")
+    .slice(0, 56)}`;
+
+  const { data, error } = await requestSimulatedTransaction(context.supabase, context.householdId, {
+    walletId: wallet.id,
+    transactionType: "expense",
+    amount: input.amount,
+    description: input.description,
+    category: input.category,
+    idempotencyKey,
+  });
+
+  if (error) {
+    if (error.code === "P1001") {
+      // The model cannot see balances in the same turn, so hand it the numbers and the default rule
+      // instead of a generic failure. No silent fallback: shared vs personal changes approval rules.
+      const sharedWallet = wallets.find((item) => item.wallet_type === "shared");
+      const personalWallet = wallets.find(
+        (item) => item.wallet_type === "personal" && item.owner_user_id === context.userId,
+      );
+      const alternatives = [
+        sharedWallet ? `wallet 'shared' (${sharedWallet.name}) berisi ${formatAmount(sharedWallet.simulated_balance, sharedWallet.currency)}` : null,
+        personalWallet ? `wallet 'personal' (${personalWallet.name}) berisi ${formatAmount(personalWallet.simulated_balance, personalWallet.currency)}` : null,
+      ].filter(Boolean).join("; ");
+
+      console.warn("[Seiya Agent] record_expense insufficient balance", { wallet: input.wallet, code: error.code });
+      return {
+        ok: false,
+        recorded: false,
+        message:
+          `Tidak dicatat: saldo ${wallet.name} (${input.wallet}) ${formatAmount(wallet.simulated_balance, wallet.currency)} ` +
+          `kurang untuk ${formatAmount(input.amount, wallet.currency)}. Saat ini ${alternatives}. ` +
+          "Jangan mengklaim uang sudah keluar atau transaksi sudah tercatat. " +
+          "Pengeluaran rumah tangga beralasan ke dompet bersama; jelaskan kondisinya ke pengguna dan minta ia memastikan dompet yang dipakai.",
+      };
+    }
+    if (error.code !== "P1003") {
+      console.warn("[Seiya Agent] record_expense failed", { code: error.code ?? "unknown" });
+      return { ok: false, recorded: false, message: recordExpenseErrorMessage(error.code) };
+    }
+
+    // Same chat message already recorded with a different detail: report the stored row instead of failing.
+    const { data: duplicateRow } = await context.supabase
+      .from("transactions")
+      .select("id, amount, currency, category, description, status, requires_approval, hold_until")
+      .eq("household_id", context.householdId)
+      .eq("idempotency_key", idempotencyKey)
+      .maybeSingle();
+
+    if (!duplicateRow) {
+      return { ok: false, recorded: false, message: recordExpenseErrorMessage("P1003") };
+    }
+    return {
+      ok: true,
+      recorded: false,
+      duplicate: true,
+      transaction: toTransactionSummary(duplicateRow, wallet.name),
+      status_note: "Pengeluaran ini sudah pernah dicatat dari pesan yang sama, jadi tidak dicatat dua kali. Sampaikan status yang sudah ada.",
+    };
+  }
+
+  const payload = isPlainRecord(data) ? data : {};
+  const rawTransaction = payload.transaction;
+  const status = safeText(isPlainRecord(rawTransaction) ? rawTransaction.status : null, 20);
+  if (!status || !RECORDED_STATUSES.has(status)) {
+    console.warn("[Seiya Agent] record_expense returned unexpected status", { status: status ?? "missing" });
+    return { ok: false, recorded: false, message: "Hasil pencatatan tidak dapat dipastikan. Jangan mengklaim transaksi tercatat; minta pengguna memeriksa daftar transaksi." };
+  }
+
+  return {
+    ok: true,
+    recorded: true,
+    duplicate: payload.idempotent_replay === true,
+    transaction: toTransactionSummary(rawTransaction, wallet.name),
+    status_note: expenseStatusNote(status, safeText(isPlainRecord(rawTransaction) ? rawTransaction.hold_until : null, 40)),
+  };
+}
+
+const READ_TOOL_NAMES = new Set<ToolName>([
+  "get_budget_summary",
+  "list_upcoming_bills",
+  "get_household_rules",
+  "get_wallet_summary",
+]);
+
+export async function executeSeiyaTool(
   name: string,
   args: Record<string, unknown>,
-  context: ReadToolContext,
+  context: SeiyaToolContext,
 ): Promise<unknown> {
   if (!ALLOWED_TOOL_NAMES.has(name as ToolName)) {
     return { ok: false, message: "This tool is not available." };
   }
-  if (!isPlainRecord(args) || Object.keys(args).length !== 0) {
+  const expectsNoArguments = READ_TOOL_NAMES.has(name as ToolName);
+  if (expectsNoArguments && (!isPlainRecord(args) || Object.keys(args).length !== 0)) {
     return { ok: false, message: "This read tool accepts no arguments." };
   }
 
@@ -246,10 +538,11 @@ export async function executeSeiyaReadTool(
       case "list_upcoming_bills": return await listUpcomingBills(context);
       case "get_household_rules": return await getHouseholdRules(context);
       case "get_wallet_summary": return await getWalletSummary(context);
+      case "record_expense": return await recordExpense(args, context);
     }
   } catch {
     // Do not send raw exceptions or SQL/provider details to the model.
-    console.warn("[Seiya Agent] read tool threw unexpectedly", { tool: name });
+    console.warn("[Seiya Agent] tool threw unexpectedly", { tool: name });
     return { ok: false, message: "This information is temporarily unavailable. Do not invent details." };
   }
 }
@@ -258,7 +551,7 @@ export function serializeToolResult(value: unknown): string {
   return toJson(value);
 }
 
-export function isAllowedSeiyaReadTool(name: string): boolean {
+export function isAllowedSeiyaTool(name: string): boolean {
   return ALLOWED_TOOL_NAMES.has(name as ToolName);
 }
 
