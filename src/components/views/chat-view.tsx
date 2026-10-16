@@ -964,18 +964,6 @@ export function ChatView() {
               </span>
             )}
 
-            {/* Quick Launch Voice Chat Button */}
-            <button
-              type="button"
-              onClick={() => setIsVoiceChatActive(true)}
-              className="h-7 px-2.5 rounded-full text-[11px] font-semibold bg-[#fbf0eb] hover:bg-[#f6e1d7] text-[#B45529] border border-[#B45529]/30 flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
-              title="Start Voice Chat with Seiya"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-[#B45529] animate-ping" />
-              <SolarIcon name="microphone" size={13} className="text-[#B45529]" />
-              <span className="hidden sm:inline">Voice Mode</span>
-            </button>
-
             <Badge variant="neutral">{reportingCurrency}</Badge>
           </div>
         </div>
@@ -1244,13 +1232,11 @@ export function ChatView() {
           <button
             type="button"
             onClick={() => setIsVoiceChatActive(true)}
-            className="h-9 sm:h-10 px-3 sm:px-3.5 rounded-full bg-[#fbf0eb] hover:bg-[#f6e1d7] border border-[#B45529]/35 text-[#B45529] font-semibold text-xs sm:text-sm flex items-center gap-1.5 transition-all shadow-2xs hover:shadow-xs cursor-pointer group shrink-0"
+            className="w-9 sm:w-10 h-9 sm:h-10 rounded-full bg-[#fbf0eb] hover:bg-[#f6e1d7] border border-[#B45529]/35 text-[#B45529] flex items-center justify-center transition-all shadow-2xs hover:shadow-xs cursor-pointer group shrink-0"
             title="Start Voice Chat with Seiya"
             aria-label="Start Voice Chat with Seiya"
           >
-            <span className="w-2 h-2 rounded-full bg-[#B45529] group-hover:animate-ping" />
-            <SolarIcon name="microphone" size={16} className="text-[#B45529]" />
-            <span className="hidden sm:inline">Voice Chat</span>
+            <SolarIcon name="soundwave" size={18} className="text-[#B45529] group-hover:scale-110 transition-transform" />
           </button>
 
           <Button
