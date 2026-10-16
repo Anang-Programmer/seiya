@@ -1228,27 +1228,55 @@ export function ChatView() {
             className="flex-1 min-w-0 px-3 sm:px-4 py-2 sm:py-2.5 rounded-full bg-[#fef9ef] border border-[#d1c9bf] text-xs sm:text-sm text-[#2a2b2f] placeholder-[#808988] focus:outline-none focus:ring-2 focus:ring-[#B45529]/20 transition-all shadow-2xs"
           />
 
-          {/* Voice Chat Trigger Button */}
+          {/* Unified Dynamic Voice Chat & Send Action Button */}
           <button
-            type="button"
-            onClick={() => setIsVoiceChatActive(true)}
-            className="w-9 sm:w-10 h-9 sm:h-10 rounded-full bg-[#fbf0eb] hover:bg-[#f6e1d7] border border-[#B45529]/35 text-[#B45529] flex items-center justify-center transition-all shadow-2xs hover:shadow-xs cursor-pointer group shrink-0"
-            title="Start Voice Chat with Seiya"
-            aria-label="Start Voice Chat with Seiya"
+            type={inputText.trim() ? "submit" : "button"}
+            disabled={isProcessing}
+            onClick={(e) => {
+              if (!inputText.trim()) {
+                e.preventDefault();
+                setIsVoiceChatActive(true);
+              }
+            }}
+            className={`h-9 sm:h-10 shrink-0 flex items-center justify-center transition-all duration-300 ease-in-out cursor-pointer group select-none ${
+              inputText.trim()
+                ? "px-3.5 sm:px-5 rounded-[40px] bg-[#B45529] hover:bg-[#9a451e] border border-transparent text-[#fef9ef] shadow-xs active:scale-95"
+                : "w-9 sm:w-10 px-0 rounded-full bg-[#fbf0eb] hover:bg-[#f6e1d7] border border-[#B45529]/35 text-[#B45529] shadow-2xs hover:shadow-xs active:scale-95"
+            }`}
+            title={inputText.trim() ? "Send message" : "Start Voice Chat with Seiya"}
+            aria-label={inputText.trim() ? "Send message" : "Start Voice Chat with Seiya"}
           >
-            <SolarIcon name="soundwave" size={18} className="text-[#B45529] group-hover:scale-110 transition-transform" />
-          </button>
+            <div className="relative flex items-center justify-center">
+              {/* Soundwave Icon (Visible when input is empty) */}
+              <span
+                className={`flex items-center justify-center transition-all duration-300 ease-in-out ${
+                  inputText.trim()
+                    ? "opacity-0 scale-50 max-w-0 overflow-hidden pointer-events-none"
+                    : "opacity-100 scale-100 max-w-[40px]"
+                }`}
+              >
+                <SolarIcon
+                  name="soundwave"
+                  size={18}
+                  className="text-[#B45529] group-hover:scale-110 transition-transform"
+                />
+              </span>
 
-          <Button
-            type="submit"
-            variant="primary"
-            size="md"
-            disabled={!inputText.trim() || isProcessing}
-            className="rounded-[40px] px-3.5 sm:px-5 h-9 sm:h-10 shrink-0 font-bold flex items-center gap-1.5"
-          >
-            <SolarIcon name="paper-plane" size={15} className="text-[#fef9ef]" />
-            <span className="hidden sm:inline">Send</span>
-          </Button>
+              {/* Send Icon & Label (Visible when input has text) */}
+              <span
+                className={`flex items-center gap-1.5 transition-all duration-300 ease-in-out overflow-hidden ${
+                  inputText.trim()
+                    ? "opacity-100 scale-100 max-w-[100px]"
+                    : "opacity-0 scale-50 max-w-0 pointer-events-none"
+                }`}
+              >
+                <SolarIcon name="paper-plane" size={15} className="text-[#fef9ef] shrink-0" />
+                <span className="hidden sm:inline font-bold text-xs sm:text-sm text-[#fef9ef] whitespace-nowrap">
+                  Send
+                </span>
+              </span>
+            </div>
+          </button>
         </form>
       </>
     )}
