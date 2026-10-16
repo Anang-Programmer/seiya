@@ -1,20 +1,24 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Lora } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
   subsets: ["latin"],
+  variable: "--font-inter",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const lora = Lora({
   subsets: ["latin"],
+  variable: "--font-serif",
+  style: ["normal", "italic"],
 });
 
 export const metadata: Metadata = {
-  title: "Seiya",
-  description: "Seiya Web Application",
+  title: "Seiya — Money Decisions, Made Together",
+  description: "Personal Finance Co-Pilot for Couples with Dual-Key Mutual Agreements",
+  icons: {
+    icon: "/seiya-icon.svg",
+  },
 };
 
 export default function RootLayout({
@@ -23,9 +27,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${inter.variable} ${lora.variable}`} suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        suppressHydrationWarning
+        className="font-sans antialiased bg-[#fef9ef] text-[#2a2b2f] min-h-screen selection:bg-[#B45529]/20 selection:text-[#B45529]"
       >
         {children}
       </body>
