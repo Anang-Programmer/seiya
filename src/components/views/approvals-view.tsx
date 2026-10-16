@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs } from "@/components/ui/input";
 import { useApp, ApprovalRequest } from "@/lib/store";
 import { ApprovalDialog } from "@/components/modals/approval-dialog";
+import { ProposeExpenseDialog } from "@/components/modals/propose-expense-dialog";
 import { PageHeader } from "@/components/ui/page-header";
 
 export function ApprovalsView() {
@@ -15,6 +16,7 @@ export function ApprovalsView() {
   const [activeTab, setActiveTab] = useState<"waiting_me" | "waiting_partner" | "history">("waiting_me");
   const [selectedApproval, setSelectedApproval] = useState<ApprovalRequest | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [proposeExpenseOpen, setProposeExpenseOpen] = useState(false);
 
   // Categorize requests
   const waitingForMe = approvals.filter(
@@ -45,12 +47,23 @@ export function ApprovalsView() {
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-16">
 
-      {/* Tabs */}
-      <Tabs
-        items={tabItems}
-        activeKey={activeTab}
-        onChange={(key) => setActiveTab(key as any)}
-      />
+      {/* Tabs & Action */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <Tabs
+          items={tabItems}
+          activeKey={activeTab}
+          onChange={(key) => setActiveTab(key as any)}
+        />
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => setProposeExpenseOpen(true)}
+          className="rounded-full gap-1.5 self-start sm:self-auto shrink-0 text-xs shadow-2xs"
+        >
+          <SolarIcon name="plus" size={14} />
+          <span>Propose Expense</span>
+        </Button>
+      </div>
 
       {/* Requests List */}
       <div className="space-y-3.5">
@@ -180,6 +193,12 @@ export function ApprovalsView() {
         request={selectedApproval}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
+      />
+
+      {/* Propose Expense Modal */}
+      <ProposeExpenseDialog
+        open={proposeExpenseOpen}
+        onOpenChange={setProposeExpenseOpen}
       />
     </div>
   );

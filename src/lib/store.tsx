@@ -242,6 +242,25 @@ interface AppContextType {
   // Direct chat shortcut from dashboard
   pendingDirectChat: PendingDirectChat | null;
   setPendingDirectChat: (data: PendingDirectChat | null) => void;
+  // Expense Proposal
+  proposeExpense: (params: ProposeExpenseParams) => {
+    outcome: "NEED_APPROVAL" | "ALLOW" | "HOLD";
+    id: string;
+    reason: string;
+  };
+}
+
+export interface ProposeExpenseParams {
+  title: string;
+  amount: number;
+  currency: string;
+  category: "Food & Drinks" | "Shopping" | "Bills" | "Transportation" | "Health" | "Social" | "Others";
+  wallet: "shared" | "personal_a" | "personal_b";
+  splitRatio?: { partnerB: number; partnerA: number };
+  notes?: string;
+  urgency?: "routine" | "planned" | "urgent" | "emergency";
+  receiptName?: string;
+  targetDate?: string;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -1087,6 +1106,112 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     ]);
   };
 
+  const proposeExpense = (params: ProposeExpenseParams) => {
+    const decision = processGatewayDecision({
+      actionType: "EXPENSE",
+      title: params.title,
+      amount: params.amount,
+      currency: params.currency,
+      wallet: params.wallet,
+      category: params.category,
+    });
+
+    const approverRole: UserRole = currentUser === "partner_a" ? "partner_b" : "partner_a";
+    const approverName = approverRole === "partner_a" ? partnerAName : partnerBName;
+
+    if (decision.outcome === "NEED_APPROVAL") {
+      const newAppr: ApprovalRequest = {
+        id: `appr-exp-${Date.now()}`,
+        title: `Expense: ${params.title}`,
+        amount: params.amount,
+        currency: params.currency,
+        wallet: params.wallet,
+        requester: currentUser,
+        approver: approverRole,
+        status: "pending",
+        reason: params.notes ? `${params.notes} • ${decision.reason}` : decision.reason,
+        createdAt: new Date().toISOString(),
+        expiresInHours: 48,
+        category: "Expenses",
+        type: "EXPENSE",
+        notes: params.notes,
+      };
+      setApprovals((prev) => [newAppr, ...prev]);
+      setActivities((prev) => [
+        {
+          id: `act-${Date.now()}`,
+          title: `Expense Proposed: ${params.title}`,
+          category: "Approval Request",
+          actor: currentUser,
+          status: "NEED_APPROVAL",
+          amount: params.amount,
+          currency: params.currency,
+          reason: `Dual-Key signature required by ${approverName}.`,
+          timestamp: "Just now",
+          timeAgo: "Just now",
+        },
+        ...prev,
+      ]);
+      return { outcome: "NEED_APPROVAL" as const, id: newAppr.id, reason: decision.reason };
+    } else if (decision.outcome === "HOLD") {
+      const newHeld: HeldPurchase = {
+        id: `held-exp-${Date.now()}`,
+        title: params.title,
+        amount: params.amount,
+        currency: params.currency,
+        wallet: params.wallet,
+        requester: currentUser,
+        status: "held",
+        holdUntil: "Tomorrow at 08:00",
+        reason: decision.reason,
+        createdAt: new Date().toISOString(),
+      };
+      setHeldPurchases((prev) => [newHeld, ...prev]);
+      setActivities((prev) => [
+        {
+          id: `act-${Date.now()}`,
+          title: `Expense Held by Safeguard: ${params.title}`,
+          category: "Safeguard",
+          actor: currentUser,
+          status: "HOLD",
+          amount: params.amount,
+          currency: params.currency,
+          reason: decision.reason,
+          timestamp: "Just now",
+          timeAgo: "Just now",
+        },
+        ...prev,
+      ]);
+      return { outcome: "HOLD" as const, id: newHeld.id, reason: decision.reason };
+    } else {
+      recordTransaction({
+        title: params.title,
+        amount: -Math.abs(params.amount),
+        currency: params.currency,
+        category: params.category,
+        wallet: params.wallet,
+        paidBy: currentUser,
+        splitRatio: params.splitRatio,
+      });
+      setActivities((prev) => [
+        {
+          id: `act-${Date.now()}`,
+          title: `Expense Recorded: ${params.title}`,
+          category: "Transaction",
+          actor: currentUser,
+          status: "ALLOW",
+          amount: params.amount,
+          currency: params.currency,
+          reason: "Executed directly within agreed threshold.",
+          timestamp: "Just now",
+          timeAgo: "Just now",
+        },
+        ...prev,
+      ]);
+      return { outcome: "ALLOW" as const, id: `tx-${Date.now()}`, reason: "Expense recorded directly." };
+    }
+  };
+
   const addPlan = (newPlan: Omit<PlanItem, "id">): PlanItem => {
     const id = `plan-${Date.now()}`;
     const plan: PlanItem = {
@@ -1818,6 +1943,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         applyDemoPreset,
         pendingDirectChat,
         setPendingDirectChat,
+        proposeExpense,
       }}
     >
       {children}

@@ -12,6 +12,7 @@ import { TransactionDetailDialog } from "@/components/modals/transaction-detail-
 import { ApprovalDeck } from "@/components/cards/approval-deck";
 import { AllApprovalsModal } from "@/components/modals/all-approvals-modal";
 import { BillDialog } from "@/components/modals/bill-dialog";
+import { ProposeExpenseDialog } from "@/components/modals/propose-expense-dialog";
 import { MOCK_FX_METADATA } from "@/lib/currency";
 
 function TrendSparkline({
@@ -222,6 +223,7 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [transactionModalOpen, setTransactionModalOpen] = useState(false);
   const [addBillModalOpen, setAddBillModalOpen] = useState(false);
+  const [proposeExpenseModalOpen, setProposeExpenseModalOpen] = useState(false);
   const [txFilter, setTxFilter] = useState<"all" | "shared" | "partnerA" | "partnerB">("all");
   const [activeWeekIndex, setActiveWeekIndex] = useState<number | null>(null);
   const [showAskSeiyaInfo, setShowAskSeiyaInfo] = useState(false);
@@ -416,10 +418,7 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
           {/* 1. Propose Expense */}
           <button
             type="button"
-            onClick={() => {
-              setPendingDirectChat({ message: "Propose an expense for shared wallet: " });
-              onNavigate("seiya");
-            }}
+            onClick={() => setProposeExpenseModalOpen(true)}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white hover:bg-[#fcf7ee] text-[#2a2b2f] border border-[#e8dfd5] text-xs font-semibold shadow-2xs hover:shadow-xs hover:border-[#B45529]/40 transition-all cursor-pointer active:scale-97 shrink-0"
             title="Propose a new expense"
           >
@@ -510,8 +509,7 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
                 <button
                   type="button"
                   onClick={() => {
-                    setPendingDirectChat({ message: "Propose an expense for shared wallet: " });
-                    onNavigate("seiya");
+                    setProposeExpenseModalOpen(true);
                     setShowQuickActions(false);
                   }}
                   className="w-full flex items-center justify-between p-2.5 rounded-[14px] hover:bg-[#f5eee1] transition-all text-left group cursor-pointer"
@@ -1496,6 +1494,12 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
       <BillDialog
         open={addBillModalOpen}
         onOpenChange={setAddBillModalOpen}
+      />
+
+      {/* Propose Expense Modal */}
+      <ProposeExpenseDialog
+        open={proposeExpenseModalOpen}
+        onOpenChange={setProposeExpenseModalOpen}
       />
     </div>
   );
