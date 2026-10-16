@@ -131,9 +131,27 @@ export function BillDialog({ open, onOpenChange, billToEdit }: BillDialogProps) 
 
       <DialogContent className="pt-2 pb-4">
         {successMsg ? (
-          <div className="py-8 text-center space-y-3 animate-in fade-in-0">
-            <div className="w-12 h-12 rounded-full bg-[#edf3ec] text-[#2d5232] flex items-center justify-center mx-auto">
-              <SolarIcon name="check-circle" size={28} />
+          <div className="py-4 text-center space-y-3 animate-in fade-in-0">
+            <div
+              style={{
+                width: 200,
+                height: 170,
+                maskImage:
+                  "radial-gradient(ellipse 49% 45% at 50% 50%, #000 68%, rgba(0,0,0,0.85) 80%, rgba(0,0,0,0.4) 90%, transparent 98%)",
+                WebkitMaskImage:
+                  "radial-gradient(ellipse 49% 45% at 50% 50%, #000 68%, rgba(0,0,0,0.85) 80%, rgba(0,0,0,0.4) 90%, transparent 98%)",
+              }}
+              className="relative overflow-hidden shrink-0 select-none mx-auto flex items-center justify-center my-0"
+            >
+              <video
+                src="/other/ApprovedSeiya.webm"
+                autoPlay
+                loop
+                muted
+                playsInline
+                preload="auto"
+                className="w-full h-full object-contain pointer-events-none"
+              />
             </div>
             <h4 className="text-base font-serif text-[#2a2b2f]">
               {billToEdit ? "Bill Updated" : "Bill Reminder Registered"}

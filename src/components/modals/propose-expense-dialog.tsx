@@ -210,9 +210,37 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
       <DialogContent className="overflow-y-auto pr-2 pb-4 space-y-4 flex-1">
         {successResult ? (
           <div className="py-6 text-center space-y-4 animate-in fade-in-0 zoom-in-95">
-            <div className="w-14 h-14 rounded-full bg-[#edf3ec] text-[#2d5232] flex items-center justify-center mx-auto shadow-2xs">
-              <SolarIcon name="check-circle" size={32} />
-            </div>
+            {successResult.outcome === "NEED_APPROVAL" ? (
+              <div className="w-14 h-14 rounded-full bg-[#fbf0eb] text-[#B45529] flex items-center justify-center mx-auto shadow-2xs">
+                <SolarIcon name="shield-check" size={32} />
+              </div>
+            ) : successResult.outcome === "HOLD" ? (
+              <div className="w-14 h-14 rounded-full bg-[#fcf5e8] text-[#C98A4F] flex items-center justify-center mx-auto shadow-2xs">
+                <SolarIcon name="clock-circle" size={32} />
+              </div>
+            ) : (
+              <div
+                style={{
+                  width: 200,
+                  height: 170,
+                  maskImage:
+                    "radial-gradient(ellipse 49% 45% at 50% 50%, #000 68%, rgba(0,0,0,0.85) 80%, rgba(0,0,0,0.4) 90%, transparent 98%)",
+                  WebkitMaskImage:
+                    "radial-gradient(ellipse 49% 45% at 50% 50%, #000 68%, rgba(0,0,0,0.85) 80%, rgba(0,0,0,0.4) 90%, transparent 98%)",
+                }}
+                className="relative overflow-hidden shrink-0 select-none mx-auto flex items-center justify-center my-0"
+              >
+                <video
+                  src="/other/ApprovedSeiya.webm"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  preload="auto"
+                  className="w-full h-full object-contain pointer-events-none"
+                />
+              </div>
+            )}
 
             <div className="space-y-1">
               <h3 className="text-lg font-serif text-[#2a2b2f]">

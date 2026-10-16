@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SolarIcon } from "@/components/icons/solar";
 import { useApp, ApprovalRequest } from "@/lib/store";
-import { formatMoney } from "@/lib/utils";
+import { formatMoney, formatMoneyConverted } from "@/lib/utils";
 
 interface AllApprovalsModalProps {
   open: boolean;
@@ -40,6 +40,7 @@ export function AllApprovalsModal({ open, onOpenChange }: AllApprovalsModalProps
   const [pinError, setPinError] = useState("");
   const [isAuthorizing, setIsAuthorizing] = useState(false);
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
+  const [approvedCelebration, setApprovedCelebration] = useState<ApprovalRequest | null>(null);
 
   // Filtered and sorted from newest first
   const filteredApprovals = useMemo(() => {
@@ -118,6 +119,7 @@ export function AllApprovalsModal({ open, onOpenChange }: AllApprovalsModalProps
       setIsAuthorizing(false);
       const ok = approveApprovalRequest(pinPromptItem.id, pinInput);
       if (ok) {
+        setApprovedCelebration(pinPromptItem);
         setActionSuccessMsg(`Consensus confirmed! "${pinPromptItem.title}" has been authorized.`);
         setPinPromptItem(null);
         setPinInput("");
@@ -427,10 +429,15 @@ export function AllApprovalsModal({ open, onOpenChange }: AllApprovalsModalProps
                     </div>
 
                     {/* Right: Amount & Actions */}
-                    <div className="flex items-center sm:flex-col sm:items-end justify-between gap-2.5 pt-2 sm:pt-0 border-t sm:border-0 border-[#d1c9bf]/30">
-                      <span className="text-base sm:text-lg font-bold font-mono text-[#2a2b2f]">
+                    <div className="flex items-center sm:flex-col sm:items-end justify-between gap-1 pt-2 sm:pt-0 border-t sm:border-0 border-[#d1c9bf]/30">
+                      <span className="text-base sm:text-lg font-bold font-serif text-[#2a2b2f]">
                         {formatMoney(item.amount, currency, locale)}
                       </span>
+                      {currency !== reportingCurrency && (
+                        <span className="text-[11px] font-serif text-[#808988] block">
+                          ≈ {formatMoneyConverted(item.amount, currency, reportingCurrency, locale)}
+                        </span>
+                      )}
 
                       {isPending ? (
                         <div className="flex items-center gap-1.5">
@@ -491,6 +498,55 @@ export function AllApprovalsModal({ open, onOpenChange }: AllApprovalsModalProps
           Close
         </Button>
       </DialogFooter>
+
+      {/* Approved Celebration Modal */}
+      {approvedCelebration && (
+        <Dialog open={true} onOpenChange={() => setApprovedCelebration(null)} className="max-w-md">
+          <DialogHeader onClose={() => setApprovedCelebration(null)}>
+            <DialogTitle className="text-center font-serif font-normal text-lg">Signature Verified</DialogTitle>
+            <DialogDescription className="text-center text-xs">
+              Dual-Key authorization confirmed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogContent className="py-5 text-center space-y-3 animate-in fade-in-0 zoom-in-95 duration-200">
+            <div
+              style={{
+                width: 210,
+                height: 180,
+                maskImage:
+                  "radial-gradient(ellipse 49% 45% at 50% 50%, #000 68%, rgba(0,0,0,0.85) 80%, rgba(0,0,0,0.4) 90%, transparent 98%)",
+                WebkitMaskImage:
+                  "radial-gradient(ellipse 49% 45% at 50% 50%, #000 68%, rgba(0,0,0,0.85) 80%, rgba(0,0,0,0.4) 90%, transparent 98%)",
+              }}
+              className="relative overflow-hidden shrink-0 select-none mx-auto flex items-center justify-center my-0"
+            >
+              <video
+                src="/other/ApprovedSeiya.webm"
+                autoPlay
+                loop
+                muted
+                playsInline
+                preload="auto"
+                className="w-full h-full object-contain pointer-events-none"
+              />
+            </div>
+            <h4 className="text-lg font-serif font-normal text-[#2a2b2f]">Dual-Key Signature Confirmed!</h4>
+            <p className="text-xs text-[#515151] max-w-xs mx-auto leading-relaxed">
+              &quot;{approvedCelebration.title}&quot; successfully authorized and executed via Dual-Key Gateway.
+            </p>
+            <div className="pt-2">
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={() => setApprovedCelebration(null)}
+                className="text-xs"
+              >
+                Done
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </Dialog>
   );
 }
