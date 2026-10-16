@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { formatMoney, cn } from "@/lib/utils";
+import { formatMoney, formatMoneyConverted, cn } from "@/lib/utils";
 import { SolarIcon } from "@/components/icons/solar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -103,9 +103,14 @@ export function ActionCard({
 
       {/* Amount Display */}
       {amount !== undefined && (
-        <div className="my-2.5">
-          <span className="text-xl font-bold font-mono text-[#2a2b2f]">{formatMoney(amount, activeCurrency, locale)}</span>
-          {wallet && <span className="text-xs text-[#515151] ml-2">from {wallet}</span>}
+        <div className="my-2.5 flex items-baseline gap-2 flex-wrap">
+          <span className="text-xl font-bold font-serif text-[#2a2b2f]">{formatMoney(amount, activeCurrency, locale)}</span>
+          {activeCurrency !== reportingCurrency && (
+            <span className="text-xs font-serif text-[#808988]">
+              (≈ {formatMoneyConverted(amount, activeCurrency, reportingCurrency, locale)})
+            </span>
+          )}
+          {wallet && <span className="text-xs text-[#515151]">from {wallet}</span>}
         </div>
       )}
 
@@ -295,13 +300,22 @@ export function PlanCard({
       <div className="bg-[#fef9ef] rounded-[12px] p-4 mb-3.5">
         <div className="flex justify-between items-baseline mb-1.5">
           <span className="text-xs text-[#515151]">Target Goal:</span>
-          <span className="text-lg font-bold font-mono text-[#2a2b2f]">{formatMoney(targetAmount, planCurrency, locale)}</span>
+          <div className="text-right">
+            <span className="text-lg font-bold font-serif text-[#2a2b2f] block">
+              {formatMoney(targetAmount, planCurrency, locale)}
+            </span>
+            {planCurrency !== reportingCurrency && (
+              <span className="text-[11px] text-[#808988] font-serif block">
+                ≈ {formatMoneyConverted(targetAmount, planCurrency, reportingCurrency, locale)}
+              </span>
+            )}
+          </div>
         </div>
         {currentAmount > 0 && (
           <div className="space-y-1.5 mb-2.5">
             <div className="flex justify-between text-xs text-[#333333]">
-              <span>Saved so far: {formatMoney(currentAmount, planCurrency, locale)}</span>
-              <span className="font-bold text-[#B45529]">{progressPercent}%</span>
+              <span className="font-serif">Saved: {formatMoney(currentAmount, planCurrency, locale)}</span>
+              <span className="font-bold font-serif text-[#B45529]">{progressPercent}%</span>
             </div>
             <div className="w-full h-2 rounded-full bg-[#f5eee1] overflow-hidden">
               <div
@@ -314,7 +328,7 @@ export function PlanCard({
         <div className="grid grid-cols-2 gap-2 text-xs pt-2.5">
           <div>
             <span className="text-[#515151] block text-[11px]">Monthly Target</span>
-            <span className="font-semibold text-[#2a2b2f]">{formatMoney(monthlyTarget, planCurrency, locale)}/mo</span>
+            <span className="font-semibold font-serif text-[#2a2b2f]">{formatMoney(monthlyTarget, planCurrency, locale)}/mo</span>
           </div>
           <div>
             <span className="text-[#515151] block text-[11px]">Funding</span>

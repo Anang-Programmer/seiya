@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { formatMoney } from "@/lib/utils";
+import { formatMoney, convertAmount } from "@/lib/utils";
 import { SolarIcon } from "@/components/icons/solar";
 import { SeiyaIcon } from "@/components/icons/seiya-logo";
 import { Badge } from "@/components/ui/badge";
@@ -38,9 +38,14 @@ export function PlanView({ onNavigate }: { onNavigate?: (tab: any) => void }) {
   const [affordabilityResult, setAffordabilityResult] = useState<any>(null);
 
   const handleRunAffordabilityCheck = () => {
-    const totalBills = bills.reduce((acc, b) => acc + b.amount, 0);
+    const priceInShared = convertAmount(purchaseAmount, purchaseCurrency, wallets.shared.currency);
+    const totalBills = bills.reduce(
+      (acc, b) => acc + (b.status !== "paid" ? convertAmount(b.amount, b.currency || "USD", wallets.shared.currency) : 0),
+      0
+    );
     const sharedBal = wallets.shared.balance;
-    const remainingBuffer = sharedBal - totalBills - purchaseAmount;
+    const remainingBuffer = sharedBal - totalBills - priceInShared;
+    const safeBuffer = convertAmount(1000, "USD", wallets.shared.currency);
 
     setAffordabilityResult({
       price: purchaseAmount,
@@ -48,7 +53,7 @@ export function PlanView({ onNavigate }: { onNavigate?: (tab: any) => void }) {
       sharedBal,
       totalBills,
       remainingBuffer,
-      isAffordable: remainingBuffer > 1000,
+      isAffordable: remainingBuffer > safeBuffer,
     });
   };
 
@@ -223,26 +228,26 @@ export function PlanView({ onNavigate }: { onNavigate?: (tab: any) => void }) {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               <div className="p-3.5 bg-[#f5eee1] rounded-[12px]">
                 <span className="text-[#808988] block text-[11px]">Purchase Price</span>
-                <span className="font-extrabold text-[#2a2b2f] font-mono">
+                <span className="font-bold text-[#2a2b2f] font-serif">
                   {formatMoney(affordabilityResult.price, affordabilityResult.currency, locale)}
                 </span>
               </div>
               <div className="p-3.5 bg-[#f5eee1] rounded-[12px]">
                 <span className="text-[#808988] block text-[11px]">Shared Wallet Balance</span>
-                <span className="font-extrabold text-[#B45529] font-mono">
+                <span className="font-bold text-[#B45529] font-serif">
                   {formatMoney(affordabilityResult.sharedBal, wallets.shared.currency, locale)}
                 </span>
               </div>
               <div className="p-3.5 bg-[#f5eee1] rounded-[12px]">
                 <span className="text-[#808988] block text-[11px]">Upcoming Bills</span>
-                <span className="font-extrabold text-[#a34426] font-mono">
+                <span className="font-bold text-[#a34426] font-serif">
                   {formatMoney(affordabilityResult.totalBills, wallets.shared.currency, locale)}
                 </span>
               </div>
               <div className="p-3.5 bg-[#f5eee1] rounded-[12px]">
                 <span className="text-[#808988] block text-[11px]">Post-Purchase Cushion</span>
                 <span
-                  className={`font-extrabold font-mono ${
+                  className={`font-bold font-serif ${
                     affordabilityResult.remainingBuffer > 0 ? "text-[#2d5232]" : "text-[#a34426]"
                   }`}
                 >

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { formatMoney } from "@/lib/utils";
+import { formatMoney, formatMoneyConverted } from "@/lib/utils";
 import { SolarIcon } from "@/components/icons/solar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -60,10 +60,15 @@ export function WaitingListView() {
                       </span>
                     </div>
                     <div className="text-right">
-                      <span className="text-lg font-extrabold font-mono text-[#2a2b2f] block">
+                      <span className="text-lg font-extrabold font-serif text-[#2a2b2f] block">
                         {formatMoney(item.amount, itemCurrency, locale)}
                       </span>
-                      <span className="text-[11px] text-[#C98A4F] font-semibold block font-mono">
+                      {itemCurrency !== reportingCurrency && (
+                        <span className="text-xs font-serif text-[#808988] block">
+                          ≈ {formatMoneyConverted(item.amount, itemCurrency, reportingCurrency, locale)}
+                        </span>
+                      )}
+                      <span className="text-[11px] text-[#C98A4F] font-semibold block font-mono mt-0.5">
                         Held until: {item.holdUntil}
                       </span>
                     </div>

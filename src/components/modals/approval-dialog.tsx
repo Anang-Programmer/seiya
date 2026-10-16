@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { formatMoney } from "@/lib/utils";
+import { formatMoney, formatMoneyConverted } from "@/lib/utils";
 import { SolarIcon } from "@/components/icons/solar";
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -153,9 +153,14 @@ export function ApprovalDialog({ request, open, onOpenChange }: ApprovalDialogPr
             </div>
             <div className="text-right shrink-0">
               <span className="text-[10px] uppercase tracking-wider text-[#808988] block">Amount</span>
-              <span className="font-serif font-bold text-[#B45529] text-sm">
+              <span className="font-serif font-bold text-[#B45529] text-sm block">
                 {formatMoney(request.amount, reqCurrency, locale)}
               </span>
+              {reqCurrency !== reportingCurrency && request.amount > 0 && (
+                <span className="text-[10px] font-serif text-[#808988] block">
+                  ≈ {formatMoneyConverted(request.amount, reqCurrency, reportingCurrency, locale)}
+                </span>
+              )}
             </div>
           </div>
 
@@ -366,9 +371,16 @@ export function ApprovalDialog({ request, open, onOpenChange }: ApprovalDialogPr
             </div>
             <div className="flex justify-between items-baseline">
               <span className="text-xs text-[#515151]">Amount</span>
-              <span className="text-xl font-serif font-semibold text-[#2a2b2f]">
-                {formatMoney(request.amount, reqCurrency, locale)}
-              </span>
+              <div className="text-right">
+                <span className="text-xl font-serif font-semibold text-[#2a2b2f] block">
+                  {formatMoney(request.amount, reqCurrency, locale)}
+                </span>
+                {reqCurrency !== reportingCurrency && request.amount > 0 && (
+                  <span className="text-xs font-serif text-[#808988] block">
+                    ≈ {formatMoneyConverted(request.amount, reqCurrency, reportingCurrency, locale)}
+                  </span>
+                )}
+              </div>
             </div>
             <div className="flex justify-between items-baseline">
               <span className="text-xs text-[#515151]">Source Wallet</span>

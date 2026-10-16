@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { formatMoney } from "@/lib/utils";
+import { formatMoney, formatMoneyConverted } from "@/lib/utils";
 import { SolarIcon } from "@/components/icons/solar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -316,9 +316,14 @@ export function ProfileView({ onLogout, initialTab = "overview" }: ProfileViewPr
 
             <div className="p-4 rounded-[16px] bg-[#f5eee1] border border-[#d1c9bf]/30">
               <span className="text-xs font-semibold text-[#515151] block mb-1">Personal Wallet Balance</span>
-              <div className="text-2xl font-bold font-mono text-[#2a2b2f]">
+              <div className="text-2xl font-bold font-serif text-[#2a2b2f]">
                 {formatMoney(currentWallet.balance, currentWallet.currency, locale)}
               </div>
+              {currentWallet.currency !== reportingCurrency && (
+                <span className="text-xs font-serif text-[#808988] block mt-0.5">
+                  ≈ {formatMoneyConverted(currentWallet.balance, currentWallet.currency, reportingCurrency, locale)} ({reportingCurrency})
+                </span>
+              )}
               <span className="text-xs text-[#808988] mt-1 block">
                 {currentWallet.label} · Protected by privacy settings
               </span>
@@ -337,6 +342,9 @@ export function ProfileView({ onLogout, initialTab = "overview" }: ProfileViewPr
                   {currentUser === "partner_a"
                     ? `${partnerBName} owes you ${formatMoney(settlement.partnerBOwesA, settlement.currency, locale)}`
                     : `You owe ${partnerAName} ${formatMoney(settlement.partnerBOwesA, settlement.currency, locale)}`}
+                  {settlement.currency !== reportingCurrency && (
+                    <span className="font-serif"> (≈ {formatMoneyConverted(settlement.partnerBOwesA, settlement.currency, reportingCurrency, locale)})</span>
+                  )}
                 </p>
               </div>
             </div>
@@ -411,8 +419,13 @@ export function ProfileView({ onLogout, initialTab = "overview" }: ProfileViewPr
                 {proposedBy === currentUser ? (
                   <span>
                     You proposed changing the threshold to{" "}
-                    <strong className="font-mono text-[#2a2b2f]">
+                    <strong className="font-serif text-[#2a2b2f]">
                       {formatMoney(contract.proposedChange!.approvalThreshold, contract.thresholdCurrency, locale)}
+                      {contract.thresholdCurrency !== reportingCurrency && (
+                        <span className="text-xs font-normal text-[#515151]">
+                          {" "}(≈ {formatMoneyConverted(contract.proposedChange!.approvalThreshold, contract.thresholdCurrency, reportingCurrency, locale)})
+                        </span>
+                      )}
                     </strong>{" "}
                     and split to{" "}
                     <strong className="text-[#2a2b2f]">
@@ -423,8 +436,13 @@ export function ProfileView({ onLogout, initialTab = "overview" }: ProfileViewPr
                 ) : (
                   <span>
                     {proposedByName} proposed updating threshold to{" "}
-                    <strong className="font-mono text-[#2a2b2f]">
+                    <strong className="font-serif text-[#2a2b2f]">
                       {formatMoney(contract.proposedChange!.approvalThreshold, contract.thresholdCurrency, locale)}
+                      {contract.thresholdCurrency !== reportingCurrency && (
+                        <span className="text-xs font-normal text-[#515151]">
+                          {" "}(≈ {formatMoneyConverted(contract.proposedChange!.approvalThreshold, contract.thresholdCurrency, reportingCurrency, locale)})
+                        </span>
+                      )}
                     </strong>{" "}
                     and split to{" "}
                     <strong className="text-[#2a2b2f]">
@@ -578,15 +596,25 @@ export function ProfileView({ onLogout, initialTab = "overview" }: ProfileViewPr
             <div className="pt-3 border-t border-[#d1c9bf]/30 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div className="p-3 rounded-[12px] bg-[#fef9ef] border border-[#d1c9bf]/40">
                 <span className="text-[#808988] block text-[11px]">Single-Signature Limit:</span>
-                <span className="font-mono font-bold text-sm text-[#2a2b2f] mt-0.5 block">
+                <span className="font-serif font-bold text-sm text-[#2a2b2f] mt-0.5 block">
                   Under {formatMoney(contract.approvalThreshold, contract.thresholdCurrency, locale)}
+                  {contract.thresholdCurrency !== reportingCurrency && (
+                    <span className="text-[11px] font-normal text-[#515151]">
+                      {" "}(≈ {formatMoneyConverted(contract.approvalThreshold, contract.thresholdCurrency, reportingCurrency, locale)})
+                    </span>
+                  )}
                 </span>
                 <span className="text-[10px] text-[#515151] mt-0.5 block">Autonomous card swipe permitted</span>
               </div>
               <div className="p-3 rounded-[12px] bg-[#fef9ef] border border-[#d1c9bf]/40">
                 <span className="text-[#808988] block text-[11px]">Dual-Key Threshold:</span>
-                <span className="font-mono font-bold text-sm text-[#B45529] mt-0.5 block">
+                <span className="font-serif font-bold text-sm text-[#B45529] mt-0.5 block">
                   {formatMoney(contract.approvalThreshold, contract.thresholdCurrency, locale)}+
+                  {contract.thresholdCurrency !== reportingCurrency && (
+                    <span className="text-[11px] font-normal text-[#515151]">
+                      {" "}(≈ {formatMoneyConverted(contract.approvalThreshold, contract.thresholdCurrency, reportingCurrency, locale)})
+                    </span>
+                  )}
                 </span>
                 <span className="text-[10px] text-[#515151] mt-0.5 block">Both partner keys strictly required</span>
               </div>
@@ -640,8 +668,13 @@ export function ProfileView({ onLogout, initialTab = "overview" }: ProfileViewPr
               <h4 className="text-sm font-bold text-[#2a2b2f]">Late-Night Impulse Cooling-Off Safeguard</h4>
               <p className="text-xs text-[#515151] mt-1 leading-relaxed max-w-xl">
                 Enforces an automated 8-hour cooling-off holding window on late-night high-value purchases over{" "}
-                <span className="font-semibold text-[#2a2b2f]">
+                <span className="font-serif font-semibold text-[#2a2b2f]">
                   {formatMoney(contract.cooldownThreshold, contract.cooldownCurrency, locale)}
+                  {contract.cooldownCurrency !== reportingCurrency && (
+                    <span className="font-normal text-[#515151]">
+                      {" "}(≈ {formatMoneyConverted(contract.cooldownThreshold, contract.cooldownCurrency, reportingCurrency, locale)})
+                    </span>
+                  )}
                 </span>
                 .
               </p>

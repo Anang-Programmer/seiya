@@ -10,7 +10,7 @@ export function formatIDR(amount: number): string {
   return formatMoney(amount, "IDR", "id-ID");
 }
 
-export { formatMoney } from "./currency";
+export { formatMoney, formatMoneyConverted, convertMoney, convertAmount } from "./currency";
 
 export interface CategoryVisual {
   iconName: import("@/components/icons/solar").SolarIconName;

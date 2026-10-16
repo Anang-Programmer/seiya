@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useApp, PlanItem } from "@/lib/store";
 import { SUPPORTED_CURRENCIES } from "@/lib/currency";
-import { formatMoney } from "@/lib/utils";
+import { formatMoney, formatMoneyConverted } from "@/lib/utils";
 
 interface AddGoalViewProps {
   onBack: () => void;
@@ -346,9 +346,16 @@ export function AddGoalView({ onBack, onGoalCreated }: AddGoalViewProps) {
 
             <div className="pt-3 border-t border-[#d1c9bf]/40 flex items-center justify-between text-xs sm:text-sm">
               <span className="text-[#515151]">Total Needed Monthly (Combined):</span>
-              <span className="font-mono font-extrabold text-base text-[#B45529]">
-                {formatMoney(monthlyTotal, currency, locale)} / month
-              </span>
+              <div className="text-right">
+                <span className="font-serif font-extrabold text-base text-[#B45529] block">
+                  {formatMoney(monthlyTotal, currency, locale)} / month
+                </span>
+                {currency !== reportingCurrency && (
+                  <span className="text-[11px] font-serif text-[#808988] block">
+                    ≈ {formatMoneyConverted(monthlyTotal, currency, reportingCurrency, locale)} / mo ({reportingCurrency})
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -435,9 +442,14 @@ export function AddGoalView({ onBack, onGoalCreated }: AddGoalViewProps) {
               <div className="p-4 rounded-[16px] bg-[#fdfaf5] border border-[#d1c9bf]/60 flex flex-col justify-between">
                 <div>
                   <span className="text-xs text-[#808988] block font-medium">{partnerAName}&apos;s Share ({activeSplitA}%)</span>
-                  <span className="text-lg sm:text-xl font-bold font-mono text-[#2d5232] block mt-1">
+                  <span className="text-lg sm:text-xl font-bold font-serif text-[#2d5232] block mt-1">
                     {formatMoney(partnerAAmount, currency, locale)}
                   </span>
+                  {currency !== reportingCurrency && (
+                    <span className="text-[11px] font-serif text-[#808988] block mt-0.5">
+                      ≈ {formatMoneyConverted(partnerAAmount, currency, reportingCurrency, locale)}
+                    </span>
+                  )}
                 </div>
                 <span className="text-[11px] text-[#808988] mt-2 block">per month</span>
               </div>
@@ -445,9 +457,14 @@ export function AddGoalView({ onBack, onGoalCreated }: AddGoalViewProps) {
               <div className="p-4 rounded-[16px] bg-[#fdfaf5] border border-[#d1c9bf]/60 flex flex-col justify-between">
                 <div>
                   <span className="text-xs text-[#808988] block font-medium">{partnerBName}&apos;s Share ({activeSplitB}%)</span>
-                  <span className="text-lg sm:text-xl font-bold font-mono text-[#B45529] block mt-1">
+                  <span className="text-lg sm:text-xl font-bold font-serif text-[#B45529] block mt-1">
                     {formatMoney(partnerBAmount, currency, locale)}
                   </span>
+                  {currency !== reportingCurrency && (
+                    <span className="text-[11px] font-serif text-[#808988] block mt-0.5">
+                      ≈ {formatMoneyConverted(partnerBAmount, currency, reportingCurrency, locale)}
+                    </span>
+                  )}
                 </div>
                 <span className="text-[11px] text-[#808988] mt-2 block">per month</span>
               </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useMemo } from "react";
-import { formatMoney, convertMoney, SUPPORTED_CURRENCIES, MOCK_FX_METADATA } from "./currency";
+import { formatMoney, convertMoney, convertAmount, SUPPORTED_CURRENCIES, MOCK_FX_METADATA } from "./currency";
 
 export type UserRole = "partner_a" | "partner_b";
 
@@ -1587,17 +1587,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const lower = text.toLowerCase();
 
-    // 1. Record shared expense (USD 85 or IDR 85.000)
-    if (lower.includes("85") && (lower.includes("lunch") || lower.includes("dinner") || lower.includes("paid"))) {
-      const isIDR = lower.includes("85.000") || reportingCurrency === "IDR";
-      const currency = isIDR ? "IDR" : "USD";
-      const amount = isIDR ? 85_000 : 85;
+    // 1. Record shared expense
+    if (lower.includes("lunch") || lower.includes("dinner") || lower.includes("paid") || lower.includes("85") || lower.includes("45")) {
+      const currency = reportingCurrency;
+      const amount = convertAmount(45, "USD", reportingCurrency);
       const splitB = 60;
       const splitA = 40;
       const bOwes = (amount * splitB) / 100;
 
       const recordedTx = recordTransaction({
-        title: "Dinner together",
+        title: "Lunch together",
         amount: -amount,
         currency,
         category: "Food & Drinks",
@@ -1615,7 +1614,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         timestamp: new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
         cardType: "ACTION_ALLOW",
         cardData: {
-          title: "Dinner together",
+          title: "Lunch together",
           category: "Food & Drinks",
           amount,
           currency,
@@ -1631,10 +1630,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     // 2. Clarification
-    if (lower.includes("groceries") && (lower.includes("450") || lower.includes("145") || lower.includes("monthly"))) {
-      const isIDR = lower.includes("450") || reportingCurrency === "IDR";
-      const currency = isIDR ? "IDR" : "USD";
-      const amount = isIDR ? 450_000 : 145;
+    if (lower.includes("groceries")) {
+      const currency = reportingCurrency;
+      const amount = convertAmount(120, "USD", reportingCurrency);
 
       const seiyaReply: ChatMessage = {
         id: `msg-${Date.now() + 1}`,
@@ -1656,10 +1654,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     // 3. Edit / Correct transaction
-    if (lower.includes("58") || lower.includes("actually") || lower.includes("correct it")) {
-      const isIDR = lower.includes("58.000") || reportingCurrency === "IDR";
-      const currency = isIDR ? "IDR" : "USD";
-      const amount = isIDR ? 58_000 : 58;
+    if (lower.includes("actually") || lower.includes("correct") || lower.includes("38") || lower.includes("58")) {
+      const currency = reportingCurrency;
+      const amount = convertAmount(38, "USD", reportingCurrency);
       const bOwes = (amount * 60) / 100;
 
       setTransactions((prev) =>
@@ -1683,7 +1680,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         timestamp: new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
         cardType: "ACTION_ALLOW",
         cardData: {
-          title: "Dinner together (Updated)",
+          title: "Lunch together (Updated)",
           category: "Food & Drinks",
           amount,
           currency,
@@ -1698,15 +1695,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // 4. Shared bill approval (e.g. USD 1,200 insurance)
-    if (lower.includes("insurance") || lower.includes("motor") || lower.includes("installment") || lower.includes("1200")) {
-      const isIDR = reportingCurrency === "IDR";
-      const currency = isIDR ? "IDR" : "USD";
-      const amount = isIDR ? 1_200_000 : 1200;
+    // 4. Shared bill approval (e.g. shared flights or insurance)
+    if (lower.includes("flight") || lower.includes("insurance") || lower.includes("motor") || lower.includes("installment") || lower.includes("650") || lower.includes("1200")) {
+      const currency = reportingCurrency;
+      const amount = convertAmount(650, "USD", reportingCurrency);
 
       const gateway = processGatewayDecision({
         actionType: "BILL_PAY",
-        title: isIDR ? "Motor installment (Shared)" : "Annual Home Insurance",
+        title: "Shared Flight Tickets",
         amount,
         currency,
         wallet: "shared",
@@ -1715,7 +1711,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (gateway.outcome === "NEED_APPROVAL") {
         const newAppr: ApprovalRequest = {
           id: `appr-${Date.now()}`,
-          title: isIDR ? "Motor installment (Shared)" : "Annual Home Insurance",
+          title: "Shared Flight Tickets",
           amount,
           currency,
           wallet: "shared",
@@ -1735,7 +1731,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           timestamp: new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
           cardType: "ACTION_NEED_APPROVAL",
           cardData: {
-            title: isIDR ? "Motor installment (Shared)" : "Annual Home Insurance",
+            title: "Shared Flight Tickets",
             amount,
             currency,
             wallet: "Shared savings",
@@ -1752,14 +1748,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     // 5. Cooling-off hold
-    if (lower.includes("jacket") || lower.includes("shoes") || lower.includes("flash-sale") || lower.includes("1250") || lower.includes("1.800")) {
-      const isIDR = reportingCurrency === "IDR";
-      const currency = isIDR ? "IDR" : "USD";
-      const amount = isIDR ? 1_800_000 : 1250;
+    if (lower.includes("tv") || lower.includes("jacket") || lower.includes("shoes") || lower.includes("flash-sale") || lower.includes("1400") || lower.includes("1250")) {
+      const currency = reportingCurrency;
+      const amount = convertAmount(1400, "USD", reportingCurrency);
 
       const gateway = processGatewayDecision({
         actionType: "PURCHASE",
-        title: isIDR ? "Flash-sale Limited Sneakers" : "Designer Jacket",
+        title: "Flash-sale 4K OLED TV",
         amount,
         currency,
         wallet: "shared",
@@ -1769,7 +1764,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (gateway.outcome === "HOLD") {
         const newHeld: HeldPurchase = {
           id: `hold-${Date.now()}`,
-          title: isIDR ? "Flash-sale Limited Sneakers" : "Designer Jacket",
+          title: "Flash-sale 4K OLED TV",
           amount,
           currency,
           wallet: "shared",
@@ -1788,7 +1783,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           timestamp: new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
           cardType: "ACTION_HOLD",
           cardData: {
-            title: isIDR ? "Flash-sale Limited Sneakers" : "Designer Jacket",
+            title: "Flash-sale 4K OLED TV",
             amount,
             currency,
             wallet: "Shared wallet",
@@ -1804,6 +1799,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // 6. External transfer denial
     if (lower.includes("external") || (lower.includes("transfer") && lower.includes("account"))) {
+      const currency = reportingCurrency;
+      const amount = convertAmount(2500, "USD", reportingCurrency);
+
       const seiyaReply: ChatMessage = {
         id: `msg-${Date.now() + 1}`,
         sender: "seiya",
@@ -1812,8 +1810,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         cardType: "ACTION_DENY",
         cardData: {
           title: "External Wire Transfer",
-          amount: 2000,
-          currency: reportingCurrency,
+          amount,
+          currency,
           reason: "Direct transfer to external account is blocked by the Dual-Key Gateway.",
           safeAlternative: "Record internal couple allocations or joint goal contributions.",
         },
@@ -1840,14 +1838,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // 8. Global Honeymoon Goal Plan (USD 2,000 or USD 6,000)
-    if (lower.includes("vacation") || lower.includes("honeymoon") || lower.includes("kyoto") || lower.includes("20.000.000") || lower.includes("2000")) {
-      const isIDR = reportingCurrency === "IDR";
-      const currency = isIDR ? "IDR" : "USD";
-      const target = isIDR ? 20_000_000 : 2000;
-      const monthly = target / 10;
-      const splitB = (monthly * 60) / 100;
-      const splitA = (monthly * 40) / 100;
+    // 8. Global Honeymoon Goal Plan
+    if (lower.includes("vacation") || lower.includes("honeymoon") || lower.includes("kyoto") || lower.includes("trip") || lower.includes("15000") || lower.includes("2000")) {
+      const currency = reportingCurrency;
+      const target = convertAmount(15000, "USD", reportingCurrency);
+      const monthly = Math.round(target / 10);
+      const splitB = Math.round((monthly * 60) / 100);
+      const splitA = Math.round((monthly * 40) / 100);
 
       const seiyaReply: ChatMessage = {
         id: `msg-${Date.now() + 1}`,

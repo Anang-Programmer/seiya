@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { formatMoney } from "@/lib/utils";
+import { formatMoney, formatMoneyConverted } from "@/lib/utils";
 import { SolarIcon } from "@/components/icons/solar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -114,10 +114,15 @@ export function ApprovalsView() {
                     </span>
                   </div>
                   <div className="text-right">
-                    <span className="text-lg font-extrabold font-mono text-[#2a2b2f] block">
+                    <span className="text-lg font-bold font-serif text-[#2a2b2f] block">
                       {formatMoney(req.amount, reqCurrency, locale)}
                     </span>
-                    <span className="text-[10px] text-[#C98A4F] font-medium font-mono">
+                    {reqCurrency !== reportingCurrency && req.amount > 0 && (
+                      <span className="text-[11px] text-[#808988] font-serif block">
+                        ≈ {formatMoneyConverted(req.amount, reqCurrency, reportingCurrency, locale)}
+                      </span>
+                    )}
+                    <span className="text-[10px] text-[#C98A4F] font-medium font-serif">
                       Expires in ~{req.expiresInHours}h
                     </span>
                   </div>

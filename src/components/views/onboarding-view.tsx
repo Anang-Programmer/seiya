@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { formatMoney } from "@/lib/utils";
+import { formatMoney, formatMoneyConverted } from "@/lib/utils";
 import { SolarIcon } from "@/components/icons/solar";
 import { SeiyaIcon } from "@/components/icons/seiya-logo";
 import { Badge } from "@/components/ui/badge";
@@ -150,14 +150,14 @@ export function OnboardingView({ onComplete, onCancel }: OnboardingProps) {
                         : "bg-[#f5eee1] hover:bg-[#f2e7d7]"
                     }`}
                   >
-                    <span className="text-sm font-semibold font-mono text-[#2a2b2f] block">{s.label}</span>
+                    <span className="text-sm font-semibold font-serif text-[#2a2b2f] block">{s.label}</span>
                     <span className="text-[10px] text-[#515151] block mt-0.5">{s.desc}</span>
                   </div>
                 ))}
               </div>
 
               <div className="p-3.5 rounded-[12px] bg-[#f5eee1] text-xs text-[#333333]">
-                Selected split: <strong>{partnerBName} {splitRatio.dina}%</strong> and <strong>{partnerAName} {splitRatio.raka}%</strong>. If lunch is {formatMoney(100, reportingCurrency, locale)}, {partnerBName} contributes {formatMoney(splitRatio.dina, reportingCurrency, locale)} and {partnerAName} {formatMoney(splitRatio.raka, reportingCurrency, locale)}.
+                Selected split: <strong>{partnerBName} {splitRatio.dina}%</strong> and <strong>{partnerAName} {splitRatio.raka}%</strong>. If lunch is <strong className="font-serif">{formatMoneyConverted(100, "USD", reportingCurrency, locale)}</strong>, {partnerBName} contributes <strong className="font-serif">{formatMoneyConverted(splitRatio.dina, "USD", reportingCurrency, locale)}</strong> and {partnerAName} <strong className="font-serif">{formatMoneyConverted(splitRatio.raka, "USD", reportingCurrency, locale)}</strong>.
               </div>
             </div>
           )}
@@ -173,29 +173,32 @@ export function OnboardingView({ onComplete, onCancel }: OnboardingProps) {
               </div>
 
               <div className="space-y-2">
-                {[250, 500, 1000].map((amt) => (
-                  <div
-                    key={amt}
-                    onClick={() => setThreshold(amt)}
-                    className={`p-3.5 rounded-[12px] flex items-center justify-between cursor-pointer transition-all ${
-                      threshold === amt
-                        ? "bg-[#B45529]/15 shadow-xs"
-                        : "bg-[#f5eee1] hover:bg-[#f2e7d7]"
-                    }`}
-                  >
-                    <div>
-                      <span className="text-xs font-semibold font-mono text-[#2a2b2f] block">
-                        {formatMoney(amt, reportingCurrency, locale)}
-                      </span>
-                      <span className="text-[10px] text-[#515151]">
-                        {amt === 500 ? "Default recommended threshold" : "Custom boundary"}
-                      </span>
+                {[250, 500, 1000].map((amt) => {
+                  const displayConverted = formatMoneyConverted(amt, "USD", reportingCurrency, locale);
+                  return (
+                    <div
+                      key={amt}
+                      onClick={() => setThreshold(amt)}
+                      className={`p-3.5 rounded-[12px] flex items-center justify-between cursor-pointer transition-all ${
+                        threshold === amt
+                          ? "bg-[#B45529]/15 shadow-xs"
+                          : "bg-[#f5eee1] hover:bg-[#f2e7d7]"
+                      }`}
+                    >
+                      <div>
+                        <span className="text-xs font-semibold font-serif text-[#2a2b2f] block">
+                          {displayConverted}
+                        </span>
+                        <span className="text-[10px] text-[#515151]">
+                          {amt === 500 ? "Default recommended threshold" : "Custom boundary"}
+                        </span>
+                      </div>
+                      {threshold === amt && (
+                        <SolarIcon name="check-circle" size={16} className="text-[#B45529]" />
+                      )}
                     </div>
-                    {threshold === amt && (
-                      <SolarIcon name="check-circle" size={16} className="text-[#B45529]" />
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -224,7 +227,7 @@ export function OnboardingView({ onComplete, onCancel }: OnboardingProps) {
                   />
                 </div>
                 <p className="text-xs text-[#333333] leading-relaxed">
-                  When enabled, purchases over <strong>{formatMoney(1000, reportingCurrency, locale)}</strong> made between <strong>23:00 - 08:00</strong> are automatically placed on an 8-hour hold. Either partner can cancel or continue with secondary confirmation.
+                  When enabled, purchases over <strong className="font-serif">{formatMoneyConverted(1000, "USD", reportingCurrency, locale)}</strong> made between <strong>23:00 - 08:00</strong> are automatically placed on an 8-hour hold. Either partner can cancel or continue with secondary confirmation.
                 </p>
               </div>
             </div>
@@ -247,7 +250,7 @@ export function OnboardingView({ onComplete, onCancel }: OnboardingProps) {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-[#515151]">Reporting Currency:</span>
-                  <span className="font-mono font-semibold text-[#2a2b2f]">{reportingCurrency}</span>
+                  <span className="font-serif font-semibold text-[#2a2b2f]">{reportingCurrency}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-[#515151]">Shared Split:</span>
@@ -257,8 +260,8 @@ export function OnboardingView({ onComplete, onCancel }: OnboardingProps) {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-[#515151]">Approval Limit:</span>
-                  <span className="font-semibold font-mono text-[#2a2b2f]">
-                    {formatMoney(threshold, reportingCurrency, locale)}
+                  <span className="font-semibold font-serif text-[#2a2b2f]">
+                    {formatMoneyConverted(threshold, "USD", reportingCurrency, locale)}
                   </span>
                 </div>
                 <div className="flex justify-between">

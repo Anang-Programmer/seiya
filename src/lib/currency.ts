@@ -130,3 +130,31 @@ export function convertMoney(
     isEstimate: true,
   };
 }
+
+/**
+ * Formats money with automatic currency conversion if fromCurrency !== toCurrency.
+ * If fromCurrency is omitted, it assumes the amount is in USD base.
+ */
+export function formatMoneyConverted(
+  amount: number,
+  fromCurrency: string = "USD",
+  toCurrency: string = "USD",
+  locale: string = "en-US"
+): string {
+  const conv = convertMoney(amount, fromCurrency, toCurrency);
+  const finalAmount = conv.available ? conv.convertedAmount : amount;
+  return formatMoney(finalAmount, toCurrency, locale);
+}
+
+/**
+ * Convert an amount from fromCurrency to toCurrency, returning the numeric value.
+ * Fallback to original amount if rate not found.
+ */
+export function convertAmount(
+  amount: number,
+  fromCurrency: string = "USD",
+  toCurrency: string = "USD"
+): number {
+  const conv = convertMoney(amount, fromCurrency, toCurrency);
+  return conv.available ? conv.convertedAmount : amount;
+}

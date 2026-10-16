@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { formatMoney } from "@/lib/utils";
+import { formatMoney, formatMoneyConverted } from "@/lib/utils";
 import { SolarIcon } from "@/components/icons/solar";
 import { Badge } from "@/components/ui/badge";
 import { useApp } from "@/lib/store";
@@ -199,9 +199,14 @@ export function ActivityView() {
                   {item.amount && (
                     <div className="text-right">
                       <span className="text-xs text-[#808988] font-normal mr-1.5">Amount:</span>
-                      <span className="font-bold text-sm text-[#2a2b2f] font-mono">
+                      <span className="font-bold text-sm text-[#2a2b2f] font-serif">
                         {formatMoney(item.amount, itemCurrency, locale)}
                       </span>
+                      {itemCurrency !== reportingCurrency && (
+                        <span className="text-[10px] text-[#808988] font-serif block">
+                          ≈ {formatMoneyConverted(item.amount, itemCurrency, reportingCurrency, locale)}
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>

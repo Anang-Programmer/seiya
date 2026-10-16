@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
-import { formatMoney, getTransactionCategoryVisual } from "@/lib/utils";
+import React, { useState, useRef, useEffect, useMemo } from "react";
+import { formatMoney, formatMoneyConverted, convertMoney, convertAmount, getTransactionCategoryVisual } from "@/lib/utils";
 import { SolarIcon } from "@/components/icons/solar";
 import { SeiyaIcon } from "@/components/icons/seiya-logo";
 import { Badge } from "@/components/ui/badge";
@@ -323,13 +323,37 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
     return true;
   });
 
-  const categories = [
-    { name: "Shopping", count: "14 Transactions", percent: "58.4%", amount: "-$2,866.00", color: "#B45529" },
-    { name: "Food & Drinks", count: "12 Transactions", percent: "28.18%", amount: "-$1,385.00", color: "#C98A4F" },
-    { name: "Bills", count: "3 Transactions", percent: "8.92%", amount: "-$437.00", color: "#3B1D17" },
-    { name: "Health", count: "1 Transaction", percent: "2.78%", amount: "-$136.00", color: "#3d5a40" },
-    { name: "Transportation", count: "2 Transactions", percent: "1.72%", amount: "-$84.00", color: "#808988" },
-  ];
+  const rawCategories = useMemo(() => [
+    { name: "Shopping", count: "14 Transactions", percent: "58.4%", usdAmount: -2866, color: "#B45529" },
+    { name: "Food & Drinks", count: "12 Transactions", percent: "28.18%", usdAmount: -1385, color: "#C98A4F" },
+    { name: "Bills", count: "3 Transactions", percent: "8.92%", usdAmount: -437, color: "#3B1D17" },
+    { name: "Health", count: "1 Transaction", percent: "2.78%", usdAmount: -136, color: "#3d5a40" },
+    { name: "Transportation", count: "2 Transactions", percent: "1.72%", usdAmount: -84, color: "#808988" },
+  ], []);
+
+  const categories = useMemo(() => {
+    return rawCategories.map((c) => ({
+      ...c,
+      amount: formatMoneyConverted(c.usdAmount, "USD", reportingCurrency, locale),
+    }));
+  }, [rawCategories, reportingCurrency, locale]);
+
+  const yLabels = useMemo(() => {
+    const k6 = convertAmount(6000, "USD", reportingCurrency);
+    const k4 = convertAmount(4000, "USD", reportingCurrency);
+    const k2 = convertAmount(2000, "USD", reportingCurrency);
+    const formatCompact = (val: number) => {
+      if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(0)}M`;
+      if (val >= 1_000) return `${(val / 1_000).toFixed(0)}k`;
+      return Math.round(val).toString();
+    };
+    return {
+      top: formatCompact(k6),
+      midTop: formatCompact(k4),
+      midBottom: formatCompact(k2),
+      zero: "0",
+    };
+  }, [reportingCurrency]);
 
   const isPartnerA = currentUser === "partner_a";
 
@@ -863,8 +887,8 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
                           <span className="w-2 h-2 rounded-full bg-[#557353] shrink-0" />
                           <span>Income:</span>
                         </span>
-                        <span className="font-mono font-bold text-xs text-[#86efac]">
-                          +{formatMoney(activeWeek.income, reportingCurrency, locale)}
+                        <span className="font-serif font-bold text-xs text-[#86efac]">
+                          +{formatMoneyConverted(activeWeek.income, "USD", reportingCurrency, locale)}
                         </span>
                       </div>
 
@@ -873,8 +897,8 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
                           <span className="w-2 h-2 rounded-full bg-[#e39c83] shrink-0" />
                           <span>Expenses:</span>
                         </span>
-                        <span className="font-mono font-bold text-xs text-[#fca5a5]">
-                          -{formatMoney(activeWeek.expenses, reportingCurrency, locale)}
+                        <span className="font-serif font-bold text-xs text-[#fca5a5]">
+                          -{formatMoneyConverted(activeWeek.expenses, "USD", reportingCurrency, locale)}
                         </span>
                       </div>
 
@@ -883,8 +907,8 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
                           <span className="w-2 h-2 rounded-full bg-[#e6c19c] shrink-0" />
                           <span>Savings:</span>
                         </span>
-                        <span className="font-mono font-bold text-xs text-[#fde047]">
-                          {formatMoney(activeWeek.savings, reportingCurrency, locale)}
+                        <span className="font-serif font-bold text-xs text-[#fde047]">
+                          {formatMoneyConverted(activeWeek.savings, "USD", reportingCurrency, locale)}
                         </span>
                       </div>
                     </div>
@@ -907,16 +931,16 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
                   xmlns="http://www.w3.org/2000/svg"
                 >
                   {/* Horizontal Gridlines & Y-Axis labels */}
-                  <text x="0" y="24" fill="#808988" fontSize="11" fontFamily="sans-serif">$6k</text>
+                  <text x="0" y="24" fill="#808988" fontSize="10" fontFamily="serif" fontWeight="bold">{yLabels.top}</text>
                   <line x1="32" y1="20" x2="455" y2="20" stroke="#e8dfd5" strokeWidth="1" strokeDasharray="3 3" opacity="0.6" />
 
-                  <text x="0" y="74" fill="#808988" fontSize="11" fontFamily="sans-serif">$4k</text>
+                  <text x="0" y="74" fill="#808988" fontSize="10" fontFamily="serif" fontWeight="bold">{yLabels.midTop}</text>
                   <line x1="32" y1="70" x2="455" y2="70" stroke="#e8dfd5" strokeWidth="1" strokeDasharray="3 3" opacity="0.6" />
 
-                  <text x="0" y="124" fill="#808988" fontSize="11" fontFamily="sans-serif">$2k</text>
+                  <text x="0" y="124" fill="#808988" fontSize="10" fontFamily="serif" fontWeight="bold">{yLabels.midBottom}</text>
                   <line x1="32" y1="120" x2="455" y2="120" stroke="#e8dfd5" strokeWidth="1" strokeDasharray="3 3" opacity="0.6" />
 
-                  <text x="0" y="174" fill="#808988" fontSize="11" fontFamily="sans-serif">$0</text>
+                  <text x="0" y="174" fill="#808988" fontSize="10" fontFamily="serif" fontWeight="bold">{yLabels.zero}</text>
                   <line x1="32" y1="170" x2="455" y2="170" stroke="#e8dfd5" strokeWidth="1.2" opacity="0.9" />
 
                   {/* 4 Interactive Weekly Bars */}
@@ -1004,7 +1028,7 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
                 </span>
                 <div className="flex items-center justify-between">
                   <div className="text-2xl sm:text-[28px] font-serif font-bold text-[#2a2b2f] tracking-tight">
-                    {formatMoney(5320, reportingCurrency, locale)}
+                    {formatMoneyConverted(5320, "USD", reportingCurrency, locale)}
                   </div>
                   <div className="flex items-center gap-0.5 text-xs font-bold text-[#2d5232]">
                     <span className="text-[11px]">↑</span>
@@ -1022,7 +1046,7 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
                 </span>
                 <div className="flex items-center justify-between">
                   <div className="text-2xl sm:text-[28px] font-serif font-bold text-[#B45529] tracking-tight">
-                    {formatMoney(3180, reportingCurrency, locale)}
+                    {formatMoneyConverted(3180, "USD", reportingCurrency, locale)}
                   </div>
                   <div className="flex items-center gap-0.5 text-xs font-bold text-[#a34426]">
                     <span className="text-[11px]">↓</span>
@@ -1040,7 +1064,7 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
                 </span>
                 <div className="flex items-center justify-between">
                   <div className="text-2xl sm:text-[28px] font-serif font-bold text-[#2a2b2f] tracking-tight">
-                    {formatMoney(1240, reportingCurrency, locale)}
+                    {formatMoneyConverted(1240, "USD", reportingCurrency, locale)}
                   </div>
                   <div className="flex items-center gap-0.5 text-xs font-bold text-[#2d5232]">
                     <span className="text-[11px]">↑</span>
@@ -1160,7 +1184,7 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
           <div>
             <h4 className="text-xs font-bold text-[#C98A4F]">Monthly Budget Alert: 90.7% Spent</h4>
             <p className="text-[11px] text-[#515151] mt-0.5">
-              You’ve used {formatMoney(6350, reportingCurrency, locale)} out of your {formatMoney(7000, reportingCurrency, locale)} budget with 8 days remaining.
+              You’ve used {formatMoneyConverted(6350, "USD", reportingCurrency, locale)} out of your {formatMoneyConverted(7000, "USD", reportingCurrency, locale)} budget with 8 days remaining.
             </p>
           </div>
         </div>
@@ -1239,12 +1263,17 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
                   <div className="text-right flex items-center gap-2.5">
                     <div>
                       <div
-                        className={`text-xs sm:text-sm font-bold font-mono ${
+                        className={`text-xs sm:text-sm font-bold font-serif ${
                           tx.amount > 0 ? "text-[#2d5232]" : "text-[#2a2b2f]"
                         }`}
                       >
-                        {formatMoney(tx.amount, tx.currency || reportingCurrency, locale)}
+                        {formatMoney(tx.amount, tx.currency || "USD", locale)}
                       </div>
+                      {(tx.currency || "USD") !== reportingCurrency && (
+                        <span className="text-[10px] text-[#808988] font-serif block">
+                          ≈ {formatMoneyConverted(tx.amount, tx.currency || "USD", reportingCurrency, locale)}
+                        </span>
+                      )}
                       {tx.partnerBOwesA || tx.partnerAOwesB ? (
                         <span className="text-[10px] text-[#B45529] block font-medium">Split recorded</span>
                       ) : null}
@@ -1322,8 +1351,8 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-3">
                 <span className="text-xs sm:text-sm text-[#515151] font-medium tracking-wide">Total Spent</span>
-                <span className="text-xl sm:text-3xl font-extrabold font-mono text-[#2a2b2f] tracking-tight my-1">
-                  {formatMoney(4908, reportingCurrency, locale)}
+                <span className="text-xl sm:text-3xl font-extrabold font-serif text-[#2a2b2f] tracking-tight my-1">
+                  {formatMoneyConverted(4908, "USD", reportingCurrency, locale)}
                 </span>
                 <span className="text-xs font-bold text-[#2d5232] flex items-center gap-1 bg-[#2d5232]/10 px-2 py-0.5 rounded-full mt-0.5">
                   <SolarIcon name="trend-down" size={12} />
@@ -1341,8 +1370,8 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
                     <span className="text-[#333333] font-medium">{cat.name}</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-[#515151] text-[11px] font-mono">{cat.percent}</span>
-                    <span className="text-[#2a2b2f] font-semibold font-mono">{cat.amount}</span>
+                    <span className="text-[#515151] text-[11px] font-serif">{cat.percent}</span>
+                    <span className="text-[#2a2b2f] font-semibold font-serif">{cat.amount}</span>
                   </div>
                 </div>
               ))}
@@ -1361,7 +1390,7 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
           <div>
             <h4 className="text-xs font-bold text-[#2a2b2f]">Seiya Insight: Duplicate Subscription</h4>
             <p className="text-xs text-[#515151] mt-0.5 leading-relaxed">
-              Netflix Premium is active on shared card while another streaming service was charged to your partner’s card. Consolidating could save {formatMoney(15, reportingCurrency, locale)}/month.
+              Netflix Premium is active on shared card while another streaming service was charged to your partner’s card. Consolidating could save {formatMoneyConverted(15, "USD", reportingCurrency, locale)}/month.
             </p>
           </div>
         </div>

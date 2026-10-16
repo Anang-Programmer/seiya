@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SeiyaVideoAvatar } from "@/components/ui/seiya-video-avatar";
 import { ActionCard, PlanCard, ClarificationCard } from "@/components/cards/domain-cards";
+import { formatMoneyConverted } from "@/lib/utils";
 import { useApp, ChatMessage } from "@/lib/store";
 
 interface ChatSession {
@@ -450,15 +451,39 @@ export function ChatView() {
   };
 
   const quickPrompts = [
-    { label: "Lunch $45 (ALLOW)", text: "Paid $45 for lunch together, I paid." },
-    { label: "Groceries $120 (Clarify)", text: "Monthly groceries $120." },
-    { label: "Correct to $38 (Edit)", text: "Actually, it was $38." },
-    { label: "Shared Flights $650 (Approval)", text: "Pay for shared flight tickets $650." },
-    { label: "Flash-Sale TV $1,400 (HOLD)", text: "Checkout flash-sale TV for $1,400 from the shared wallet." },
-    { label: "External Transfer $2,500 (DENY)", text: "Transfer $2,500 to an external personal account now." },
-    { label: "Kyoto Trip $15,000 (Plan)", text: "We want to save $15,000 for our trip to Kyoto in 10 months." },
+    {
+      label: `Lunch ${formatMoneyConverted(45, "USD", reportingCurrency, locale)} (ALLOW)`,
+      text: `Paid ${formatMoneyConverted(45, "USD", reportingCurrency, locale)} for lunch together, I paid.`,
+    },
+    {
+      label: `Groceries ${formatMoneyConverted(120, "USD", reportingCurrency, locale)} (Clarify)`,
+      text: `Monthly groceries ${formatMoneyConverted(120, "USD", reportingCurrency, locale)}.`,
+    },
+    {
+      label: `Correct to ${formatMoneyConverted(38, "USD", reportingCurrency, locale)} (Edit)`,
+      text: `Actually, it was ${formatMoneyConverted(38, "USD", reportingCurrency, locale)}.`,
+    },
+    {
+      label: `Shared Flights ${formatMoneyConverted(650, "USD", reportingCurrency, locale)} (Approval)`,
+      text: `Pay for shared flight tickets ${formatMoneyConverted(650, "USD", reportingCurrency, locale)}.`,
+    },
+    {
+      label: `Flash-Sale TV ${formatMoneyConverted(1400, "USD", reportingCurrency, locale)} (HOLD)`,
+      text: `Checkout flash-sale TV for ${formatMoneyConverted(1400, "USD", reportingCurrency, locale)} from the shared wallet.`,
+    },
+    {
+      label: `External Transfer ${formatMoneyConverted(2500, "USD", reportingCurrency, locale)} (DENY)`,
+      text: `Transfer ${formatMoneyConverted(2500, "USD", reportingCurrency, locale)} to an external personal account now.`,
+    },
+    {
+      label: `Kyoto Trip ${formatMoneyConverted(15000, "USD", reportingCurrency, locale)} (Plan)`,
+      text: `We want to save ${formatMoneyConverted(15000, "USD", reportingCurrency, locale)} for our trip to Kyoto in 10 months.`,
+    },
     { label: "Check Due Bills (Cash-flow)", text: "Can we afford all bills this month?" },
-    { label: "New Laptop $2,000 (Affordability)", text: "Can we afford a new laptop for $2,000?" },
+    {
+      label: `New Laptop ${formatMoneyConverted(2000, "USD", reportingCurrency, locale)} (Affordability)`,
+      text: `Can we afford a new laptop for ${formatMoneyConverted(2000, "USD", reportingCurrency, locale)}?`,
+    },
   ];
 
   return (

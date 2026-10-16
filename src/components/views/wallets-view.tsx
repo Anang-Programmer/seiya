@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { formatMoney, getTransactionCategoryVisual } from "@/lib/utils";
+import { formatMoney, formatMoneyConverted, getTransactionCategoryVisual } from "@/lib/utils";
 import { SolarIcon } from "@/components/icons/solar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -56,16 +56,26 @@ export function WalletsView() {
             {settlement.partnerBOwesA > 0 ? (
               <div className="text-lg font-bold text-[#2a2b2f]">
                 {partnerBName} owes {partnerAName}{" "}
-                <span className="text-[#B45529] font-mono">
+                <span className="text-[#B45529] font-serif">
                   {formatMoney(settlement.partnerBOwesA, wallets.shared.currency, locale)}
                 </span>
+                {wallets.shared.currency !== reportingCurrency && (
+                  <span className="text-xs text-[#808988] font-serif block">
+                    ≈ {formatMoneyConverted(settlement.partnerBOwesA, wallets.shared.currency, reportingCurrency, locale)}
+                  </span>
+                )}
               </div>
             ) : settlement.partnerAOwesB > 0 ? (
               <div className="text-lg font-bold text-[#2a2b2f]">
                 {partnerAName} owes {partnerBName}{" "}
-                <span className="text-[#B45529] font-mono">
+                <span className="text-[#B45529] font-serif">
                   {formatMoney(settlement.partnerAOwesB, wallets.shared.currency, locale)}
                 </span>
+                {wallets.shared.currency !== reportingCurrency && (
+                  <span className="text-xs text-[#808988] font-serif block">
+                    ≈ {formatMoneyConverted(settlement.partnerAOwesB, wallets.shared.currency, reportingCurrency, locale)}
+                  </span>
+                )}
               </div>
             ) : (
               <div className="text-lg font-bold text-[#2d5232]">
@@ -113,7 +123,7 @@ export function WalletsView() {
               {wallets.shared.currency}
             </span>
           </div>
-          <div className="text-2xl font-extrabold text-[#2a2b2f] font-mono">
+          <div className="text-2xl font-extrabold text-[#2a2b2f] font-serif">
             {formatMoney(wallets.shared.balance, wallets.shared.currency, locale)}
           </div>
           {wallets.shared.currency !== reportingCurrency && (
@@ -154,7 +164,7 @@ export function WalletsView() {
               {myWallet.currency}
             </span>
           </div>
-          <div className="text-2xl font-extrabold text-[#2a2b2f] font-mono">
+          <div className="text-2xl font-extrabold text-[#2a2b2f] font-serif">
             {formatMoney(myWallet.balance, myWallet.currency, locale)}
           </div>
           {myWallet.currency !== reportingCurrency && (
@@ -200,7 +210,7 @@ export function WalletsView() {
               Total Only
             </Badge>
           </div>
-          <div className="text-2xl font-extrabold text-[#2a2b2f] font-mono">
+          <div className="text-2xl font-extrabold text-[#2a2b2f] font-serif">
             {formatMoney(partnerWallet.balance, partnerWallet.currency, locale)}
           </div>
           {partnerWallet.currency !== reportingCurrency && (
@@ -248,7 +258,7 @@ export function WalletsView() {
             </h4>
             <p className="text-xs text-[#515151] max-w-md mx-auto leading-relaxed">
               Under your mutual Couple Contract, partners agree to share total savings visibility (
-              <strong className="font-mono text-[#2a2b2f]">
+              <strong className="font-serif text-[#2a2b2f]">
                 {formatMoney(partnerWallet.balance, partnerWallet.currency, locale)}
               </strong>
               ) while preserving personal autonomy and individual purchase privacy.
@@ -285,12 +295,19 @@ export function WalletsView() {
                     </div>
                   </div>
                   <div className="text-right flex items-center gap-2">
-                    <div
-                      className={`text-xs sm:text-sm font-bold font-mono ${
-                        tx.amount > 0 ? "text-[#2d5232]" : "text-[#2a2b2f]"
-                      }`}
-                    >
-                      {formatMoney(tx.amount, tx.currency || reportingCurrency, locale)}
+                    <div className="text-right">
+                      <div
+                        className={`text-xs sm:text-sm font-bold font-serif ${
+                          tx.amount > 0 ? "text-[#2d5232]" : "text-[#2a2b2f]"
+                        }`}
+                      >
+                        {formatMoney(tx.amount, tx.currency || "USD", locale)}
+                      </div>
+                      {(tx.currency || "USD") !== reportingCurrency && (
+                        <span className="text-[10px] text-[#808988] font-serif block">
+                          ≈ {formatMoneyConverted(tx.amount, tx.currency || "USD", reportingCurrency, locale)}
+                        </span>
+                      )}
                     </div>
                     <SolarIcon
                       name="arrow-right"

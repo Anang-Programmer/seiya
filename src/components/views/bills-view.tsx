@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { formatMoney } from "@/lib/utils";
+import { formatMoney, formatMoneyConverted, convertMoney } from "@/lib/utils";
 import { SolarIcon } from "@/components/icons/solar";
 import { SeiyaIcon } from "@/components/icons/seiya-logo";
 import { Badge } from "@/components/ui/badge";
@@ -62,7 +62,11 @@ export function BillsView() {
     );
   };
 
-  const totalUpcoming = bills.reduce((acc, b) => acc + (b.status !== "paid" ? b.amount : 0), 0);
+  const totalUpcoming = bills.reduce((acc, b) => {
+    if (b.status === "paid") return acc;
+    const conv = convertMoney(b.amount, b.currency || "USD", reportingCurrency);
+    return acc + (conv.available ? conv.convertedAmount : b.amount);
+  }, 0);
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-16">
@@ -123,7 +127,7 @@ export function BillsView() {
           <span className="text-xs text-[#515151]">September 2026 Billing Cycle</span>
         </div>
         <div className="text-right">
-          <span className="text-xl sm:text-2xl font-bold font-mono text-[#2a2b2f]">
+          <span className="text-xl sm:text-2xl font-bold font-serif text-[#2a2b2f]">
             {formatMoney(totalUpcoming, reportingCurrency, locale)}
           </span>
         </div>
@@ -248,10 +252,16 @@ export function BillsView() {
                   </div>
                 </div>
 
-                <div className="flex items-center sm:flex-col sm:items-end justify-between gap-2.5">
-                  <span className="text-base sm:text-lg font-extrabold font-mono text-[#2a2b2f]">
+                <div className="flex items-center sm:flex-col sm:items-end justify-between gap-1 text-right">
+                  <span className="text-base sm:text-lg font-bold font-serif text-[#2a2b2f]">
                     {formatMoney(bill.amount, billCurrency, locale)}
                   </span>
+                  {billCurrency !== reportingCurrency && (
+                    <span className="text-[11px] text-[#808988] font-serif block">
+                      ≈ {formatMoneyConverted(bill.amount, billCurrency, reportingCurrency, locale)}
+                    </span>
+                  )}
+                </div>
 
                   <div className="flex items-center gap-2">
                     {/* Edit button */}
@@ -310,7 +320,6 @@ export function BillsView() {
                   </div>
                 </div>
               </div>
-            </div>
           );
         })}
       </div>

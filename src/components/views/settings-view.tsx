@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { formatMoney } from "@/lib/utils";
+import { formatMoney, formatMoneyConverted } from "@/lib/utils";
 import { SolarIcon } from "@/components/icons/solar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -72,13 +72,27 @@ export function SettingsView() {
             {proposedBy === currentUser ? (
               <span>
                 You proposed changing the threshold to{" "}
-                <strong className="font-mono text-[#2a2b2f]">{formatMoney(contract.proposedChange!.approvalThreshold, contract.thresholdCurrency, locale)}</strong> and split to{" "}
+                <strong className="font-serif text-[#2a2b2f]">
+                  {formatMoney(contract.proposedChange!.approvalThreshold, contract.thresholdCurrency, locale)}
+                  {contract.thresholdCurrency !== reportingCurrency && (
+                    <span className="text-xs font-normal text-[#515151]">
+                      {" "}(≈ {formatMoneyConverted(contract.proposedChange!.approvalThreshold, contract.thresholdCurrency, reportingCurrency, locale)})
+                    </span>
+                  )}
+                </strong> and split to{" "}
                 <strong className="text-[#2a2b2f]">{contract.proposedChange!.splitPartnerB}% {partnerBName} : {contract.proposedChange!.splitPartnerA}% {partnerAName}</strong>. Waiting for your partner to sign.
               </span>
             ) : (
               <span>
                 {proposedByName} proposed changing the approval threshold to{" "}
-                <strong className="font-mono text-[#2a2b2f]">{formatMoney(contract.proposedChange!.approvalThreshold, contract.thresholdCurrency, locale)}</strong> and split to{" "}
+                <strong className="font-serif text-[#2a2b2f]">
+                  {formatMoney(contract.proposedChange!.approvalThreshold, contract.thresholdCurrency, locale)}
+                  {contract.thresholdCurrency !== reportingCurrency && (
+                    <span className="text-xs font-normal text-[#515151]">
+                      {" "}(≈ {formatMoneyConverted(contract.proposedChange!.approvalThreshold, contract.thresholdCurrency, reportingCurrency, locale)})
+                    </span>
+                  )}
+                </strong> and split to{" "}
                 <strong className="text-[#2a2b2f]">{contract.proposedChange!.splitPartnerB}% {partnerBName} : {contract.proposedChange!.splitPartnerA}% {partnerAName}</strong>.
               </span>
             )}
@@ -291,7 +305,10 @@ export function SettingsView() {
             onChange={(e) => setThresholdInput(e.target.value)}
           />
           <span className="text-[11px] text-[#515151] mt-1 block">
-            Current active threshold: {formatMoney(contract.approvalThreshold, contract.thresholdCurrency, locale)}. Purchases exceeding this amount trigger Dual-Key approval.
+            Current active threshold: <strong className="font-serif text-[#2a2b2f]">{formatMoney(contract.approvalThreshold, contract.thresholdCurrency, locale)}</strong>
+            {contract.thresholdCurrency !== reportingCurrency && (
+              <span> (≈ <strong className="font-serif text-[#2a2b2f]">{formatMoneyConverted(contract.approvalThreshold, contract.thresholdCurrency, reportingCurrency, locale)}</strong>)</span>
+            )}. Purchases exceeding this amount trigger Dual-Key approval.
           </span>
         </div>
 
@@ -320,7 +337,10 @@ export function SettingsView() {
             <Badge variant="hold">Active</Badge>
           </div>
           <p className="text-xs text-[#333333]">
-            Threshold: <strong>{formatMoney(contract.cooldownThreshold, contract.cooldownCurrency, locale)}</strong> • Night window: <strong>23:00 - 08:00</strong>.
+            Threshold: <strong className="font-serif">{formatMoney(contract.cooldownThreshold, contract.cooldownCurrency, locale)}</strong>
+            {contract.cooldownCurrency !== reportingCurrency && (
+              <span> (≈ <strong className="font-serif">{formatMoneyConverted(contract.cooldownThreshold, contract.cooldownCurrency, reportingCurrency, locale)}</strong>)</span>
+            )} • Night window: <strong>23:00 - 08:00</strong>.
           </p>
           <span className="text-[11px] text-[#515151] block">
             Purchases during this window are placed on an 8-hour hold. Users can cancel or continue with secondary confirmation.
