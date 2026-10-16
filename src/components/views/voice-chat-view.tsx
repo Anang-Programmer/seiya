@@ -478,44 +478,38 @@ export function VoiceChatView({
             </div>
 
             {/* Speaking Status Pill */}
-            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-20">
-              <div
-                className={`px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-md border backdrop-blur-md transition-all ${
-                  isSpeaking
-                    ? "bg-[#B45529] text-[#fef9ef] border-[#8a3b16]"
-                    : isListening
-                    ? "bg-[#2d5232] text-[#fef9ef] border-[#1d3821]"
-                    : isThinking
-                    ? "bg-[#fef9ef] text-[#B45529] border-[#B45529]/30"
-                    : "bg-[#fef9ef]/90 text-[#515151] border-[#d1c9bf]/60"
-                }`}
-              >
-                {isSpeaking && (
-                  <>
-                    <span className="w-2 h-2 rounded-full bg-[#fef9ef] animate-pulse" />
-                    <span>Seiya Speaking</span>
-                  </>
-                )}
-                {isListening && (
-                  <>
-                    <span className="w-2 h-2 rounded-full bg-[#fef9ef] animate-ping" />
-                    <span>Listening to {activeName}...</span>
-                  </>
-                )}
-                {isThinking && (
-                  <>
-                    <span className="w-2 h-2 rounded-full bg-[#B45529] animate-ping" />
-                    <span>Analyzing rules...</span>
-                  </>
-                )}
-                {!isSpeaking && !isListening && !isThinking && (
-                  <>
-                    <SeiyaIcon size={14} />
-                    <span>Ready to listen</span>
-                  </>
-                )}
+            {(isSpeaking || isListening || isThinking) && (
+              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-20">
+                <div
+                  className={`px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-md border backdrop-blur-md transition-all ${
+                    isSpeaking
+                      ? "bg-[#B45529] text-[#fef9ef] border-[#8a3b16]"
+                      : isListening
+                      ? "bg-[#2d5232] text-[#fef9ef] border-[#1d3821]"
+                      : "bg-[#fef9ef] text-[#B45529] border-[#B45529]/30"
+                  }`}
+                >
+                  {isSpeaking && (
+                    <>
+                      <span className="w-2 h-2 rounded-full bg-[#fef9ef] animate-pulse" />
+                      <span>Seiya Speaking</span>
+                    </>
+                  )}
+                  {isListening && (
+                    <>
+                      <span className="w-2 h-2 rounded-full bg-[#fef9ef] animate-ping" />
+                      <span>Listening to {activeName}...</span>
+                    </>
+                  )}
+                  {isThinking && (
+                    <>
+                      <span className="w-2 h-2 rounded-full bg-[#B45529] animate-ping" />
+                      <span>Analyzing rules...</span>
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
