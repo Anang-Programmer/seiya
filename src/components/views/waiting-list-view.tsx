@@ -49,36 +49,36 @@ export function WaitingListView() {
                   key={item.id}
                   className="p-5 sm:p-6 rounded-[12px] bg-[#f5eee1] shadow-xs space-y-4"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <h4 className="text-sm font-serif font-normal text-[#2a2b2f] text-sm">{item.title}</h4>
-                        <Badge variant="hold">HOLD</Badge>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <h4 className="text-base sm:text-lg font-medium font-serif text-[#2a2b2f] leading-snug">{item.title}</h4>
+                        <Badge variant="hold" className="text-xs font-semibold px-2.5 py-0.5">HOLD</Badge>
                       </div>
-                      <span className="text-xs text-[#515151]">
-                        Requested by <strong>{requesterDisplayName}</strong> • Wallet: {item.wallet.replace("_", " ")}
+                      <span className="text-xs sm:text-[13px] text-[#515151] block">
+                        Requested by <strong className="text-[#2a2b2f]">{requesterDisplayName}</strong> • Wallet: {item.wallet.replace("_", " ")}
                       </span>
                     </div>
-                    <div className="text-right">
-                      <span className="text-lg font-extrabold font-serif text-[#2a2b2f] block">
+                    <div className="text-right shrink-0">
+                      <span className="text-xl sm:text-2xl font-bold font-serif text-[#2a2b2f] block leading-none">
                         {formatMoney(item.amount, itemCurrency, locale)}
                       </span>
                       {itemCurrency !== reportingCurrency && (
-                        <span className="text-xs font-serif text-[#808988] block">
+                        <span className="text-xs sm:text-[13px] font-serif text-[#808988] block mt-1">
                           ≈ {formatMoneyConverted(item.amount, itemCurrency, reportingCurrency, locale)}
                         </span>
                       )}
-                      <span className="text-[11px] text-[#C98A4F] font-semibold block font-mono mt-0.5">
+                      <span className="text-xs text-[#C98A4F] font-semibold block font-mono mt-1">
                         Held until: {item.holdUntil}
                       </span>
                     </div>
                   </div>
 
-                  <div className="p-3.5 bg-[#fef9ef] rounded-[12px] text-xs text-[#515151]">
-                    <span className="font-semibold text-[#2a2b2f] block text-[11px] mb-0.5 font-mono">
+                  <div className="p-4 bg-[#fef9ef] rounded-[12px] text-xs sm:text-sm text-[#333333] border border-[#d1c9bf]/30 space-y-1">
+                    <span className="font-semibold text-[#2a2b2f] block text-xs font-mono">
                       Triggered Rule:
                     </span>
-                    <p>{item.reason}</p>
+                    <p className="leading-relaxed">{item.reason}</p>
                   </div>
 
                   <div className="flex flex-wrap items-center justify-between gap-3 pt-2">

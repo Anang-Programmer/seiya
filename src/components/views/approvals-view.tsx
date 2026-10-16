@@ -93,10 +93,12 @@ export function ApprovalsView() {
                 className="p-5 sm:p-6 rounded-[12px] bg-[#f5eee1] shadow-xs hover:shadow-sm transition-all space-y-4"
               >
                 {/* Header */}
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-serif font-normal text-[#2a2b2f] text-sm">{req.title}</span>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <span className="text-base sm:text-lg font-medium font-serif text-[#2a2b2f] leading-snug">
+                        {req.title}
+                      </span>
                       <Badge
                         variant={
                           req.status === "pending"
@@ -105,39 +107,40 @@ export function ApprovalsView() {
                             ? "allow"
                             : "deny"
                         }
+                        className="text-xs font-semibold px-2.5 py-0.5"
                       >
                         {req.status.toUpperCase()}
                       </Badge>
                     </div>
-                    <span className="text-[11px] text-[#515151]">
-                      Requested by <strong>{requesterDisplayName}</strong> • Wallet: {req.wallet.replace("_", " ")}
+                    <span className="text-xs sm:text-[13px] text-[#515151] block">
+                      Requested by <strong className="text-[#2a2b2f]">{requesterDisplayName}</strong> • Wallet: {req.wallet.replace("_", " ")}
                     </span>
                   </div>
-                  <div className="text-right">
-                    <span className="text-lg font-bold font-serif text-[#2a2b2f] block">
+                  <div className="text-right shrink-0">
+                    <span className="text-xl sm:text-2xl font-bold font-serif text-[#2a2b2f] block leading-none">
                       {formatMoney(req.amount, reqCurrency, locale)}
                     </span>
                     {reqCurrency !== reportingCurrency && req.amount > 0 && (
-                      <span className="text-[11px] text-[#808988] font-serif block">
+                      <span className="text-xs sm:text-[13px] text-[#808988] font-serif block mt-1">
                         ≈ {formatMoneyConverted(req.amount, reqCurrency, reportingCurrency, locale)}
                       </span>
                     )}
-                    <span className="text-[10px] text-[#C98A4F] font-medium font-serif">
+                    <span className="text-xs text-[#C98A4F] font-medium font-serif block mt-1">
                       Expires in ~{req.expiresInHours}h
                     </span>
                   </div>
                 </div>
 
                 {/* Explanation */}
-                <div className="p-3.5 rounded-[12px] bg-[#fef9ef] text-xs text-[#515151] space-y-1">
-                  <span className="font-semibold text-[#2a2b2f] block text-[11px]">Reason for approval:</span>
-                  <p className="leading-relaxed">{req.reason}</p>
+                <div className="p-4 rounded-[12px] bg-[#fef9ef] text-sm text-[#333333] space-y-1.5 border border-[#d1c9bf]/30">
+                  <span className="font-semibold text-[#2a2b2f] block text-xs">Reason for approval:</span>
+                  <p className="leading-relaxed text-xs sm:text-sm">{req.reason}</p>
                 </div>
 
                 {/* Action controls */}
                 <div className="flex items-center justify-between pt-2">
-                  <div className="text-[11px] text-[#808988] flex items-center gap-1.5 font-mono">
-                    <SolarIcon name="lock-keyhole" size={13} />
+                  <div className="text-xs text-[#808988] flex items-center gap-1.5 font-mono">
+                    <SolarIcon name="lock-keyhole" size={14} />
                     <span>Idempotent • Server-enforced safety boundary</span>
                   </div>
 

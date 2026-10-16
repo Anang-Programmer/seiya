@@ -386,37 +386,37 @@ export function AllApprovalsModal({ open, onOpenChange }: AllApprovalsModalProps
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${cs.bg} ${cs.text}`}>
                             {itemCat}
                           </span>
-                          <h4 className="text-sm font-serif font-normal text-[#2a2b2f] leading-snug">
+                          <h4 className="text-base font-serif font-medium text-[#2a2b2f] leading-snug">
                             {item.title}
                           </h4>
                           {isPending && (
-                            <span className="px-2 py-0.2 rounded-full text-[10px] font-bold bg-[#fcf5e8] text-[#C98A4F]">
+                            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#fcf5e8] text-[#C98A4F]">
                               {isRequester ? `Awaiting ${approverName}` : "Action Needed"}
                             </span>
                           )}
                           {isApproved && (
-                            <span className="px-2 py-0.2 rounded-full text-[10px] font-bold bg-[#edf3ec] text-[#2d5232]">
+                            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#edf3ec] text-[#2d5232]">
                               ✓ Confirmed
                             </span>
                           )}
                           {isDeclined && (
-                            <span className="px-2 py-0.2 rounded-full text-[10px] font-bold bg-[#fcf0ee] text-[#a34426]">
+                            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#fcf0ee] text-[#a34426]">
                               Declined
                             </span>
                           )}
                         </div>
 
-                        <p className="text-xs text-[#515151] leading-relaxed max-w-lg">
+                        <p className="text-xs sm:text-sm text-[#515151] leading-relaxed max-w-lg">
                           {item.reason}
                         </p>
 
-                        <div className="flex items-center gap-3 text-[11px] text-[#808988] pt-1">
+                        <div className="flex items-center gap-3 text-xs text-[#808988] pt-1">
                           <span>
-                            Requested by: <strong>{requesterName}</strong>
+                            Requested by: <strong className="text-[#2a2b2f]">{requesterName}</strong>
                           </span>
                           <span>•</span>
                           <span>
-                            Approver: <strong>{approverName}</strong>
+                            Approver: <strong className="text-[#2a2b2f]">{approverName}</strong>
                           </span>
                           {item.createdAt && (
                             <>
@@ -429,8 +429,8 @@ export function AllApprovalsModal({ open, onOpenChange }: AllApprovalsModalProps
                     </div>
 
                     {/* Right: Amount & Actions */}
-                    <div className="flex items-center sm:flex-col sm:items-end justify-between gap-1 pt-2 sm:pt-0 border-t sm:border-0 border-[#d1c9bf]/30">
-                      <span className="text-base sm:text-lg font-bold font-serif text-[#2a2b2f]">
+                    <div className="flex items-center sm:flex-col sm:items-end justify-between gap-1 pt-2 sm:pt-0 border-t sm:border-0 border-[#d1c9bf]/30 shrink-0">
+                      <span className="text-lg sm:text-xl font-bold font-serif text-[#2a2b2f]">
                         {formatMoney(item.amount, currency, locale)}
                       </span>
                       {currency !== reportingCurrency && (
