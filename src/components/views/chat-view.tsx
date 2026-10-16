@@ -9,6 +9,7 @@ import { SeiyaVideoAvatar } from "@/components/ui/seiya-video-avatar";
 import { ActionCard, PlanCard, ClarificationCard } from "@/components/cards/domain-cards";
 import { formatMoneyConverted } from "@/lib/utils";
 import { useApp, ChatMessage } from "@/lib/store";
+import { VoiceChatView } from "./voice-chat-view";
 
 interface ChatSession {
   id: string;
@@ -216,6 +217,7 @@ export function ChatView() {
   const [editTitleText, setEditTitleText] = useState("");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [newChatMenuOpen, setNewChatMenuOpen] = useState(false);
+  const [isVoiceChatActive, setIsVoiceChatActive] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const activeSession = activeSessionId ? sessions.find((s) => s.id === activeSessionId) || null : null;
@@ -889,9 +891,26 @@ export function ChatView() {
       )}
 
       {/* 2. MAIN CHAT CONTAINER */}
-      <div className="flex-1 flex flex-col min-w-0 h-full">
-        {/* Chat Header */}
-        <div className="px-4 sm:px-5 py-3 bg-[#f5eee1] border-b border-[#d1c9bf]/30 flex items-center justify-between gap-3">
+      <div className="flex-1 flex flex-col min-w-0 h-full relative">
+        {isVoiceChatActive ? (
+          <VoiceChatView
+            onClose={() => setIsVoiceChatActive(false)}
+            activeSessionTitle={activeSession?.title}
+            isShared={activeSession?.isShared ?? true}
+            activeName={activeName}
+            partnerName={partnerName}
+            currentUser={currentUser}
+            reportingCurrency={reportingCurrency}
+            locale={locale}
+            onSendVoiceMessage={async (text) => {
+              await handleSend(text);
+            }}
+            existingMessages={activeSession?.messages || []}
+          />
+        ) : (
+          <>
+            {/* Chat Header */}
+            <div className="px-4 sm:px-5 py-3 bg-[#f5eee1] border-b border-[#d1c9bf]/30 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
             {!showHistory && (
               <button
@@ -944,6 +963,18 @@ export function ChatView() {
                 <span className="sm:hidden">Shared</span>
               </span>
             )}
+
+            {/* Quick Launch Voice Chat Button */}
+            <button
+              type="button"
+              onClick={() => setIsVoiceChatActive(true)}
+              className="h-7 px-2.5 rounded-full text-[11px] font-semibold bg-[#fbf0eb] hover:bg-[#f6e1d7] text-[#B45529] border border-[#B45529]/30 flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+              title="Start Voice Chat with Seiya"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-[#B45529] animate-ping" />
+              <SolarIcon name="microphone" size={13} className="text-[#B45529]" />
+              <span className="hidden sm:inline">Voice Mode</span>
+            </button>
 
             <Badge variant="neutral">{reportingCurrency}</Badge>
           </div>
@@ -1208,6 +1239,20 @@ export function ChatView() {
             placeholder={`Ask Seiya as ${activeName}...`}
             className="flex-1 min-w-0 px-3 sm:px-4 py-2 sm:py-2.5 rounded-full bg-[#fef9ef] border border-[#d1c9bf] text-xs sm:text-sm text-[#2a2b2f] placeholder-[#808988] focus:outline-none focus:ring-2 focus:ring-[#B45529]/20 transition-all shadow-2xs"
           />
+
+          {/* Voice Chat Trigger Button */}
+          <button
+            type="button"
+            onClick={() => setIsVoiceChatActive(true)}
+            className="h-9 sm:h-10 px-3 sm:px-3.5 rounded-full bg-[#fbf0eb] hover:bg-[#f6e1d7] border border-[#B45529]/35 text-[#B45529] font-semibold text-xs sm:text-sm flex items-center gap-1.5 transition-all shadow-2xs hover:shadow-xs cursor-pointer group shrink-0"
+            title="Start Voice Chat with Seiya"
+            aria-label="Start Voice Chat with Seiya"
+          >
+            <span className="w-2 h-2 rounded-full bg-[#B45529] group-hover:animate-ping" />
+            <SolarIcon name="microphone" size={16} className="text-[#B45529]" />
+            <span className="hidden sm:inline">Voice Chat</span>
+          </button>
+
           <Button
             type="submit"
             variant="primary"
@@ -1219,7 +1264,9 @@ export function ChatView() {
             <span className="hidden sm:inline">Send</span>
           </Button>
         </form>
-      </div>
+      </>
+    )}
+  </div>
     </div>
   );
 }
