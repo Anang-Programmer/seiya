@@ -1579,44 +1579,34 @@ export function ChatView() {
             </button>
           </div>
 
-          {/* 2. Voice Chat Controls (Smoothly transitions in when Voice Chat is active; NO textformfield) */}
+          {/* 2. Voice Chat Controls (Centered Mute & End Voice buttons with smooth transitions) */}
           <div
-            className={`w-full flex items-center justify-between gap-2 sm:gap-3 transition-all duration-500 ease-in-out ${
+            className={`w-full flex items-center justify-center gap-4 sm:gap-6 transition-all duration-500 ease-in-out ${
               isVoiceChatActive
                 ? "opacity-100 translate-y-0 relative visible"
                 : "opacity-0 translate-y-2 pointer-events-none absolute inset-x-2.5 sm:inset-x-4 invisible"
             }`}
           >
-            {/* Mic Mute / Unmute Button */}
+            {/* Mic Mute / Unmute Button (Slightly larger with smooth transitions) */}
             <button
               type="button"
               onClick={() => setIsVoiceMuted(!isVoiceMuted)}
-              className={`h-9 sm:h-10 px-3 sm:px-4 rounded-full flex items-center gap-1.5 text-xs font-semibold transition-all cursor-pointer shadow-2xs shrink-0 ${
+              className={`w-12 h-12 sm:w-13 sm:h-13 rounded-full flex items-center justify-center transition-all duration-300 ease-out cursor-pointer active:scale-90 hover:scale-105 shadow-xs hover:shadow-md shrink-0 ${
                 isVoiceMuted
-                  ? "bg-[#fbf0eb] text-[#B45529] border border-[#B45529]/40"
-                  : "bg-[#fef9ef] hover:bg-[#ece3d3] text-[#515151] hover:text-[#B45529] border border-[#d1c9bf]"
+                  ? "bg-[#fbf0eb] text-[#ba3c2a] border border-[#ba3c2a]/40 hover:bg-[#f6e1d7] ring-2 ring-[#ba3c2a]/20"
+                  : "bg-[#fef9ef] text-[#2a2b2f] border border-[#d1c9bf] hover:border-[#B45529]/40 hover:bg-[#f7efe3] hover:text-[#B45529]"
               }`}
               title={isVoiceMuted ? "Unmute microphone" : "Mute microphone"}
+              aria-label={isVoiceMuted ? "Unmute microphone" : "Mute microphone"}
             >
-              <SolarIcon name={isVoiceMuted ? "microphone-slash" : "microphone"} size={17} />
-              <span className="hidden sm:inline">{isVoiceMuted ? "Unmute" : "Mute"}</span>
+              <SolarIcon
+                name={isVoiceMuted ? "microphone-slash" : "microphone"}
+                size={22}
+                className="transition-transform duration-200"
+              />
             </button>
 
-            {/* Central Voice Status Indicator */}
-            <div className="flex items-center gap-2 text-xs font-medium text-[#B45529] px-3 sm:px-4 py-1.5 rounded-full bg-[#fef9ef] border border-[#d1c9bf]/60 shadow-2xs truncate">
-              <span className="w-2 h-2 rounded-full bg-[#B45529] animate-ping shrink-0" />
-              <span className="truncate">
-                {isVoiceSpeaking
-                  ? "Seiya is speaking..."
-                  : isVoiceListening
-                  ? `Listening to ${activeName}...`
-                  : isVoiceMuted
-                  ? "Microphone muted"
-                  : "Listening... speak anytime"}
-              </span>
-            </div>
-
-            {/* Close / Exit Voice Mode Button */}
+            {/* End / Exit Voice Mode Button (Slightly larger with smooth transitions) */}
             <button
               type="button"
               onClick={() => {
@@ -1625,11 +1615,15 @@ export function ChatView() {
                   window.speechSynthesis.cancel();
                 }
               }}
-              className="h-9 sm:h-10 px-3 sm:px-4 rounded-full bg-[#fef9ef] hover:bg-[#ece3d3] border border-[#d1c9bf] text-[#515151] hover:text-[#B45529] flex items-center gap-1.5 text-xs font-semibold transition-all shadow-2xs cursor-pointer shrink-0"
-              title="Exit Voice Mode"
+              className="w-12 h-12 sm:w-13 sm:h-13 rounded-full bg-[#fef9ef] hover:bg-[#fdf2f0] border border-[#d1c9bf] hover:border-[#ba3c2a]/40 text-[#71717a] hover:text-[#ba3c2a] flex items-center justify-center transition-all duration-300 ease-out shadow-xs hover:shadow-md cursor-pointer active:scale-90 hover:scale-105 group shrink-0"
+              title="End Voice Chat"
+              aria-label="End Voice Chat"
             >
-              <SolarIcon name="close-circle" size={17} />
-              <span className="hidden sm:inline">Exit</span>
+              <SolarIcon
+                name="close-circle"
+                size={22}
+                className="group-hover:rotate-90 transition-transform duration-300"
+              />
             </button>
           </div>
         </div>
