@@ -48,34 +48,30 @@ export function AuthView({
   const [joinError, setJoinError] = useState("");
 
   // =========================================================================
-  // QUESTIONNAIRE STATES (Figma 469-8665: 3 Pillars + Review)
+  // PROFILING QUESTIONNAIRE STATES (Figma 493-8073: 7 Steps)
   // =========================================================================
-  const [questionnairePillar, setQuestionnairePillar] = useState<1 | 2 | 3 | 4>(1);
+  const [profilingStep, setProfilingStep] = useState<1 | 2 | 3 | 4 | 5 | 6 | 7>(1);
 
-  // Pillar 1: Context & Story of Money
-  const [moneyMeaning, setMoneyMeaning] = useState<
-    "rasa_aman" | "kebebasan" | "pengakuan" | "membantu_orang_lain"
-  >("rasa_aman");
-  const [talkFrequency, setTalkFrequency] = useState<
-    "weekly" | "monthly" | "as_needed" | "not_yet"
-  >("weekly");
-  const [talkDuration, setTalkDuration] = useState<
-    "under_15" | "15_30" | "30_60"
-  >("15_30");
-  const [familyDiscussed, setFamilyDiscussed] = useState<"yes" | "partial" | "not_yet">("yes");
+  // Step 1: Context
+  const [relationshipStatus, setRelationshipStatus] = useState<string>("Serious Dating");
 
-  // Pillar 2: Style & Purpose
-  const [spendingHabit, setSpendingHabit] = useState<number>(3); // 1-5 scale
-  const [commStyle, setCommStyle] = useState<"langsung" | "waktu_khusus" | "lewat_tulisan">("waktu_khusus");
-  const [permaGoal, setPermaGoal] = useState<"pencapaian" | "emosi_positif" | "keasyikan" | "hubungan" | "makna">("pencapaian");
+  // Step 2: Money Style
+  const [moneyStyle, setMoneyStyle] = useState<string>("Balanced & Pragmatic");
 
-  // Pillar 3: Rules & Privacy
-  const [walletChoice, setWalletChoice] = useState<"both" | "shared" | "personal">("both");
-  const [splitRatio, setSplitRatio] = useState<{ dina: number; raka: number }>({ dina: 50, raka: 50 });
-  const [threshold, setThreshold] = useState<number>(500);
-  const [coolingOff, setCoolingOff] = useState<boolean>(true);
+  // Step 3: Your Money Story
+  const [moneyStory, setMoneyStory] = useState<string>("Security & Peace of Mind");
 
-  // Pillar 4: Signatures
+  // Step 4: Goals
+  const [goalChoice, setGoalChoice] = useState<string>("Buying a Home or Property");
+
+  // Step 5: Rules (Approval Threshold)
+  const [ruleThreshold, setRuleThreshold] = useState<string>("$500 (Rp 8.000.000)");
+
+  // Step 6: Privacy (Account Transparency Mode)
+  const [privacyMode, setPrivacyMode] = useState<string>("Shared + Personal Wallets (Recommended)");
+
+  // Step 7: Security Check (Cooling-off & Signatures)
+  const [coolingOffSafeguard, setCoolingOffSafeguard] = useState<string>("Yes, enable 8-Hour Cooling-Off (Recommended)");
   const [partnerASigned, setPartnerASigned] = useState<boolean>(false);
   const [partnerBSigned, setPartnerBSigned] = useState<boolean>(false);
   const canActivate = partnerASigned && partnerBSigned;
@@ -128,9 +124,104 @@ export function AuthView({
     }
   };
 
+  // Profiling Step Configuration
+  const PROFILING_STEPS = [
+    { id: 1, label: "Context" },
+    { id: 2, label: "Money Style" },
+    { id: 3, label: "Your Money Story" },
+    { id: 4, label: "Goals" },
+    { id: 5, label: "Rules" },
+    { id: 6, label: "Privacy" },
+    { id: 7, label: "Security Check" },
+  ];
+
+  const currentStepData = {
+    1: {
+      category: "About your relationship",
+      question: "What is your current relationship status?",
+      subtitle: "This helps Seiya tailor suggestions and forms of agreement to you",
+      options: ["Serious Dating", "Engaged", "Married"],
+      selected: relationshipStatus,
+      onSelect: (val: string) => setRelationshipStatus(val),
+    },
+    2: {
+      category: "About your money habits",
+      question: "How do you typically approach everyday spending?",
+      subtitle: "Understanding how you make financial decisions helps avoid misunderstandings",
+      options: [
+        "Careful & Planned",
+        "Balanced & Pragmatic",
+        "Spontaneous & Flexible",
+      ],
+      selected: moneyStyle,
+      onSelect: (val: string) => setMoneyStyle(val),
+    },
+    3: {
+      category: "About your core values",
+      question: "What does financial stability mean most to you?",
+      subtitle: "Your emotional anchor guides how Seiya frames recommendations and priorities",
+      options: [
+        "Security & Peace of Mind",
+        "Freedom & Independence",
+        "Reward for Hard Work",
+        "Caring for Loved Ones",
+      ],
+      selected: moneyStory,
+      onSelect: (val: string) => setMoneyStory(val),
+    },
+    4: {
+      category: "About your future plans",
+      question: "What is your shared top priority this year?",
+      subtitle: "Seiya allocates and protects funds toward this specific milestone together",
+      options: [
+        "Buying a Home or Property",
+        "Building an Emergency Fund",
+        "Travel & Meaningful Experiences",
+        "Family & Child Planning",
+      ],
+      selected: goalChoice,
+      onSelect: (val: string) => setGoalChoice(val),
+    },
+    5: {
+      category: "About your mutual rules",
+      question: "What shared expense amount requires mutual approval?",
+      subtitle: "Any shared withdrawal above this limit requires both partners' explicit sign-off",
+      options: [
+        "$250 (Rp 4.000.000)",
+        "$500 (Rp 8.000.000)",
+        "$1,000 (Rp 16.000.000)",
+      ],
+      selected: ruleThreshold,
+      onSelect: (val: string) => setRuleThreshold(val),
+    },
+    6: {
+      category: "About account visibility",
+      question: "How would you like to structure your visibility together?",
+      subtitle: "Shared funds are fully transparent, while personal funds keep your privacy intact",
+      options: [
+        "Shared + Personal Wallets (Recommended)",
+        "100% Joint Shared Wallet Only",
+        "Separate Wallets with Split Logging",
+      ],
+      selected: privacyMode,
+      onSelect: (val: string) => setPrivacyMode(val),
+    },
+    7: {
+      category: "Safeguards & Activation",
+      question: "Enable Cooling-Off Safeguards for late-night purchases?",
+      subtitle: "Purchases above threshold between 23:00 - 08:00 are placed on a gentle 8-hour hold",
+      options: [
+        "Yes, enable 8-Hour Cooling-Off (Recommended)",
+        "No, instant Dual-Key confirmation only",
+      ],
+      selected: coolingOffSafeguard,
+      onSelect: (val: string) => setCoolingOffSafeguard(val),
+    },
+  }[profilingStep];
+
   return (
     <div className="min-h-screen bg-[#FEFBF5] text-[#2a2b2f] flex flex-col justify-between selection:bg-[#B45529]/20 selection:text-[#B45529] relative overflow-x-hidden">
-      {/* Bottom Floating Navigation Pill for Reviewing Any Screen */}
+      {/* Bottom Floating Navigation Pill for Quick Screen Verification */}
       <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-[#2a2b2f]/90 text-white backdrop-blur-md px-3 py-1.5 rounded-full shadow-2xl flex items-center gap-1.5 text-xs font-mono border border-white/10 opacity-90 hover:opacity-100 transition-opacity">
         <span className="text-white/40 px-2 hidden md:inline">VIEW:</span>
         <button
@@ -181,7 +272,7 @@ export function AuthView({
               : "text-white/70 hover:text-white"
           }`}
         >
-          Questionnaire
+          Profiling (493-8073)
         </button>
         {onClose && (
           <button
@@ -682,664 +773,265 @@ export function AuthView({
       )}
 
       {/* =========================================================================
-          SCREEN 5: QUESTIONNAIRE (Figma: 469-8665 Canvas with 3 Pillars + Review)
+          SCREEN 5: PROFILING QUESTIONNAIRE (Figma: 469-8665 Canvas + 493-8073 Component)
           ========================================================================= */}
       {mode === "questionnaire" && (
         <div className="min-h-screen bg-[#FEFBF5] flex flex-col justify-between">
-          {/* Header Layout strictly matching 469:8665 */}
-          <header className="px-6 sm:px-12 py-5 border-b border-[#E6E6E6] bg-[#FEFBF5]/90 backdrop-blur-sm sticky top-0 z-30 flex items-center justify-between">
-            <div className="flex items-center gap-4 sm:gap-6">
-              <button
-                onClick={() => {
-                  if (questionnairePillar > 1) {
-                    setQuestionnairePillar((p) => (p - 1) as any);
-                  } else {
-                    setMode("story-intro");
-                  }
-                }}
-                className="text-xs text-[#78716c] hover:text-[#2a2b2f] flex items-center gap-1.5 transition-colors cursor-pointer"
+          {/* Top Header strictly matching Figma 469:8665 */}
+          <header className="px-6 sm:px-12 py-6 border-b border-[#E6E6E6] bg-[#FEFBF5] sticky top-0 z-30 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div
+                onClick={() => setMode("story-intro")}
+                className="cursor-pointer"
               >
-                <SolarIcon name="arrow-left" size={16} />
-                <span className="hidden sm:inline">Back</span>
-              </button>
-              <div className="h-4 w-px bg-[#ded7ce]" />
-              <SeiyaLogo height={38} />
-            </div>
-
-            {/* Pillar Step Indicators */}
-            <div className="flex items-center gap-1.5 sm:gap-3">
-              {[
-                { step: 1, label: "Context & Story" },
-                { step: 2, label: "Style & Purpose" },
-                { step: 3, label: "Rules & Privacy" },
-                { step: 4, label: "Contract Review" },
-              ].map((p) => (
-                <button
-                  key={p.step}
-                  onClick={() => setQuestionnairePillar(p.step as any)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all cursor-pointer ${
-                    questionnairePillar === p.step
-                      ? "bg-[#B4562A] text-white font-medium shadow-xs"
-                      : questionnairePillar > p.step
-                      ? "bg-[#2d5232]/10 text-[#2d5232] font-medium"
-                      : "bg-[#f2e7d7]/60 text-[#8c827a] hover:bg-[#eeddc8]"
-                  }`}
-                >
-                  <span className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] bg-white/20">
-                    {questionnairePillar > p.step ? "✓" : p.step}
-                  </span>
-                  <span className="hidden md:inline">{p.label}</span>
-                </button>
-              ))}
+                <SeiyaLogo height={42} />
+              </div>
             </div>
 
             {onClose && (
               <button
                 onClick={onClose}
-                className="text-xs text-[#78716c] hover:text-[#2a2b2f] flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="text-xs text-[#737373] hover:text-[#000000] flex items-center gap-1.5 transition-colors cursor-pointer"
               >
-                <SolarIcon name="close-circle" size={16} />
+                <SolarIcon name="close-circle" size={18} />
                 <span className="hidden sm:inline">Exit</span>
               </button>
             )}
           </header>
 
-          {/* Main Questionnaire Container */}
-          <main className="max-w-3xl mx-auto px-6 py-8 sm:py-12 flex-1 w-full">
-            {/* PILLAR 1: Context & Story of Money */}
-            {questionnairePillar === 1 && (
-              <div className="space-y-8 animate-in fade-in duration-300">
-                <div className="space-y-2">
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#B4562A]/10 text-[#B4562A] text-xs font-semibold">
-                    <span>Pillar 1 • Experiences that shape you</span>
-                  </div>
-                  <h2 className="font-serif text-[28px] sm:text-[34px] font-normal text-[#2a2b2f] tracking-tight">
-                    Context &amp; Story of Money
-                  </h2>
-                  <p className="text-sm text-[#665e56] leading-relaxed">
-                    Sebelum Seiya mengatur angka-angka, kami ingin memahami makna uang dan kebiasaan komunikasi yang paling mewakili Anda dalam hubungan.
-                  </p>
-                </div>
+          {/* Main Content: Profiling Two-Column Layout (Figma: 493:8073) */}
+          <main className="max-w-6xl mx-auto px-6 py-8 sm:py-12 flex-1 w-full flex flex-col md:flex-row gap-10 lg:gap-16 items-start">
+            {/* Left Sidebar: Profiling List */}
+            <aside className="w-full md:w-[360px] shrink-0 space-y-6">
+              <h2 className="font-serif text-[24px] text-[#737373] tracking-tight">
+                Profiling
+              </h2>
 
-                {/* Question 1: Money Meaning */}
-                <div className="space-y-3">
-                  <label className="block font-serif text-base text-[#2a2b2f]">
-                    1. Apa makna uang yang paling utama bagi Anda?
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {[
-                      {
-                        id: "rasa_aman",
-                        icon: "shield-check",
-                        title: "Rasa Aman (Security)",
-                        desc: "Pos keuangan terlindungi, dana darurat siap, dan hati tenang untuk masa depan.",
-                      },
-                      {
-                        id: "kebebasan",
-                        icon: "sparkles",
-                        title: "Kebebasan (Freedom)",
-                        desc: "Memiliki ruang bernapas, fleksibilitas memilih gaya hidup, dan bebas berekspresi.",
-                      },
-                      {
-                        id: "pengakuan",
-                        icon: "cup",
-                        title: "Apresiasi Hasil Kerja (Reward)",
-                        desc: "Menikmati jerih payah bersama sebagai bukti kerja keras yang bermakna.",
-                      },
-                      {
-                        id: "membantu_orang_lain",
-                        icon: "heart",
-                        title: "Membantu Sesama (Care)",
-                        desc: "Kemampuan membahagiakan orang tua, keluarga besar, dan orang terdekat.",
-                      },
-                    ].map((opt) => (
+              <div className="space-y-3">
+                {PROFILING_STEPS.map((s) => {
+                  const isActive = profilingStep === s.id;
+                  const isDone = profilingStep > s.id;
+                  return (
+                    <div
+                      key={s.id}
+                      onClick={() => setProfilingStep(s.id as any)}
+                      className={`flex items-center gap-[22px] px-5 py-3 rounded-[20px] cursor-pointer transition-all ${
+                        isActive
+                          ? "bg-[#B4562A] text-white shadow-xs"
+                          : "text-[#737373] hover:text-[#000000] hover:bg-black/[0.02]"
+                      }`}
+                    >
                       <div
-                        key={opt.id}
-                        onClick={() => setMoneyMeaning(opt.id as any)}
-                        className={`p-4 rounded-[16px] cursor-pointer transition-all border ${
-                          moneyMeaning === opt.id
-                            ? "bg-white border-[#B4562A] shadow-md ring-2 ring-[#B4562A]/10"
-                            : "bg-[#fcf8f0] border-[#ded7ce] hover:bg-white hover:border-[#cbbfb0]"
+                        className={`w-10 h-10 rounded-full flex items-center justify-center font-serif text-lg font-medium transition-all ${
+                          isActive
+                            ? "bg-white text-[#B4562A]"
+                            : isDone
+                            ? "border-2 border-[#2d5232] text-[#2d5232] bg-[#2d5232]/5"
+                            : "border-2 border-[#737373]/50 text-[#737373]"
                         }`}
                       >
-                        <div className="flex items-center justify-between mb-1.5">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[#B4562A]">
-                              <SolarIcon name={opt.icon as any} size={18} />
-                            </span>
-                            <h4 className="font-serif text-sm font-normal text-[#2a2b2f]">
-                              {opt.title}
-                            </h4>
-                          </div>
-                          {moneyMeaning === opt.id && (
-                            <span className="w-4 h-4 rounded-full bg-[#B4562A] text-white flex items-center justify-center text-[10px]">
-                              ✓
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-[#665e56] leading-relaxed pl-6">
-                          {opt.desc}
-                        </p>
+                        {isDone ? "✓" : s.id}
                       </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Question 2: Talk Frequency */}
-                <div className="space-y-3">
-                  <label className="block font-serif text-base text-[#2a2b2f]">
-                    2. Seberapa sering Anda dan pasangan membicarakan uang saat ini?
-                  </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                    {[
-                      { id: "weekly", label: "Setiap Minggu", desc: "Rutin sinkronisasi" },
-                      { id: "monthly", label: "Bulanan", desc: "Saat gajian tiba" },
-                      { id: "as_needed", label: "Hanya Saat Butuh", desc: "Ada tagihan besar" },
-                      { id: "not_yet", label: "Belum Pernah Rutin", desc: "Baru mau mulai" },
-                    ].map((item) => (
-                      <div
-                        key={item.id}
-                        onClick={() => setTalkFrequency(item.id as any)}
-                        className={`p-3.5 rounded-[14px] text-center cursor-pointer transition-all border ${
-                          talkFrequency === item.id
-                            ? "bg-white border-[#B4562A] shadow-sm ring-1 ring-[#B4562A]"
-                            : "bg-[#fcf8f0] border-[#ded7ce] hover:bg-white"
+                      <span
+                        className={`font-serif text-xl ${
+                          isActive
+                            ? "text-white font-medium"
+                            : "text-[#737373] font-normal"
                         }`}
                       >
-                        <span className="block font-serif text-xs font-normal text-[#2a2b2f]">
-                          {item.label}
-                        </span>
-                        <span className="block text-[10px] text-[#8c827a] mt-0.5">
-                          {item.desc}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Question 3: Talk Duration */}
-                <div className="space-y-3">
-                  <label className="block font-serif text-base text-[#2a2b2f]">
-                    3. Berapa lama waktu obrolan yang paling nyaman bagi Anda?
-                  </label>
-                  <div className="grid grid-cols-3 gap-3">
-                    {[
-                      { id: "under_15", label: "< 15 Menit", desc: "Cepat, to-the-point" },
-                      { id: "15_30", label: "15 - 30 Menit", desc: "Ideal & terarah" },
-                      { id: "30_60", label: "30 - 60 Menit", desc: "Santai di akhir pekan" },
-                    ].map((item) => (
-                      <div
-                        key={item.id}
-                        onClick={() => setTalkDuration(item.id as any)}
-                        className={`p-3.5 rounded-[14px] text-center cursor-pointer transition-all border ${
-                          talkDuration === item.id
-                            ? "bg-white border-[#B4562A] shadow-sm ring-1 ring-[#B4562A]"
-                            : "bg-[#fcf8f0] border-[#ded7ce] hover:bg-white"
-                        }`}
-                      >
-                        <span className="block font-serif text-xs font-normal text-[#2a2b2f]">
-                          {item.label}
-                        </span>
-                        <span className="block text-[10px] text-[#8c827a] mt-0.5">
-                          {item.desc}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* PILLAR 2: Style & Purpose */}
-            {questionnairePillar === 2 && (
-              <div className="space-y-8 animate-in fade-in duration-300">
-                <div className="space-y-2">
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#B4562A]/10 text-[#B4562A] text-xs font-semibold">
-                    <span>Pillar 2 • How you see the future</span>
-                  </div>
-                  <h2 className="font-serif text-[28px] sm:text-[34px] font-normal text-[#2a2b2f] tracking-tight">
-                    Style &amp; Purpose
-                  </h2>
-                  <p className="text-sm text-[#665e56] leading-relaxed">
-                    Bagaimana kecenderungan Anda saat membelanjakan uang dan gaya interaksi finansial yang membuat Anda paling nyaman.
-                  </p>
-                </div>
-
-                {/* Spending habit scale */}
-                <div className="p-5 rounded-[20px] bg-white border border-[#ded7ce] space-y-4 shadow-xs">
-                  <div>
-                    <label className="block font-serif text-base text-[#2a2b2f]">
-                      1. Saat ingin membeli barang impian (wishlist), apa reaksi Anda?
-                    </label>
-                    <p className="text-xs text-[#8c827a] mt-1">
-                      Pilih dari skala 1 (sangat menahan diri / berpikir berkali-kali) hingga 5 (spontan &amp; langsung eksekusi).
-                    </p>
-                  </div>
-
-                  <div className="flex items-center justify-between gap-2 pt-2">
-                    {[1, 2, 3, 4, 5].map((num) => (
-                      <button
-                        key={num}
-                        type="button"
-                        onClick={() => setSpendingHabit(num)}
-                        className={`w-12 h-12 rounded-full font-serif text-base transition-all cursor-pointer flex items-center justify-center ${
-                          spendingHabit === num
-                            ? "bg-[#B4562A] text-white font-bold shadow-md scale-110"
-                            : "bg-[#f5eee1] text-[#2a2b2f] hover:bg-[#ebdcc9]"
-                        }`}
-                      >
-                        {num}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="flex justify-between text-[11px] text-[#8c827a] px-1 font-sans">
-                    <span>1: Sangat Menahan Diri</span>
-                    <span>3: Seimbang</span>
-                    <span>5: Spontan &amp; Cepat</span>
-                  </div>
-                </div>
-
-                {/* Communication style */}
-                <div className="space-y-3">
-                  <label className="block font-serif text-base text-[#2a2b2f]">
-                    2. Gaya komunikasi yang paling nyaman bagi Anda berdua:
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {[
-                      {
-                        id: "langsung",
-                        title: "Langsung to-the-point",
-                        desc: "Bahas langsung sekarang saat keputusan atau transaksi terjadi.",
-                      },
-                      {
-                        id: "waktu_khusus",
-                        title: "Waktu Khusus (Money Date)",
-                        desc: "Simpan topik penting untuk dibahas santai di akhir pekan berdua.",
-                      },
-                      {
-                        id: "lewat_tulisan",
-                        title: "Ringkasan Tertulis Dulu",
-                        desc: "Beri ringkasan dan opsi tertulis yang rapi sebelum berdiskusi.",
-                      },
-                    ].map((item) => (
-                      <div
-                        key={item.id}
-                        onClick={() => setCommStyle(item.id as any)}
-                        className={`p-4 rounded-[16px] cursor-pointer transition-all border ${
-                          commStyle === item.id
-                            ? "bg-white border-[#B4562A] shadow-sm ring-1 ring-[#B4562A]"
-                            : "bg-[#fcf8f0] border-[#ded7ce] hover:bg-white"
-                        }`}
-                      >
-                        <h4 className="font-serif text-sm font-normal text-[#2a2b2f] mb-1">
-                          {item.title}
-                        </h4>
-                        <p className="text-xs text-[#665e56] leading-relaxed">
-                          {item.desc}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Perma Goal / Shared Life Priority */}
-                <div className="space-y-3">
-                  <label className="block font-serif text-base text-[#2a2b2f]">
-                    3. Fokus tujuan hidup bersama tahun ini:
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {[
-                      {
-                        id: "pencapaian",
-                        title: "Mencapai Target Besar",
-                        desc: "Membeli rumah impian, dana darurat kokoh, dan investasi jangka panjang.",
-                      },
-                      {
-                        id: "emosi_positif",
-                        title: "Menikmati Hidup Bersama",
-                        desc: "Merayakan momen kecil, liburan impian, dan kuliner tanpa rasa bersalah.",
-                      },
-                      {
-                        id: "keasyikan",
-                        title: "Minat & Pengembangan Diri",
-                        desc: "Mendukung hobi, kursus baru, dan eksplorasi kegiatan seru berdua.",
-                      },
-                      {
-                        id: "makna",
-                        title: "Dukungan Keluarga Besar",
-                        desc: "Membantu orang tua, keluarga, dan persiapan masa depan anak.",
-                      },
-                    ].map((item) => (
-                      <div
-                        key={item.id}
-                        onClick={() => setPermaGoal(item.id as any)}
-                        className={`p-4 rounded-[16px] cursor-pointer transition-all border ${
-                          permaGoal === item.id
-                            ? "bg-white border-[#B4562A] shadow-sm ring-1 ring-[#B4562A]"
-                            : "bg-[#fcf8f0] border-[#ded7ce] hover:bg-white"
-                        }`}
-                      >
-                        <h4 className="font-serif text-sm font-normal text-[#2a2b2f] mb-1">
-                          {item.title}
-                        </h4>
-                        <p className="text-xs text-[#665e56] leading-relaxed">
-                          {item.desc}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* PILLAR 3: Rules & Privacy */}
-            {questionnairePillar === 3 && (
-              <div className="space-y-8 animate-in fade-in duration-300">
-                <div className="space-y-2">
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#B4562A]/10 text-[#B4562A] text-xs font-semibold">
-                    <span>Pillar 3 • Boundaries that make you comfortable</span>
-                  </div>
-                  <h2 className="font-serif text-[28px] sm:text-[34px] font-normal text-[#2a2b2f] tracking-tight">
-                    Rules &amp; Privacy
-                  </h2>
-                  <p className="text-sm text-[#665e56] leading-relaxed">
-                    Menetapkan kesepakatan rasio patungan, ambang batas persetujuan, dan perlindungan privasi yang adil.
-                  </p>
-                </div>
-
-                {/* Wallet Structure */}
-                <div className="space-y-3">
-                  <label className="block font-serif text-base text-[#2a2b2f]">
-                    1. Struktur Dompet &amp; Privasi
-                  </label>
-                  <div className="space-y-2.5">
-                    {[
-                      {
-                        id: "both",
-                        title: "Shared + Personal Wallets (Rekomendasi)",
-                        desc: "100% transparan untuk pengeluaran bersama, dan privasi terlindungi untuk dompet pribadi (hanya menampilkan total agregat).",
-                      },
-                      {
-                        id: "shared",
-                        title: "Shared Wallet Saja",
-                        desc: "Semua pengeluaran dikelola dalam satu pool rekening bersama transparan.",
-                      },
-                      {
-                        id: "personal",
-                        title: "Personal Wallets dengan Pencatatan Split",
-                        desc: "Semua akun tetap terpisah, dan pengeluaran bersama diselesaikan dengan split saat dibutuhkan.",
-                      },
-                    ].map((opt) => (
-                      <div
-                        key={opt.id}
-                        onClick={() => setWalletChoice(opt.id as any)}
-                        className={`p-4 rounded-[16px] cursor-pointer transition-all border ${
-                          walletChoice === opt.id
-                            ? "bg-white border-[#B4562A] shadow-sm ring-1 ring-[#B4562A]"
-                            : "bg-[#fcf8f0] border-[#ded7ce] hover:bg-white"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <h4 className="font-serif text-sm font-normal text-[#2a2b2f]">
-                            {opt.title}
-                          </h4>
-                          {walletChoice === opt.id && (
-                            <span className="w-4 h-4 rounded-full bg-[#B4562A] text-white flex items-center justify-center text-[10px]">
-                              ✓
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-[#665e56] leading-relaxed">
-                          {opt.desc}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Split Ratio */}
-                <div className="space-y-3">
-                  <label className="block font-serif text-base text-[#2a2b2f]">
-                    2. Rasio Patungan Pengeluaran Bersama
-                  </label>
-                  <div className="grid grid-cols-3 gap-3">
-                    {[
-                      { label: "50 : 50", dina: 50, raka: 50, desc: "Mitra Setara" },
-                      { label: "60 : 40", dina: 60, raka: 40, desc: `${partnerBName} 60% : ${partnerAName} 40%` },
-                      { label: "70 : 30", dina: 70, raka: 30, desc: "Proporsional" },
-                    ].map((s) => (
-                      <div
-                        key={s.label}
-                        onClick={() => setSplitRatio({ dina: s.dina, raka: s.raka })}
-                        className={`p-3.5 rounded-[16px] text-center cursor-pointer transition-all border ${
-                          splitRatio.dina === s.dina
-                            ? "bg-white border-[#B4562A] shadow-sm ring-1 ring-[#B4562A]"
-                            : "bg-[#fcf8f0] border-[#ded7ce] hover:bg-white"
-                        }`}
-                      >
-                        <span className="font-serif text-sm font-normal text-[#2a2b2f] block">
-                          {s.label}
-                        </span>
-                        <span className="text-[10px] text-[#8c827a] block mt-0.5">
-                          {s.desc}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Threshold */}
-                <div className="space-y-3">
-                  <label className="block font-serif text-base text-[#2a2b2f]">
-                    3. Batas Persetujuan Pengeluaran Bersama (Dual-Key Gateway)
-                  </label>
-                  <div className="space-y-2">
-                    {[250, 500, 1000].map((amt) => {
-                      const displayConverted = formatMoneyConverted(amt, "USD", reportingCurrency, locale);
-                      return (
-                        <div
-                          key={amt}
-                          onClick={() => setThreshold(amt)}
-                          className={`p-3.5 rounded-[16px] flex items-center justify-between cursor-pointer transition-all border ${
-                            threshold === amt
-                              ? "bg-white border-[#B4562A] shadow-sm ring-1 ring-[#B4562A]"
-                              : "bg-[#fcf8f0] border-[#ded7ce] hover:bg-white"
-                          }`}
-                        >
-                          <div>
-                            <span className="font-serif text-sm font-normal text-[#2a2b2f] block">
-                              {displayConverted}
-                            </span>
-                            <span className="text-[11px] text-[#8c827a]">
-                              {amt === 500 ? "Ambang batas rekomendasi Seiya" : "Batas pengeluaran custom"}
-                            </span>
-                          </div>
-                          {threshold === amt && (
-                            <span className="w-4 h-4 rounded-full bg-[#B4562A] text-white flex items-center justify-center text-[10px]">
-                              ✓
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Cooling off */}
-                <div className="p-4 rounded-[16px] bg-white border border-[#ded7ce] space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[#B4562A]">
-                        <SolarIcon name="clock-circle" size={18} />
-                      </span>
-                      <span className="font-serif text-sm text-[#2a2b2f]">
-                        Late-Night 8h Cooling-Off Safeguard
+                        {s.label}
                       </span>
                     </div>
-                    <input
-                      type="checkbox"
-                      checked={coolingOff}
-                      onChange={(e) => setCoolingOff(e.target.checked)}
-                      className="w-4 h-4 accent-[#B4562A] cursor-pointer"
+                  );
+                })}
+              </div>
+            </aside>
+
+            {/* Right Interactive Area */}
+            <section className="flex-1 w-full max-w-2xl space-y-6">
+              {/* Category, Title, and Subtitle */}
+              <div className="space-y-1">
+                <span className="font-serif text-lg sm:text-xl text-[#737373] block">
+                  {currentStepData.category}
+                </span>
+                <h1 className="font-serif text-[32px] sm:text-[38px] font-normal text-[#000000] tracking-tight leading-tight">
+                  {currentStepData.question}
+                </h1>
+                <p className="font-serif text-base sm:text-lg text-[#737373] pt-1">
+                  {currentStepData.subtitle}
+                </p>
+              </div>
+
+              {/* White Floating Card (Figma 493:8073) */}
+              <div className="bg-white rounded-[30px] p-6 sm:p-8 shadow-xl border border-black/5 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {currentStepData.options.map((opt) => {
+                    const isSelected = currentStepData.selected === opt;
+                    return (
+                      <div
+                        key={opt}
+                        onClick={() => currentStepData.onSelect(opt)}
+                        className={`p-4 rounded-[15px] border transition-all cursor-pointer flex items-center gap-3.5 ${
+                          isSelected
+                            ? "border-[#B4562A] bg-[#FEFBF5]/50 shadow-xs ring-1 ring-[#B4562A]"
+                            : "border-[#BFBFBF] hover:border-[#737373] bg-white"
+                        }`}
+                      >
+                        {/* Radio Circle */}
+                        <div
+                          className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                            isSelected
+                              ? "border-[#B4562A] bg-[#B4562A]"
+                              : "border-[#BFBFBF]"
+                          }`}
+                        >
+                          {isSelected && (
+                            <div className="w-2.5 h-2.5 rounded-full bg-white" />
+                          )}
+                        </div>
+                        <span className="font-serif text-lg sm:text-xl text-[#000000]">
+                          {opt}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Additional Step 7 Signatures if on Security Check */}
+                {profilingStep === 7 && (
+                  <div className="pt-6 border-t border-[#f0ebe3] space-y-3">
+                    <span className="font-serif text-base text-[#2a2b2f] block">
+                      Dual Partner Signatures:
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setPartnerASigned(true)}
+                        className={`p-3.5 rounded-full text-xs font-serif transition-all cursor-pointer flex items-center justify-center gap-2 border ${
+                          partnerASigned
+                            ? "bg-[#2d5232]/10 border-[#2d5232]/30 text-[#2d5232] font-semibold"
+                            : "bg-[#fcf8f0] border-[#ded7ce] text-[#2a2b2f] hover:bg-white"
+                        }`}
+                      >
+                        <SolarIcon
+                          name={partnerASigned ? "check-circle" : "shield-check"}
+                          size={18}
+                        />
+                        <span>
+                          {partnerASigned ? `${partnerAName} Signed ✓` : `Sign as ${partnerAName}`}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setPartnerBSigned(true)}
+                        className={`p-3.5 rounded-full text-xs font-serif transition-all cursor-pointer flex items-center justify-center gap-2 border ${
+                          partnerBSigned
+                            ? "bg-[#2d5232]/10 border-[#2d5232]/30 text-[#2d5232] font-semibold"
+                            : "bg-[#fcf8f0] border-[#ded7ce] text-[#2a2b2f] hover:bg-white"
+                        }`}
+                      >
+                        <SolarIcon
+                          name={partnerBSigned ? "check-circle" : "shield-check"}
+                          size={18}
+                        />
+                        <span>
+                          {partnerBSigned ? `${partnerBName} Signed ✓` : `Sign as ${partnerBName}`}
+                        </span>
+                      </button>
+                    </div>
+
+                    {!canActivate && (
+                      <p className="text-[11px] text-[#B4562A] text-center pt-1 font-sans">
+                        Both partners must sign to complete setup and activate the Couple Contract.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Bottom Navigation: Back, Skip, Continue */}
+              <div className="flex items-center justify-between pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (profilingStep > 1) {
+                      setProfilingStep((p) => (p - 1) as any);
+                    } else {
+                      setMode("story-intro");
+                    }
+                  }}
+                  className="flex items-center gap-2 text-[#737373] hover:text-[#000000] font-serif text-lg transition-colors cursor-pointer"
+                >
+                  <svg
+                    className="w-4 h-4 text-[#737373]"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 19l-7-7 7-7"
                     />
-                  </div>
-                  <p className="text-xs text-[#665e56] leading-relaxed pl-6">
-                    Menahan pembelian impulsif bernilai tinggi antara jam 23:00 - 08:00 selama 8 jam tanpa menghakimi, memberi ruang jeda yang sehat sebelum konfirmasi ulang.
-                  </p>
-                </div>
-              </div>
-            )}
+                  </svg>
+                  <span>Back</span>
+                </button>
 
-            {/* PILLAR 4: Review & Dual Signatures */}
-            {questionnairePillar === 4 && (
-              <div className="space-y-8 animate-in fade-in duration-300">
-                <div className="space-y-2">
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#2d5232]/10 text-[#2d5232] text-xs font-semibold">
-                    <span>Activation • Plain-Language Contract Review</span>
-                  </div>
-                  <h2 className="font-serif text-[28px] sm:text-[34px] font-normal text-[#2a2b2f] tracking-tight">
-                    Janji Seiya &amp; Tanda Tangan Bersama
-                  </h2>
-                  <p className="text-sm text-[#665e56] leading-relaxed">
-                    Kontrak ini disusun dari cerita dan preferensi Anda. Kedua pasangan harus menandatangani agar kesepakatan aktif.
-                  </p>
-                </div>
-
-                {/* Agreement Summary Card */}
-                <div className="p-6 rounded-[24px] bg-white border border-[#ded7ce] shadow-sm space-y-3.5 text-xs text-[#2a2b2f]">
-                  <div className="flex justify-between items-center pb-2 border-b border-[#f0ebe3]">
-                    <span className="text-[#8c827a]">Makna Utama Uang:</span>
-                    <span className="font-serif font-medium capitalize">
-                      {moneyMeaning.replace(/_/g, " ")}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center pb-2 border-b border-[#f0ebe3]">
-                    <span className="text-[#8c827a]">Gaya Komunikasi:</span>
-                    <span className="font-serif font-medium capitalize">
-                      {commStyle.replace(/_/g, " ")}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center pb-2 border-b border-[#f0ebe3]">
-                    <span className="text-[#8c827a]">Struktur Rekening:</span>
-                    <span className="font-serif font-medium capitalize">
-                      {walletChoice === "both" ? "Shared + Personal Wallets" : walletChoice}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center pb-2 border-b border-[#f0ebe3]">
-                    <span className="text-[#8c827a]">Rasio Patungan:</span>
-                    <span className="font-serif font-medium">
-                      {partnerBName} {splitRatio.dina}% : {partnerAName} {splitRatio.raka}%
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center pb-2 border-b border-[#f0ebe3]">
-                    <span className="text-[#8c827a]">Batas Dual-Key:</span>
-                    <span className="font-serif font-medium text-[#B4562A]">
-                      {formatMoneyConverted(threshold, "USD", reportingCurrency, locale)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[#8c827a]">Cooling-Off 8 Jam:</span>
-                    <span className="font-serif font-medium text-[#2d5232]">
-                      {coolingOff ? "Aktif (23:00 - 08:00)" : "Non-aktif"}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Dual Signature Buttons */}
-                <div className="space-y-3 pt-2">
-                  <span className="font-serif text-sm text-[#2a2b2f] block">
-                    Tanda Tangan Kedua Pasangan:
-                  </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="flex items-center gap-6">
+                  {profilingStep < 7 && (
                     <button
                       type="button"
-                      onClick={() => setPartnerASigned(true)}
-                      className={`p-3.5 rounded-full text-xs font-serif transition-all cursor-pointer flex items-center justify-center gap-2 border ${
-                        partnerASigned
-                          ? "bg-[#2d5232]/10 border-[#2d5232]/30 text-[#2d5232] font-semibold"
-                          : "bg-white border-[#ded7ce] text-[#2a2b2f] hover:bg-[#fcf8f0]"
-                      }`}
+                      onClick={() => setProfilingStep((p) => (p + 1) as any)}
+                      className="text-[#737373] hover:text-[#000000] font-serif text-lg transition-colors cursor-pointer"
                     >
-                      <SolarIcon
-                        name={partnerASigned ? "check-circle" : "shield-check"}
-                        size={18}
-                      />
-                      <span>
-                        {partnerASigned ? `${partnerAName} Signed ✓` : `Sign as ${partnerAName}`}
-                      </span>
+                      Skip
                     </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setPartnerBSigned(true)}
-                      className={`p-3.5 rounded-full text-xs font-serif transition-all cursor-pointer flex items-center justify-center gap-2 border ${
-                        partnerBSigned
-                          ? "bg-[#2d5232]/10 border-[#2d5232]/30 text-[#2d5232] font-semibold"
-                          : "bg-white border-[#ded7ce] text-[#2a2b2f] hover:bg-[#fcf8f0]"
-                      }`}
-                    >
-                      <SolarIcon
-                        name={partnerBSigned ? "check-circle" : "shield-check"}
-                        size={18}
-                      />
-                      <span>
-                        {partnerBSigned ? `${partnerBName} Signed ✓` : `Sign as ${partnerBName}`}
-                      </span>
-                    </button>
-                  </div>
-
-                  {!canActivate && (
-                    <p className="text-[11px] text-[#B4562A] text-center pt-1">
-                      Menunggu persetujuan kedua pihak. Kedua pasangan harus menandatangani untuk mengaktifkan kesepakatan ini.
-                    </p>
                   )}
+
+                  <button
+                    type="button"
+                    disabled={profilingStep === 7 && !canActivate}
+                    onClick={() => {
+                      if (profilingStep < 7) {
+                        setProfilingStep((p) => (p + 1) as any);
+                      } else {
+                        handleCompleteQuestionnaire();
+                      }
+                    }}
+                    className={`px-7 py-3 rounded-[15px] font-sans font-semibold text-base flex items-center gap-2.5 transition-all shadow-xs ${
+                      profilingStep === 7 && !canActivate
+                        ? "bg-[#BFBFBF] text-white/80 cursor-not-allowed"
+                        : "bg-[#B4562A] hover:bg-[#9c4820] text-white cursor-pointer active:scale-[0.99]"
+                    }`}
+                  >
+                    <span>
+                      {profilingStep === 7 ? "Activate Contract & Enter" : "Continue"}
+                    </span>
+                    <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
+                      <svg
+                        className="w-3 h-3 text-white"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2.5}
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    </span>
+                  </button>
                 </div>
               </div>
-            )}
-
-            {/* Bottom Step Actions */}
-            <div className="mt-10 pt-6 border-t border-[#eedecb] flex items-center justify-between">
-              {questionnairePillar > 1 ? (
-                <button
-                  type="button"
-                  onClick={() => setQuestionnairePillar((p) => (p - 1) as any)}
-                  className="px-5 py-2.5 rounded-full border border-[#ded7ce] text-xs font-serif text-[#2a2b2f] hover:bg-white transition-all cursor-pointer"
-                >
-                  Previous Pillar
-                </button>
-              ) : (
-                <div />
-              )}
-
-              {questionnairePillar < 4 ? (
-                <button
-                  type="button"
-                  onClick={() => setQuestionnairePillar((p) => (p + 1) as any)}
-                  className="px-6 py-2.5 rounded-full bg-[#B4562A] hover:bg-[#9c4820] text-white text-xs font-serif transition-all shadow-xs cursor-pointer"
-                >
-                  Continue to Next Pillar
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  disabled={!canActivate}
-                  onClick={handleCompleteQuestionnaire}
-                  className={`px-7 py-3 rounded-full font-serif text-sm transition-all shadow-xs ${
-                    canActivate
-                      ? "bg-[#B4562A] hover:bg-[#9c4820] text-white cursor-pointer active:scale-95"
-                      : "bg-[#ded7ce] text-white/70 cursor-not-allowed"
-                  }`}
-                >
-                  Activate Contract &amp; Enter Home
-                </button>
-              )}
-            </div>
+            </section>
           </main>
 
-          <footer className="px-6 py-6 text-center text-xs text-[#8c827a] border-t border-[#E6E6E6]">
-            Step {questionnairePillar} of 4 • Seiya Couple Contract Setup
-          </footer>
+          {/* Minimal Bottom Margin */}
+          <div className="h-10" />
         </div>
       )}
 
