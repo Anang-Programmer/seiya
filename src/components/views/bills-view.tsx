@@ -29,6 +29,7 @@ export function BillsView() {
   const [billModalOpen, setBillModalOpen] = useState(false);
   const [billToEdit, setBillToEdit] = useState<BillItem | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [activeMenuBillId, setActiveMenuBillId] = useState<string | null>(null);
 
   const activePartnerName = currentUser === "partner_a" ? partnerAName : partnerBName;
   const otherPartnerName = currentUser === "partner_a" ? partnerBName : partnerAName;
@@ -252,41 +253,84 @@ export function BillsView() {
                   </div>
                 </div>
 
-                <div className="flex items-center sm:flex-col sm:items-end justify-between gap-1 text-right">
-                  <span className="text-base sm:text-lg font-bold font-serif text-[#2a2b2f]">
-                    {formatMoney(bill.amount, billCurrency, locale)}
-                  </span>
-                  {billCurrency !== reportingCurrency && (
-                    <span className="text-[11px] text-[#808988] font-serif block">
-                      ≈ {formatMoneyConverted(bill.amount, billCurrency, reportingCurrency, locale)}
-                    </span>
-                  )}
-                </div>
+                {/* Right Column: Amount ABOVE the Action Button, with 3-Dots Menu */}
+                <div className="flex flex-col sm:items-end justify-between gap-2 shrink-0 sm:pl-4">
+                  {/* Top row: Amount + 3 Dots Menu Button */}
+                  <div className="flex items-center justify-between sm:justify-end gap-2 relative w-full sm:w-auto">
+                    <div className="text-left sm:text-right">
+                      <span className="text-base sm:text-lg font-bold font-serif text-[#2a2b2f]">
+                        {formatMoney(bill.amount, billCurrency, locale)}
+                      </span>
+                      {billCurrency !== reportingCurrency && (
+                        <span className="text-[11px] text-[#808988] font-serif block">
+                          ≈ {formatMoneyConverted(bill.amount, billCurrency, reportingCurrency, locale)}
+                        </span>
+                      )}
+                    </div>
 
-                  <div className="flex items-center gap-2">
-                    {/* Edit button */}
-                    <button
-                      onClick={() => handleOpenEditBill(bill)}
-                      className="p-1.5 rounded-full text-[#808988] hover:text-[#2a2b2f] hover:bg-[#ece3d3] transition-colors cursor-pointer"
-                      title="Edit bill details"
-                      aria-label="Edit bill"
-                    >
-                      <SolarIcon name="edit" size={15} />
-                    </button>
+                    {/* 3 Dots Menu Button (Solar Streamline) */}
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveMenuBillId(activeMenuBillId === bill.id ? null : bill.id);
+                        }}
+                        className={`p-1.5 rounded-full text-[#808988] hover:text-[#2a2b2f] hover:bg-[#ece3d3] transition-colors cursor-pointer ${
+                          activeMenuBillId === bill.id ? "bg-[#ece3d3] text-[#2a2b2f]" : ""
+                        }`}
+                        title="Bill options"
+                        aria-label="Bill options"
+                      >
+                        <SolarIcon name="dots-menu" size={16} />
+                      </button>
 
-                    {/* Delete button */}
-                    <button
-                      onClick={() => handleDeleteBill(bill)}
-                      className="p-1.5 rounded-full text-[#808988] hover:text-[#a34426] hover:bg-[#fcf0ee] transition-colors cursor-pointer"
-                      title="Delete bill"
-                      aria-label="Delete bill"
-                    >
-                      <SolarIcon name="trash" size={15} />
-                    </button>
+                      {/* Dropdown Menu */}
+                      {activeMenuBillId === bill.id && (
+                        <>
+                          <div
+                            className="fixed inset-0 z-40"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveMenuBillId(null);
+                            }}
+                          />
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className="absolute right-0 top-full mt-1 w-36 bg-[#fef9ef] rounded-[10px] shadow-lg border border-[#d1c9bf]/70 py-1 z-50 animate-in fade-in-0 zoom-in-95 text-xs text-[#2a2b2f]"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveMenuBillId(null);
+                                handleOpenEditBill(bill);
+                              }}
+                              className="w-full px-3 py-2 flex items-center gap-2 hover:bg-[#f5eee1] transition-colors text-left cursor-pointer font-medium"
+                            >
+                              <SolarIcon name="edit" size={14} className="text-[#808988]" />
+                              <span>Edit Bill</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveMenuBillId(null);
+                                handleDeleteBill(bill);
+                              }}
+                              className="w-full px-3 py-2 flex items-center gap-2 hover:bg-[#fcf0ee] text-[#ba3c2a] transition-colors text-left cursor-pointer font-medium"
+                            >
+                              <SolarIcon name="trash" size={14} className="text-[#ba3c2a]" />
+                              <span>Delete</span>
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
 
-                    {/* Pay / Status Action */}
+                  {/* Bottom row: Action Button (Pay Bill / Status) */}
+                  <div className="w-full sm:w-auto flex sm:justify-end">
                     {isPaid ? (
-                      <span className="text-xs text-[#2d5232] font-semibold flex items-center gap-1">
+                      <span className="text-xs text-[#2d5232] font-semibold flex items-center gap-1.5 bg-[#edf3ec] px-3.5 py-1.5 rounded-full border border-[#2d5232]/20">
                         <SolarIcon name="check-circle" size={14} /> Confirmed
                       </span>
                     ) : isPending ? (
@@ -298,12 +342,12 @@ export function BillsView() {
                             setSelectedApproval(associatedApproval);
                             setApprovalModalOpen(true);
                           }}
-                          className="text-xs shadow-2xs"
+                          className="text-xs shadow-2xs w-full sm:w-auto"
                         >
                           Confirm & Approve (PIN)
                         </Button>
                       ) : (
-                        <span className="text-xs text-[#808988] bg-[#ece3d3]/80 px-2.5 py-1 rounded-full font-medium">
+                        <span className="text-xs text-[#808988] bg-[#ece3d3]/80 px-3 py-1.5 rounded-full font-medium text-center w-full sm:w-auto">
                           Awaiting {otherPartnerName}&apos;s Approval
                         </span>
                       )
@@ -312,7 +356,7 @@ export function BillsView() {
                         variant="primary"
                         size="sm"
                         onClick={() => handlePayBill(bill)}
-                        className="text-xs shadow-2xs"
+                        className="text-xs shadow-2xs px-4 w-full sm:w-auto"
                       >
                         Pay Bill
                       </Button>
@@ -320,6 +364,7 @@ export function BillsView() {
                   </div>
                 </div>
               </div>
+            </div>
           );
         })}
       </div>
