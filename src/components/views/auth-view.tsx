@@ -48,32 +48,66 @@ export function AuthView({
   const [joinError, setJoinError] = useState("");
 
   // =========================================================================
-  // PROFILING QUESTIONNAIRE STATES (Figma 493-8073: 7 Steps)
+  // PROFILING QUESTIONNAIRE STATES (Figma 472:8257 - 22 Screens in 7 Steps)
   // =========================================================================
-  const [profilingStep, setProfilingStep] = useState<1 | 2 | 3 | 4 | 5 | 6 | 7>(1);
+  const [currentScreen, setCurrentScreen] = useState<number>(1);
 
-  // Step 1: Context
+  // Screen 1: Relationship Status
   const [relationshipStatus, setRelationshipStatus] = useState<string>("Serious Dating");
+  // Screen 2: Relationship Duration
+  const [relationshipDuration, setRelationshipDuration] = useState<string>("1-3 years");
+  // Screen 3: Relationship Plans
+  const [relationshipPlans, setRelationshipPlans] = useState<string>("");
+  // Screen 4: Help Family
+  const [helpFamily, setHelpFamily] = useState<string>("Routine every month");
+  // Screen 5: Income Type
+  const [incomeType, setIncomeType] = useState<string>("Fixed");
 
-  // Step 2: Money Style
-  const [moneyStyle, setMoneyStyle] = useState<string>("Balanced & Pragmatic");
+  // Screen 6: Spend difficulty (1..11)
+  const [spendDifficulty, setSpendDifficulty] = useState<number>(6);
+  // Screen 7: Hold back need (1..11)
+  const [holdBackNeed, setHoldBackNeed] = useState<number>(5);
+  // Screen 8: Impulse buy (1..11)
+  const [impulseBuy, setImpulseBuy] = useState<number>(4);
+  // Screen 9: Spending regret (1..11)
+  const [spendingRegret, setSpendingRegret] = useState<number>(4);
 
-  // Step 3: Your Money Story
-  const [moneyStory, setMoneyStory] = useState<string>("Security & Peace of Mind");
+  // Screen 10: Childhood money
+  const [childhoodMoney, setChildhoodMoney] = useState<string>("Talked openly");
+  // Screen 11: Money meaning
+  const [moneyMeaning, setMoneyMeaning] = useState<string>("Feel Safe");
+  // Screen 12: Windfall tendency
+  const [windfallTendency, setWindfallTendency] = useState<string>("Save it");
 
-  // Step 4: Goals
-  const [goalChoice, setGoalChoice] = useState<string>("Buying a Home or Property");
+  // Screen 13: Biggest goal
+  const [biggestGoal, setBiggestGoal] = useState<string>("Have sufficient emergency funds");
+  // Screen 14: Goal emotion
+  const [goalEmotion, setGoalEmotion] = useState<string>("Have a calmer day");
+  // Screen 15: Goal alignment confidence (1..5)
+  const [goalAlignmentConfidence, setGoalAlignmentConfidence] = useState<number>(4);
 
-  // Step 5: Rules (Approval Threshold)
-  const [ruleThreshold, setRuleThreshold] = useState<string>("$500 (Rp 8.000.000)");
+  // Screen 16: Money management now
+  const [moneyManagementNow, setMoneyManagementNow] = useState<string>("Some combined");
+  // Screen 17: Purchases threshold to discuss
+  const [discussionThreshold, setDiscussionThreshold] = useState<string>("4380,70");
+  // Screen 18: Discussion channel
+  const [discussionChannel, setDiscussionChannel] = useState<string>("Talk about it straight away");
 
-  // Step 6: Privacy (Account Transparency Mode)
-  const [privacyMode, setPrivacyMode] = useState<string>("Shared + Personal Wallets (Recommended)");
+  // Screen 19: Shared data categories (multiselect)
+  const [sharedDataCategories, setSharedDataCategories] = useState<string[]>([
+    "Total Balance",
+    "Transaction Details",
+    "Production Category",
+  ]);
 
-  // Step 7: Security Check (Cooling-off & Signatures)
-  const [coolingOffSafeguard, setCoolingOffSafeguard] = useState<string>("Yes, enable 8-Hour Cooling-Off (Recommended)");
-  const [partnerASigned, setPartnerASigned] = useState<boolean>(false);
-  const [partnerBSigned, setPartnerBSigned] = useState<boolean>(false);
+  // Screen 20: Financial freedom
+  const [financialFreedom, setFinancialFreedom] = useState<string>("Yes");
+  // Screen 21: Partner money style guess (1..11)
+  const [partnerMoneyStyleGuess, setPartnerMoneyStyleGuess] = useState<number>(6);
+
+  // Dual partner signatures for completion
+  const [partnerASigned, setPartnerASigned] = useState<boolean>(true);
+  const [partnerBSigned, setPartnerBSigned] = useState<boolean>(true);
   const canActivate = partnerASigned && partnerBSigned;
 
   // Handle Login submission
@@ -124,100 +158,304 @@ export function AuthView({
     }
   };
 
-  // Profiling Step Configuration
+  // Profiling 7 Milestones configuration
   const PROFILING_STEPS = [
-    { id: 1, label: "Context" },
-    { id: 2, label: "Money Style" },
-    { id: 3, label: "Your Money Story" },
-    { id: 4, label: "Goals" },
-    { id: 5, label: "Rules" },
-    { id: 6, label: "Privacy" },
-    { id: 7, label: "Security Check" },
+    { id: 1, label: "Context", startScreen: 1 },
+    { id: 2, label: "Money Style", startScreen: 6 },
+    { id: 3, label: "Your Money Story", startScreen: 10 },
+    { id: 4, label: "Goals", startScreen: 13 },
+    { id: 5, label: "Rules", startScreen: 16 },
+    { id: 6, label: "Privacy", startScreen: 19 },
+    { id: 7, label: "Security Check", startScreen: 20 },
   ];
 
-  const currentStepData = {
+  // Active milestone in sidebar based on currentScreen (1..22)
+  const activeMilestoneId =
+    currentScreen <= 5
+      ? 1
+      : currentScreen <= 9
+      ? 2
+      : currentScreen <= 12
+      ? 3
+      : currentScreen <= 15
+      ? 4
+      : currentScreen <= 18
+      ? 5
+      : currentScreen === 19
+      ? 6
+      : 7;
+
+  // 22 Profiling Screens strictly matching Figma Component Set 472:8257
+  const currentScreenConfig = {
     1: {
       category: "About your relationship",
       question: "What is your current relationship status?",
       subtitle: "This helps Seiya tailor suggestions and forms of agreement to you",
+      type: "choice" as const,
       options: ["Serious Dating", "Engaged", "Married"],
-      selected: relationshipStatus,
-      onSelect: (val: string) => setRelationshipStatus(val),
+      selectedString: relationshipStatus,
+      onSelectString: (v: string) => setRelationshipStatus(v),
     },
     2: {
-      category: "About your money habits",
-      question: "How do you typically approach everyday spending?",
-      subtitle: "Understanding how you make financial decisions helps avoid misunderstandings",
-      options: [
-        "Careful & Planned",
-        "Balanced & Pragmatic",
-        "Spontaneous & Flexible",
-      ],
-      selected: moneyStyle,
-      onSelect: (val: string) => setMoneyStyle(val),
+      category: "About your relationship",
+      question: "How long have you been together?",
+      subtitle: "Select the closest range",
+      type: "choice" as const,
+      options: ["Less than 1 year", "1-3 years", "4-7 years", "More than 7 years"],
+      selectedString: relationshipDuration,
+      onSelectString: (v: string) => setRelationshipDuration(v),
     },
     3: {
-      category: "About your core values",
-      question: "What does financial stability mean most to you?",
-      subtitle: "Your emotional anchor guides how Seiya frames recommendations and priorities",
-      options: [
-        "Security & Peace of Mind",
-        "Freedom & Independence",
-        "Reward for Hard Work",
-        "Caring for Loved Ones",
-      ],
-      selected: moneyStory,
-      onSelect: (val: string) => setMoneyStory(val),
+      category: "About your relationship",
+      question: "Are there any big relationship plans in the near future?",
+      subtitle: "For example, getting married, moving house, or starting life in a new city",
+      type: "text" as const,
+      placeholder: "Example: getting married at the end of next year",
+      selectedString: relationshipPlans,
+      onSelectString: (v: string) => setRelationshipPlans(v),
     },
     4: {
-      category: "About your future plans",
-      question: "What is your shared top priority this year?",
-      subtitle: "Seiya allocates and protects funds toward this specific milestone together",
-      options: [
-        "Buying a Home or Property",
-        "Building an Emergency Fund",
-        "Travel & Meaningful Experiences",
-        "Family & Child Planning",
-      ],
-      selected: goalChoice,
-      onSelect: (val: string) => setGoalChoice(val),
+      category: "About your relationship",
+      question: "Do you regularly help your extended family?",
+      subtitle: "There's no need to mention the amount. We just want to understand the commitment you're keeping",
+      type: "choice" as const,
+      options: ["Routine every month", "Sometimes"],
+      selectedString: helpFamily,
+      onSelectString: (v: string) => setHelpFamily(v),
     },
     5: {
-      category: "About your mutual rules",
-      question: "What shared expense amount requires mutual approval?",
-      subtitle: "Any shared withdrawal above this limit requires both partners' explicit sign-off",
-      options: [
-        "$250 (Rp 4.000.000)",
-        "$500 (Rp 8.000.000)",
-        "$1,000 (Rp 16.000.000)",
-      ],
-      selected: ruleThreshold,
-      onSelect: (val: string) => setRuleThreshold(val),
+      category: "About your relationship",
+      question: "What kind of income do you make?",
+      subtitle: "Seiya will not ask for salary or debt at this stage",
+      type: "choice" as const,
+      options: ["Fixed", "Own business", "Not Fixed", "No income yet"],
+      selectedString: incomeType,
+      onSelectString: (v: string) => setIncomeType(v),
     },
     6: {
-      category: "About account visibility",
-      question: "How would you like to structure your visibility together?",
-      subtitle: "Shared funds are fully transparent, while personal funds keep your privacy intact",
-      options: [
-        "Shared + Personal Wallets (Recommended)",
-        "100% Joint Shared Wallet Only",
-        "Separate Wallets with Split Logging",
-      ],
-      selected: privacyMode,
-      onSelect: (val: string) => setPrivacyMode(val),
+      category: "The way you see money",
+      question: "How hard does it feel for you to spend money?",
+      subtitle: "Choose 1 if it feels very light, or 11 if it feels very heavy",
+      type: "scale" as const,
+      scaleMin: 1,
+      scaleMax: 11,
+      scaleMinLabel: "1 (Very light)",
+      scaleMaxLabel: "11 (Very heavy)",
+      selectedNumber: spendDifficulty,
+      onSelectNumber: (v: number) => setSpendDifficulty(v),
     },
     7: {
-      category: "Safeguards & Activation",
-      question: "Enable Cooling-Off Safeguards for late-night purchases?",
-      subtitle: "Purchases above threshold between 23:00 - 08:00 are placed on a gentle 8-hour hold",
-      options: [
-        "Yes, enable 8-Hour Cooling-Off (Recommended)",
-        "No, instant Dual-Key confirmation only",
-      ],
-      selected: coolingOffSafeguard,
-      onSelect: (val: string) => setCoolingOffSafeguard(val),
+      category: "The way you see money",
+      question: "How often do you hold back from buying something you really need?",
+      subtitle: "1 means almost never, 11 means very often",
+      type: "scale" as const,
+      scaleMin: 1,
+      scaleMax: 11,
+      scaleMinLabel: "1 (Almost never)",
+      scaleMaxLabel: "11 (Very often)",
+      selectedNumber: holdBackNeed,
+      onSelectNumber: (v: number) => setHoldBackNeed(v),
     },
-  }[profilingStep];
+    8: {
+      category: "The way you see money",
+      question: "When you find something interesting, how easily do you buy it right away?",
+      subtitle: "1 means very cautious, 11 means very easy to buy",
+      type: "scale" as const,
+      scaleMin: 1,
+      scaleMax: 11,
+      scaleMinLabel: "1 (Very cautious)",
+      scaleMaxLabel: "11 (Very easy to buy)",
+      selectedNumber: impulseBuy,
+      onSelectNumber: (v: number) => setImpulseBuy(v),
+    },
+    9: {
+      category: "The way you see money",
+      question: "How often do you regret spending after you've done it?",
+      subtitle: "Answer based on your habits, not what feels ideal",
+      type: "scale" as const,
+      scaleMin: 1,
+      scaleMax: 11,
+      scaleMinLabel: "1 (Almost never)",
+      scaleMaxLabel: "11 (Very often)",
+      selectedNumber: spendingRegret,
+      onSelectNumber: (v: number) => setSpendingRegret(v),
+    },
+    10: {
+      category: "Experiences that shape you",
+      question: "When you were a child, the money in your house was usually…",
+      subtitle: "Early experiences often influence how we react to money today",
+      type: "choice" as const,
+      options: [
+        "Become a source of contention",
+        "Talked openly",
+        "Rarely discussed",
+        "Never a problem",
+      ],
+      selectedString: childhoodMoney,
+      onSelectString: (v: string) => setChildhoodMoney(v),
+    },
+    11: {
+      category: "Experiences that shape you",
+      question: "For you, money means the most because it gives…",
+      subtitle: "Choose the meaning that is closest to your feelings",
+      type: "choice" as const,
+      options: [
+        "Feel Safe",
+        "Confession",
+        "Freedom",
+        "Ability to help others",
+      ],
+      selectedString: moneyMeaning,
+      onSelectString: (v: string) => setMoneyMeaning(v),
+    },
+    12: {
+      category: "Experiences that shape you",
+      question: "If you receive an unexpected sum of Rp. 1 million, you will tend to…",
+      subtitle: "Neither choice is better than the other",
+      type: "choice" as const,
+      options: [
+        "Save it",
+        "Helping Families",
+        "Buy what you've been eyeing",
+        "Invest it",
+      ],
+      selectedString: windfallTendency,
+      onSelectString: (v: string) => setWindfallTendency(v),
+    },
+    13: {
+      category: "What you want to achieve",
+      question: "What is your single biggest financial goal in the next 1–3 years?",
+      subtitle: "Write in your own words. There's no need to mention numbers if you're not comfortable with it",
+      type: "text" as const,
+      placeholder: "Example: have sufficient emergency funds",
+      selectedString: biggestGoal,
+      onSelectString: (v: string) => setBiggestGoal(v),
+    },
+    14: {
+      category: "What you want to achieve",
+      question: "If that goal is achieved, what will you feel most?",
+      subtitle: "This helps Seiya understand the reasons behind your goals",
+      type: "choice" as const,
+      options: [
+        "Have a calmer day",
+        "Proud to have grown successfully",
+        "Life feels more meaningful",
+        "Freer to choose",
+        "The relationship feels closer",
+      ],
+      selectedString: goalEmotion,
+      onSelectString: (v: string) => setGoalEmotion(v),
+    },
+    15: {
+      category: "What you want to achieve",
+      question: "How confident are you that your partner shares your goals?",
+      subtitle: "1 means not sure at all, 5 means very sure",
+      type: "scale" as const,
+      scaleMin: 1,
+      scaleMax: 5,
+      scaleMinLabel: "1 (Not sure at all)",
+      scaleMaxLabel: "5 (Very sure)",
+      selectedNumber: goalAlignmentConfidence,
+      onSelectNumber: (v: number) => setGoalAlignmentConfidence(v),
+    },
+    16: {
+      category: "How you manage your money",
+      question: "How do you manage your money now?",
+      subtitle: "Choose the one that best describes the current condition",
+      type: "choice" as const,
+      options: [
+        "Completely merged",
+        "Some combined",
+        "Separated",
+        "There are no settings yet",
+      ],
+      selectedString: moneyManagementNow,
+      onSelectString: (v: string) => setMoneyManagementNow(v),
+    },
+    17: {
+      category: "How you manage your money",
+      question: "Purchases above how much should be discussed first?",
+      subtitle: "This will be the starting point for your “discussion first” rule",
+      type: "choice" as const,
+      options: [
+        "2190,35",
+        "4380,70",
+        "8761,39",
+        "21903,48",
+        "Not know",
+      ],
+      selectedString: discussionThreshold,
+      onSelectString: (v: string) => setDiscussionThreshold(v),
+    },
+    18: {
+      category: "How you manage your money",
+      question: "What way are you more comfortable discussing money?",
+      subtitle: "Seiya will adjust the way it delivers insights and results",
+      type: "choice" as const,
+      options: [
+        "Talk about it straight away",
+        "Through writing first",
+        "At a special time",
+      ],
+      selectedString: discussionChannel,
+      onSelectString: (v: string) => setDiscussionChannel(v),
+    },
+    19: {
+      category: "You are in control",
+      question: "What do you want to share with your partner?",
+      subtitle: "Select everything you're comfortable sharing. These settings can be changed at any time",
+      type: "multiselect" as const,
+      options: [
+        "Total Balance",
+        "Transaction Details",
+        "Production Category",
+        "Dept",
+        "There isn't any yet",
+      ],
+      selectedArray: sharedDataCategories,
+      onToggleArray: (item: string) => {
+        setSharedDataCategories((prev) =>
+          prev.includes(item) ? prev.filter((i) => i !== item) : [...prev, item]
+        );
+      },
+    },
+    20: {
+      category: "Safe space for you",
+      question: "Do you feel free to make your own decisions about your money?",
+      subtitle: "These answers are always private and never shared. We use them only to keep your experience safe",
+      type: "choice" as const,
+      options: ["Yes", "Sometimes not"],
+      selectedString: financialFreedom,
+      onSelectString: (v: string) => setFinancialFreedom(v),
+    },
+    21: {
+      category: "Safe space for you",
+      question: "Lastly, want to guess your partner's money style?",
+      subtitle: "Optional. Choose 1 if you think he's very easy to spend money on, or 11 if he's very hard to spend. Guesses are only allowed with mutual consent",
+      type: "scale" as const,
+      scaleMin: 1,
+      scaleMax: 11,
+      scaleMinLabel: "1 (Very easy to spend)",
+      scaleMaxLabel: "11 (Very hard to spend)",
+      selectedNumber: partnerMoneyStyleGuess,
+      onSelectNumber: (v: number) => setPartnerMoneyStyleGuess(v),
+      continueButtonText: "See Summary",
+    },
+    22: {
+      category: "Initial profile complete",
+      question: "Thank you for starting with honesty.",
+      subtitle: "Your profile is now complete. The full results, including your guess about your partner's money style, will be revealed after they complete the form",
+      type: "summary" as const,
+    },
+  }[currentScreen] || {
+    category: "About your relationship",
+    question: "What is your current relationship status?",
+    subtitle: "This helps Seiya tailor suggestions and forms of agreement to you",
+    type: "choice" as const,
+    options: ["Serious Dating", "Engaged", "Married"],
+    selectedString: relationshipStatus,
+    onSelectString: (v: string) => setRelationshipStatus(v),
+  };
 
   return (
     <div className="min-h-screen bg-[#FEFBF5] text-[#2a2b2f] flex flex-col justify-between selection:bg-[#B45529]/20 selection:text-[#B45529] relative overflow-x-hidden">
@@ -798,22 +1036,27 @@ export function AuthView({
             )}
           </header>
 
-          {/* Main Content: Profiling Two-Column Layout (Figma: 493:8073) */}
+          {/* Main Content: Profiling Two-Column Layout (Figma: 493:8073 & Component Set 472:8257) */}
           <main className="max-w-6xl mx-auto px-6 py-8 sm:py-12 flex-1 w-full flex flex-col md:flex-row gap-10 lg:gap-16 items-start">
-            {/* Left Sidebar: Profiling List */}
+            {/* Left Sidebar: Profiling List (7 milestones strictly matching Figma 472:8190 / 493:8073) */}
             <aside className="w-full md:w-[360px] shrink-0 space-y-6">
-              <h2 className="font-serif text-[24px] text-[#737373] tracking-tight">
-                Profiling
-              </h2>
+              <div className="flex items-center justify-between">
+                <h2 className="font-serif text-[24px] text-[#737373] tracking-tight">
+                  Profiling
+                </h2>
+                <span className="font-mono text-xs text-[#737373]/70">
+                  {currentScreen} / 22
+                </span>
+              </div>
 
               <div className="space-y-3">
                 {PROFILING_STEPS.map((s) => {
-                  const isActive = profilingStep === s.id;
-                  const isDone = profilingStep > s.id;
+                  const isActive = activeMilestoneId === s.id;
+                  const isDone = activeMilestoneId > s.id;
                   return (
                     <div
                       key={s.id}
-                      onClick={() => setProfilingStep(s.id as any)}
+                      onClick={() => setCurrentScreen(s.startScreen)}
                       className={`flex items-center gap-[22px] px-5 py-3 rounded-[20px] cursor-pointer transition-all ${
                         isActive
                           ? "bg-[#B4562A] text-white shadow-xs"
@@ -851,111 +1094,282 @@ export function AuthView({
               {/* Category, Title, and Subtitle */}
               <div className="space-y-1">
                 <span className="font-serif text-lg sm:text-xl text-[#737373] block">
-                  {currentStepData.category}
+                  {currentScreenConfig.category}
                 </span>
                 <h1 className="font-serif text-[32px] sm:text-[38px] font-normal text-[#000000] tracking-tight leading-tight">
-                  {currentStepData.question}
+                  {currentScreenConfig.question}
                 </h1>
                 <p className="font-serif text-base sm:text-lg text-[#737373] pt-1">
-                  {currentStepData.subtitle}
+                  {currentScreenConfig.subtitle}
                 </p>
               </div>
 
-              {/* White Floating Card (Figma 493:8073) */}
-              <div className="bg-white rounded-[30px] p-6 sm:p-8 shadow-xl border border-black/5 space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {currentStepData.options.map((opt) => {
-                    const isSelected = currentStepData.selected === opt;
-                    return (
-                      <div
-                        key={opt}
-                        onClick={() => currentStepData.onSelect(opt)}
-                        className={`p-4 rounded-[15px] border transition-all cursor-pointer flex items-center gap-3.5 ${
-                          isSelected
-                            ? "border-[#B4562A] bg-[#FEFBF5]/50 shadow-xs ring-1 ring-[#B4562A]"
-                            : "border-[#BFBFBF] hover:border-[#737373] bg-white"
-                        }`}
-                      >
-                        {/* Radio Circle */}
+              {/* Interactive Input Cards based on Type */}
+
+              {/* 1. Choice Options (Figma Radio Grid) */}
+              {currentScreenConfig.type === "choice" && (
+                <div className="bg-white rounded-[30px] p-6 sm:p-8 shadow-xl border border-black/5 space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {currentScreenConfig.options?.map((opt) => {
+                      const isSelected = currentScreenConfig.selectedString === opt;
+                      return (
                         <div
-                          className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                          key={opt}
+                          onClick={() => currentScreenConfig.onSelectString?.(opt)}
+                          className={`p-4 rounded-[15px] border transition-all cursor-pointer flex items-center gap-3.5 ${
                             isSelected
-                              ? "border-[#B4562A] bg-[#B4562A]"
-                              : "border-[#BFBFBF]"
+                              ? "border-[#B4562A] bg-[#FEFBF5]/50 shadow-xs ring-1 ring-[#B4562A]"
+                              : "border-[#BFBFBF] hover:border-[#737373] bg-white"
                           }`}
                         >
-                          {isSelected && (
-                            <div className="w-2.5 h-2.5 rounded-full bg-white" />
-                          )}
+                          {/* Radio Circle */}
+                          <div
+                            className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                              isSelected
+                                ? "border-[#B4562A] bg-[#B4562A]"
+                                : "border-[#BFBFBF]"
+                            }`}
+                          >
+                            {isSelected && (
+                              <div className="w-2.5 h-2.5 rounded-full bg-white" />
+                            )}
+                          </div>
+                          <span className="font-serif text-lg sm:text-xl text-[#000000]">
+                            {opt}
+                          </span>
                         </div>
-                        <span className="font-serif text-lg sm:text-xl text-[#000000]">
-                          {opt}
-                        </span>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
+              )}
 
-                {/* Additional Step 7 Signatures if on Security Check */}
-                {profilingStep === 7 && (
-                  <div className="pt-6 border-t border-[#f0ebe3] space-y-3">
-                    <span className="font-serif text-base text-[#2a2b2f] block">
-                      Dual Partner Signatures:
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setPartnerASigned(true)}
-                        className={`p-3.5 rounded-full text-xs font-serif transition-all cursor-pointer flex items-center justify-center gap-2 border ${
-                          partnerASigned
-                            ? "bg-[#2d5232]/10 border-[#2d5232]/30 text-[#2d5232] font-semibold"
-                            : "bg-[#fcf8f0] border-[#ded7ce] text-[#2a2b2f] hover:bg-white"
-                        }`}
-                      >
-                        <SolarIcon
-                          name={partnerASigned ? "check-circle" : "shield-check"}
-                          size={18}
-                        />
-                        <span>
-                          {partnerASigned ? `${partnerAName} Signed ✓` : `Sign as ${partnerAName}`}
-                        </span>
-                      </button>
+              {/* 2. Scale 1..11 or 1..5 Options */}
+              {currentScreenConfig.type === "scale" && (
+                <div className="bg-white rounded-[30px] p-6 sm:p-8 shadow-xl border border-black/5 space-y-6">
+                  {/* Row of scale numbers */}
+                  <div className="flex items-center justify-between gap-1.5 sm:gap-2.5 overflow-x-auto py-2">
+                    {Array.from(
+                      {
+                        length:
+                          (currentScreenConfig.scaleMax || 11) -
+                          (currentScreenConfig.scaleMin || 1) +
+                          1,
+                      },
+                      (_, i) => (currentScreenConfig.scaleMin || 1) + i
+                    ).map((num) => {
+                      const isSelected =
+                        currentScreenConfig.selectedNumber === num;
+                      return (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() =>
+                            currentScreenConfig.onSelectNumber?.(num)
+                          }
+                          className={`min-w-[36px] sm:min-w-[46px] h-12 rounded-[15px] border flex items-center justify-center font-serif text-lg sm:text-xl transition-all cursor-pointer ${
+                            isSelected
+                              ? "border-[#B4562A] bg-[#B4562A] text-white shadow-sm scale-105"
+                              : "border-[#BFBFBF] text-[#2a2b2f] hover:border-[#737373] bg-white hover:bg-black/[0.02]"
+                          }`}
+                        >
+                          {num}
+                        </button>
+                      );
+                    })}
+                  </div>
 
-                      <button
-                        type="button"
-                        onClick={() => setPartnerBSigned(true)}
-                        className={`p-3.5 rounded-full text-xs font-serif transition-all cursor-pointer flex items-center justify-center gap-2 border ${
-                          partnerBSigned
-                            ? "bg-[#2d5232]/10 border-[#2d5232]/30 text-[#2d5232] font-semibold"
-                            : "bg-[#fcf8f0] border-[#ded7ce] text-[#2a2b2f] hover:bg-white"
-                        }`}
-                      >
-                        <SolarIcon
-                          name={partnerBSigned ? "check-circle" : "shield-check"}
-                          size={18}
-                        />
-                        <span>
-                          {partnerBSigned ? `${partnerBName} Signed ✓` : `Sign as ${partnerBName}`}
+                  {/* Scale Labels */}
+                  <div className="flex items-center justify-between font-serif text-xs sm:text-sm text-[#737373] pt-1 px-1">
+                    <span>{currentScreenConfig.scaleMinLabel}</span>
+                    <span>{currentScreenConfig.scaleMaxLabel}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* 3. Text Area Input */}
+              {currentScreenConfig.type === "text" && (
+                <div className="bg-white rounded-[30px] p-6 sm:p-8 shadow-xl border border-black/5 space-y-4">
+                  <textarea
+                    rows={4}
+                    value={currentScreenConfig.selectedString || ""}
+                    onChange={(e) =>
+                      currentScreenConfig.onSelectString?.(e.target.value)
+                    }
+                    placeholder={currentScreenConfig.placeholder}
+                    className="w-full p-4 rounded-[15px] border border-[#BFBFBF] font-serif text-lg text-[#2a2b2f] placeholder-[#a69e96] focus:border-[#B4562A] focus:outline-none focus:ring-1 focus:ring-[#B4562A] bg-white resize-none"
+                  />
+                  <p className="text-xs font-serif text-[#737373] italic">
+                    Type your thoughts in your own words, then click Continue.
+                  </p>
+                </div>
+              )}
+
+              {/* 4. Multi-Select Checkboxes */}
+              {currentScreenConfig.type === "multiselect" && (
+                <div className="bg-white rounded-[30px] p-6 sm:p-8 shadow-xl border border-black/5 space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {currentScreenConfig.options?.map((opt) => {
+                      const isSelected =
+                        currentScreenConfig.selectedArray?.includes(opt);
+                      return (
+                        <div
+                          key={opt}
+                          onClick={() =>
+                            currentScreenConfig.onToggleArray?.(opt)
+                          }
+                          className={`p-4 rounded-[15px] border transition-all cursor-pointer flex items-center gap-3.5 ${
+                            isSelected
+                              ? "border-[#B4562A] bg-[#FEFBF5]/50 shadow-xs ring-1 ring-[#B4562A]"
+                              : "border-[#BFBFBF] hover:border-[#737373] bg-white"
+                          }`}
+                        >
+                          <div
+                            className={`w-6 h-6 rounded-[8px] border-2 flex items-center justify-center shrink-0 transition-all ${
+                              isSelected
+                                ? "border-[#B4562A] bg-[#B4562A] text-white"
+                                : "border-[#BFBFBF]"
+                            }`}
+                          >
+                            {isSelected && (
+                              <span className="text-xs font-bold leading-none">
+                                ✓
+                              </span>
+                            )}
+                          </div>
+                          <span className="font-serif text-lg sm:text-xl text-[#000000]">
+                            {opt}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* 5. Screen 22: Initial Profile Complete & Summary */}
+              {currentScreenConfig.type === "summary" && (
+                <div className="space-y-6">
+                  {/* Summary Overview Card */}
+                  <div className="bg-white rounded-[30px] p-6 sm:p-8 shadow-xl border border-black/5 space-y-6">
+                    <h3 className="font-serif text-xl sm:text-2xl font-normal text-[#2a2b2f] border-b border-[#f0ebe3] pb-3">
+                      Initial summary
+                    </h3>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 text-left font-serif">
+                      <div className="space-y-1">
+                        <span className="text-xs text-[#737373] block">
+                          Your starting point
                         </span>
-                      </button>
+                        <div className="inline-flex items-center px-3 py-1 rounded-full bg-[#B4562A]/10 text-[#B4562A] text-sm font-medium">
+                          Ready to arrange
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="text-xs text-[#737373] block">
+                          The main purpose
+                        </span>
+                        <p className="text-base text-[#2a2b2f] font-normal">
+                          {biggestGoal || "Have sufficient emergency funds"}
+                        </p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="text-xs text-[#737373] block">
+                          How to manage money
+                        </span>
+                        <p className="text-base text-[#2a2b2f] font-normal">
+                          {moneyManagementNow}
+                        </p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="text-xs text-[#737373] block">
+                          Topic money data
+                        </span>
+                        <p className="text-base text-[#2a2b2f] font-normal">
+                          {sharedDataCategories.length > 0
+                            ? sharedDataCategories.join(", ")
+                            : "Total Balance, Transaction Details"}
+                        </p>
+                      </div>
                     </div>
 
-                    {!canActivate && (
-                      <p className="text-[11px] text-[#B4562A] text-center pt-1 font-sans">
-                        Both partners must sign to complete setup and activate the Couple Contract.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
+                    {/* Dual Partner Vault Signatures */}
+                    <div className="pt-4 border-t border-[#f0ebe3] space-y-3">
+                      <span className="font-serif text-sm text-[#737373] block">
+                        Dual Partner Vault Signatures:
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setPartnerASigned(true)}
+                          className={`p-3 rounded-full text-xs font-serif transition-all cursor-pointer flex items-center justify-center gap-2 border ${
+                            partnerASigned
+                              ? "bg-[#2d5232]/10 border-[#2d5232]/30 text-[#2d5232] font-semibold"
+                              : "bg-[#fcf8f0] border-[#ded7ce] text-[#2a2b2f] hover:bg-white"
+                          }`}
+                        >
+                          <SolarIcon
+                            name={partnerASigned ? "check-circle" : "shield-check"}
+                            size={18}
+                          />
+                          <span>
+                            {partnerASigned
+                              ? `${partnerAName} Signed ✓`
+                              : `Sign as ${partnerAName}`}
+                          </span>
+                        </button>
 
-              {/* Bottom Navigation: Back, Skip, Continue */}
+                        <button
+                          type="button"
+                          onClick={() => setPartnerBSigned(true)}
+                          className={`p-3 rounded-full text-xs font-serif transition-all cursor-pointer flex items-center justify-center gap-2 border ${
+                            partnerBSigned
+                              ? "bg-[#2d5232]/10 border-[#2d5232]/30 text-[#2d5232] font-semibold"
+                              : "bg-[#fcf8f0] border-[#ded7ce] text-[#2a2b2f] hover:bg-white"
+                          }`}
+                        >
+                          <SolarIcon
+                            name={partnerBSigned ? "check-circle" : "shield-check"}
+                            size={18}
+                          />
+                          <span>
+                            {partnerBSigned
+                              ? `${partnerBName} Signed ✓`
+                              : `Sign as ${partnerBName}`}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Next Step Card */}
+                  <div className="bg-white rounded-[24px] p-6 shadow-md border border-black/5 flex items-start gap-4 text-left">
+                    <div className="w-9 h-9 rounded-full bg-[#B4562A] text-white font-serif text-base font-bold flex items-center justify-center shrink-0 shadow-xs">
+                      1
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="font-serif text-lg text-[#2a2b2f]">
+                        Invite your partner to join
+                      </h4>
+                      <p className="font-serif text-sm text-[#737373]">
+                        You will review privacy rules, transaction limits, and
+                        mutual agreements together.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Bottom Navigation: Back, Skip, Continue / Make Invitations */}
               <div className="flex items-center justify-between pt-2">
                 <button
                   type="button"
                   onClick={() => {
-                    if (profilingStep > 1) {
-                      setProfilingStep((p) => (p - 1) as any);
+                    if (currentScreen > 1) {
+                      setCurrentScreen((p) => p - 1);
                     } else {
                       setMode("story-intro");
                     }
@@ -979,51 +1393,75 @@ export function AuthView({
                 </button>
 
                 <div className="flex items-center gap-6">
-                  {profilingStep < 7 && (
+                  {currentScreen < 22 && (
                     <button
                       type="button"
-                      onClick={() => setProfilingStep((p) => (p + 1) as any)}
+                      onClick={() => setCurrentScreen((p) => p + 1)}
                       className="text-[#737373] hover:text-[#000000] font-serif text-lg transition-colors cursor-pointer"
                     >
                       Skip
                     </button>
                   )}
 
-                  <button
-                    type="button"
-                    disabled={profilingStep === 7 && !canActivate}
-                    onClick={() => {
-                      if (profilingStep < 7) {
-                        setProfilingStep((p) => (p + 1) as any);
-                      } else {
-                        handleCompleteQuestionnaire();
-                      }
-                    }}
-                    className={`px-7 py-3 rounded-[15px] font-sans font-semibold text-base flex items-center gap-2.5 transition-all shadow-xs ${
-                      profilingStep === 7 && !canActivate
-                        ? "bg-[#BFBFBF] text-white/80 cursor-not-allowed"
-                        : "bg-[#B4562A] hover:bg-[#9c4820] text-white cursor-pointer active:scale-[0.99]"
-                    }`}
-                  >
-                    <span>
-                      {profilingStep === 7 ? "Activate Contract & Enter" : "Continue"}
-                    </span>
-                    <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
-                      <svg
-                        className="w-3 h-3 text-white"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
+                  {currentScreen === 22 ? (
+                    <div className="flex items-center gap-4">
+                      <button
+                        type="button"
+                        onClick={() => setCurrentScreen(1)}
+                        className="text-[#737373] hover:text-[#000000] font-serif text-base underline cursor-pointer"
                       >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2.5}
-                          d="M9 5l7 7-7 7"
-                        />
-                      </svg>
-                    </span>
-                  </button>
+                        Change answer
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCompleteQuestionnaire}
+                        className="px-7 py-3 rounded-[15px] bg-[#B4562A] hover:bg-[#9c4820] text-white font-sans font-semibold text-base flex items-center gap-2.5 transition-all shadow-xs cursor-pointer active:scale-[0.99]"
+                      >
+                        <span>Make couple invitations</span>
+                        <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
+                          <svg
+                            className="w-3 h-3 text-white"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2.5}
+                              d="M9 5l7 7-7 7"
+                            />
+                          </svg>
+                        </span>
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setCurrentScreen((p) => p + 1)}
+                      className="px-7 py-3 rounded-[15px] bg-[#B4562A] hover:bg-[#9c4820] text-white font-sans font-semibold text-base flex items-center gap-2.5 transition-all shadow-xs cursor-pointer active:scale-[0.99]"
+                    >
+                      <span>
+                        {(currentScreenConfig as any).continueButtonText ||
+                          "Continue"}
+                      </span>
+                      <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
+                        <svg
+                          className="w-3 h-3 text-white"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2.5}
+                            d="M9 5l7 7-7 7"
+                          />
+                        </svg>
+                      </span>
+                    </button>
+                  )}
                 </div>
               </div>
             </section>
