@@ -1034,14 +1034,14 @@ export function ChatView() {
       )}
 
       {/* 2. MAIN CHAT CONTAINER */}
-      <div className={`flex-1 flex flex-col min-w-0 h-full transition-colors duration-500 relative overflow-hidden ${isVoiceChatActive ? "bg-[#0d0d0e] text-[#fef9ef]" : "bg-[#f5eee1]"}`}>
+      <div className="flex-1 flex flex-col min-w-0 h-full bg-[#f5eee1] text-[#2a2b2f] relative overflow-hidden">
         {/* Chat Header */}
-        <div className={`px-4 sm:px-5 py-3 border-b flex items-center justify-between gap-3 transition-colors duration-500 ${isVoiceChatActive ? "bg-[#0d0d0e] border-[#222120]" : "bg-[#f5eee1] border-[#d1c9bf]/30"}`}>
+        <div className="px-4 sm:px-5 py-3 border-b border-[#d1c9bf]/30 bg-[#f5eee1] flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
             {!showHistory && (
               <button
                 onClick={() => setShowHistory(true)}
-                className={`p-1.5 rounded-lg transition-colors cursor-pointer shadow-2xs shrink-0 ${isVoiceChatActive ? "bg-[#1c1b1a] text-[#fef9ef] hover:text-[#B45529] border border-[#2f2e2b]" : "bg-[#fef9ef] text-[#515151] hover:text-[#B45529]"}`}
+                className="p-1.5 rounded-lg bg-[#fef9ef] border border-[#d1c9bf]/40 text-[#515151] hover:text-[#B45529] transition-colors cursor-pointer shadow-2xs shrink-0"
                 title="Open chat history"
               >
                 <SolarIcon name="chat-round-dots" size={16} />
@@ -1049,12 +1049,12 @@ export function ChatView() {
             )}
 
             {/* Mascot Emblem with thinking eye animation */}
-            <div className={`w-9 h-9 rounded-full border flex items-center justify-center shrink-0 shadow-2xs ${isVoiceChatActive ? "bg-[#1c1b1a] border-[#2f2e2b]" : "bg-[#fef9ef] border-[#e5dcd0]"}`}>
+            <div className="w-9 h-9 rounded-full bg-[#fef9ef] border border-[#e5dcd0] flex items-center justify-center shrink-0 shadow-2xs">
               <SeiyaIcon size={24} isThinking={isProcessing || isVoiceSpeaking} />
             </div>
 
             <div className="min-w-0">
-              <h3 className={`text-sm font-serif font-normal leading-tight truncate ${isVoiceChatActive ? "text-[#fef9ef]" : "text-[#2a2b2f]"}`}>
+              <h3 className="text-sm font-serif font-normal text-[#2a2b2f] leading-tight truncate">
                 {activeSession?.title || "New Consultation"}
               </h3>
               {isVoiceChatActive ? (
@@ -1219,12 +1219,8 @@ export function ChatView() {
                 <div
                   className={`p-3.5 rounded-[22px] text-xs sm:text-sm leading-relaxed transition-all ${
                     msg.sender === "user"
-                      ? isVoiceChatActive
-                        ? "bg-[#162758] text-[#fef9ef] rounded-tr-xs shadow-md border border-[#2b3e77]/40"
-                        : "bg-[#B45529] text-[#fef9ef] rounded-tr-xs shadow-xs"
-                      : isVoiceChatActive
-                        ? "bg-[#181716] text-[#fef9ef] rounded-tl-xs shadow-md border border-[#2c2b29]/60 font-serif"
-                        : "bg-[#fef9ef] text-[#2a2b2f] rounded-tl-xs shadow-2xs"
+                      ? "bg-[#B45529] text-[#fef9ef] rounded-tr-xs shadow-xs"
+                      : "bg-[#fef9ef] text-[#2a2b2f] rounded-tl-xs shadow-2xs border border-[#e5dcd0]/70"
                   }`}
                 >
                   <p className="whitespace-pre-line">{msg.text}</p>
@@ -1328,70 +1324,113 @@ export function ChatView() {
           {liveVoiceTranscript && (
             <div className="flex gap-3 justify-end animate-in fade-in-0 duration-150">
               <div className="max-w-[85%] sm:max-w-xl items-end">
-                <div
-                  className={`p-3.5 rounded-[22px] text-xs sm:text-sm leading-relaxed ${
-                    isVoiceChatActive
-                      ? "bg-[#162758] text-[#fef9ef] rounded-tr-xs shadow-md border border-[#2b3e77]/40"
-                      : "bg-[#B45529] text-[#fef9ef] rounded-tr-xs shadow-xs"
-                  } flex items-center gap-2`}
-                >
+                <div className="p-3.5 rounded-[22px] text-xs sm:text-sm leading-relaxed bg-[#B45529] text-[#fef9ef] rounded-tr-xs shadow-xs flex items-center gap-2">
                   <span>{liveVoiceTranscript}</span>
-                  <span className="w-2 h-2 rounded-full bg-[#60a5fa] animate-ping shrink-0" />
+                  <span className="w-2 h-2 rounded-full bg-[#fef9ef] animate-ping shrink-0" />
                 </div>
               </div>
             </div>
           )}
 
-          {/* Center Stage Floating Legless Seiya Mascot with Primary Gradient Aura */}
+          {/* Circular Water Avatar Pulse for Seiya Mascot */}
           {isVoiceChatActive && (
-            <div className="py-6 flex flex-col items-center justify-center shrink-0 relative select-none animate-in fade-in-0 zoom-in-95 duration-500">
-              {/* Concentric Primary Terracotta Soundwave Ripple Rings */}
-              <div
-                className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full pointer-events-none transition-all duration-700 ${
-                  isVoiceSpeaking || isVoiceListening ? "w-52 h-52 sm:w-60 sm:h-60 opacity-90" : "w-36 h-36 opacity-30"
-                }`}
-              >
-                <div className="w-full h-full rounded-full border border-[#B45529]/40 bg-[#B45529]/10 animate-primary-ripple-1" />
-              </div>
-
-              <div
-                className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full pointer-events-none transition-all duration-700 ${
-                  isVoiceSpeaking || isVoiceListening ? "w-68 h-68 sm:w-76 sm:h-76 opacity-75" : "w-48 h-48 opacity-20"
-                }`}
-              >
-                <div className="w-full h-full rounded-full border border-[#C98A4F]/30 bg-[#B45529]/5 animate-primary-ripple-2" />
-              </div>
-
-              {/* Radiant Primary Aura Glow Orb */}
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full bg-gradient-to-tr from-[#B45529]/45 via-[#C98A4F]/30 to-transparent blur-3xl pointer-events-none animate-primary-aura" />
-
-              {/* Floating Legless Seiya Mascot Video */}
-              <div
-                className={`relative z-10 transition-transform duration-500 animate-float-mascot ${
-                  isVoiceSpeaking ? "scale-105" : isVoiceListening ? "scale-102" : "scale-100"
-                }`}
-              >
+            <div className="py-6 sm:py-8 flex flex-col items-center justify-center shrink-0 relative select-none animate-in fade-in-0 zoom-in-95 duration-500">
+              {/* Circular Water Pulse Ripples (Concentric liquid rings radiating outward) */}
+              <div className="relative flex items-center justify-center">
+                {/* Outermost expanding water ripple */}
                 <div
-                  style={{
-                    width: 160,
-                    height: 160,
-                    maskImage:
-                      "radial-gradient(ellipse 49% 45% at 50% 53%, #000 68%, rgba(0,0,0,0.85) 80%, rgba(0,0,0,0.4) 90%, transparent 98%)",
-                    WebkitMaskImage:
-                      "radial-gradient(ellipse 49% 45% at 50% 53%, #000 68%, rgba(0,0,0,0.85) 80%, rgba(0,0,0,0.4) 90%, transparent 98%)",
-                  }}
-                  className="relative overflow-hidden shrink-0 select-none drop-shadow-xl"
+                  className={`absolute rounded-full border border-[#B45529]/25 bg-[#B45529]/5 pointer-events-none ${
+                    isVoiceSpeaking || isVoiceListening
+                      ? "w-56 h-56 sm:w-64 sm:h-64 animate-water-pulse-slow opacity-90"
+                      : "w-44 h-44 sm:w-48 sm:h-48 animate-water-pulse-slow opacity-40"
+                  }`}
+                />
+
+                {/* Primary Water Pulse Ring 1 */}
+                <div
+                  className={`absolute rounded-full border-2 border-[#B45529]/35 bg-[#B45529]/10 pointer-events-none ${
+                    isVoiceSpeaking || isVoiceListening
+                      ? "w-48 h-48 sm:w-56 sm:h-56 animate-water-pulse-1 opacity-95"
+                      : "w-40 h-40 sm:w-44 sm:h-44 animate-water-pulse-1 opacity-50"
+                  }`}
+                />
+
+                {/* Primary Water Pulse Ring 2 (harmonic wave delay) */}
+                <div
+                  className={`absolute rounded-full border border-[#C98A4F]/40 bg-[#C98A4F]/10 pointer-events-none ${
+                    isVoiceSpeaking || isVoiceListening
+                      ? "w-48 h-48 sm:w-56 sm:h-56 animate-water-pulse-2 opacity-85"
+                      : "w-40 h-40 sm:w-44 sm:h-44 animate-water-pulse-2 opacity-40"
+                  }`}
+                />
+
+                {/* Primary Water Pulse Ring 3 */}
+                <div
+                  className={`absolute rounded-full border border-[#B45529]/30 bg-[#B45529]/5 pointer-events-none ${
+                    isVoiceSpeaking || isVoiceListening
+                      ? "w-48 h-48 sm:w-56 sm:h-56 animate-water-pulse-3 opacity-75"
+                      : "w-40 h-40 sm:w-44 sm:h-44 animate-water-pulse-3 opacity-30"
+                  }`}
+                />
+
+                {/* Warm Ambient Water Glow Halo */}
+                <div className="absolute w-40 h-40 rounded-full bg-gradient-to-tr from-[#B45529]/20 via-[#C98A4F]/15 to-transparent blur-2xl pointer-events-none" />
+
+                {/* Circular Water Avatar Frame */}
+                <div
+                  className={`relative z-10 w-32 h-32 sm:w-36 sm:h-36 rounded-full p-1 bg-gradient-to-b from-[#fefcf6] via-[#fdf7ee] to-[#f4ebe0] shadow-warm-lg ring-4 ring-[#B45529]/20 flex items-center justify-center transition-all duration-500 ${
+                    isVoiceSpeaking
+                      ? "scale-105 ring-[#B45529]/40 shadow-xl"
+                      : isVoiceListening
+                      ? "scale-102 ring-[#B45529]/30"
+                      : "scale-100"
+                  }`}
                 >
-                  <video
-                    ref={mascotVideoRef}
-                    src="/ask-seiya/curiousseiya_clean.mp4"
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                    preload="auto"
-                    className="w-full h-full object-contain pointer-events-none"
-                  />
+                  {/* Inner Circular Water Mask */}
+                  <div className="w-full h-full rounded-full overflow-hidden bg-gradient-to-b from-[#fffefc] to-[#f7efe3] flex items-center justify-center relative border border-[#d1c9bf]/40">
+                    <div className="w-28 h-28 sm:w-32 sm:h-32 relative flex items-center justify-center animate-float-mascot-smooth">
+                      <video
+                        ref={mascotVideoRef}
+                        src="/ask-seiya/curiousseiya_clean.mp4"
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        preload="auto"
+                        className="w-full h-full object-contain pointer-events-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status Indicator Pill */}
+              <div className="mt-4 z-10">
+                <div
+                  className={`px-3.5 py-1 rounded-full text-xs font-semibold flex items-center gap-2 shadow-2xs border transition-all ${
+                    isVoiceSpeaking
+                      ? "bg-[#B45529] text-[#fef9ef] border-[#8a3b16]"
+                      : isVoiceListening
+                      ? "bg-[#2d5232] text-[#fef9ef] border-[#1d3821]"
+                      : "bg-[#fef9ef] text-[#2a2b2f] border-[#d1c9bf]/60"
+                  }`}
+                >
+                  {isVoiceSpeaking ? (
+                    <>
+                      <span className="w-2 h-2 rounded-full bg-[#fef9ef] animate-pulse" />
+                      <span>Seiya Speaking</span>
+                    </>
+                  ) : isVoiceListening ? (
+                    <>
+                      <span className="w-2 h-2 rounded-full bg-[#fef9ef] animate-ping" />
+                      <span>Listening to {activeName}...</span>
+                    </>
+                  ) : (
+                    <>
+                      <SolarIcon name="soundwave" size={14} className="text-[#B45529]" />
+                      <span>Voice Assistant Active</span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -1402,8 +1441,8 @@ export function ChatView() {
 
         {/* Bottom Dock: Voice Mode Toolbar vs Standard Chat Input */}
         {isVoiceChatActive ? (
-          /* ChatGPT-style Voice Assistance Bottom Dock (matching user screenshot) */
-          <div className="p-3 sm:p-4 bg-[#0d0d0e] border-t border-[#222120] flex items-center gap-2 sm:gap-3 z-30 transition-all">
+          /* Voice Assistance Bottom Dock in Warm Paper Theme */
+          <div className="p-2.5 sm:p-4 bg-[#f5eee1] border-t border-[#d1c9bf]/30 flex items-center gap-2 sm:gap-3 z-30 transition-all">
             {/* Input pill with plus icon */}
             <form
               onSubmit={(e) => {
@@ -1413,12 +1452,12 @@ export function ChatView() {
                   setInputText("");
                 }
               }}
-              className="flex-1 flex items-center bg-[#1c1b1a] hover:bg-[#232220] border border-[#2f2e2b] rounded-full px-3.5 sm:px-4 py-2 sm:py-2.5 transition-all shadow-inner"
+              className="flex-1 flex items-center bg-[#fef9ef] hover:bg-[#fffdf9] border border-[#d1c9bf] focus-within:border-[#B45529]/40 focus-within:ring-2 focus-within:ring-[#B45529]/15 rounded-full px-3.5 sm:px-4 py-2 sm:py-2.5 transition-all shadow-2xs"
             >
               <button
                 type="button"
                 onClick={() => handleSend("Here is our budget update document.")}
-                className="text-[#808988] hover:text-[#fef9ef] transition-colors mr-2.5 cursor-pointer shrink-0"
+                className="text-[#808988] hover:text-[#B45529] transition-colors mr-2.5 cursor-pointer shrink-0"
                 title="Add document"
               >
                 <SolarIcon name="plus" size={17} />
@@ -1428,7 +1467,7 @@ export function ChatView() {
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 placeholder={`Ask Seiya as ${activeName}...`}
-                className="flex-1 bg-transparent text-xs sm:text-sm text-[#fef9ef] placeholder-[#808988] focus:outline-none"
+                className="flex-1 bg-transparent text-xs sm:text-sm text-[#2a2b2f] placeholder-[#808988] focus:outline-none"
               />
             </form>
 
@@ -1436,10 +1475,10 @@ export function ChatView() {
             <button
               type="button"
               onClick={() => setIsVoiceMuted(!isVoiceMuted)}
-              className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all cursor-pointer shrink-0 ${
+              className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all cursor-pointer shrink-0 shadow-2xs ${
                 isVoiceMuted
-                  ? "bg-[#2a170f] text-[#B45529] border border-[#B45529]/40 shadow-xs"
-                  : "bg-[#1c1b1a] hover:bg-[#252422] text-[#fef9ef] border border-[#2f2e2b]"
+                  ? "bg-[#fbf0eb] text-[#B45529] border border-[#B45529]/40"
+                  : "bg-[#fef9ef] hover:bg-[#ece3d3] text-[#515151] hover:text-[#B45529] border border-[#d1c9bf]"
               }`}
               title={isVoiceMuted ? "Unmute microphone" : "Mute microphone"}
               aria-label={isVoiceMuted ? "Unmute microphone" : "Mute microphone"}
@@ -1447,7 +1486,7 @@ export function ChatView() {
               <SolarIcon name={isVoiceMuted ? "microphone-slash" : "microphone"} size={19} />
             </button>
 
-            {/* Close / Exit Voice Mode Button (White circular pill matching screenshot) */}
+            {/* Close / Exit Voice Mode Button */}
             <button
               type="button"
               onClick={() => {
@@ -1456,7 +1495,7 @@ export function ChatView() {
                   window.speechSynthesis.cancel();
                 }
               }}
-              className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#fef9ef] hover:bg-[#e8e0d5] text-[#0d0d0e] flex items-center justify-center transition-all shadow-md cursor-pointer font-bold shrink-0"
+              className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#fef9ef] hover:bg-[#ece3d3] border border-[#d1c9bf] text-[#515151] hover:text-[#B45529] flex items-center justify-center transition-all shadow-2xs cursor-pointer shrink-0"
               title="Exit Voice Mode"
               aria-label="Exit Voice Mode"
             >

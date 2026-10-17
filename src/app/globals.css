@@ -76,3 +76,61 @@ input[type="number"],
 ::-webkit-scrollbar-thumb:hover {
   background: #B45529;
 }
+
+/* Circular Water Avatar Pulse Keyframes */
+@keyframes waterPulse {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(1.68);
+    opacity: 0;
+  }
+}
+
+@keyframes waterPulseSlow {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.65;
+  }
+  60% {
+    opacity: 0.25;
+  }
+  100% {
+    transform: scale(2.05);
+    opacity: 0;
+  }
+}
+
+@keyframes floatMascotSmooth {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.animate-water-pulse-1 {
+  animation: waterPulse 2.4s cubic-bezier(0.2, 0.7, 0.4, 1) infinite;
+}
+
+.animate-water-pulse-2 {
+  animation: waterPulse 2.4s cubic-bezier(0.2, 0.7, 0.4, 1) infinite 0.8s;
+}
+
+.animate-water-pulse-3 {
+  animation: waterPulse 2.4s cubic-bezier(0.2, 0.7, 0.4, 1) infinite 1.6s;
+}
+
+.animate-water-pulse-slow {
+  animation: waterPulseSlow 3.2s cubic-bezier(0.2, 0.7, 0.4, 1) infinite 0.4s;
+}
+
+.animate-float-mascot-smooth {
+  animation: floatMascotSmooth 3.6s ease-in-out infinite;
+}
