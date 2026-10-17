@@ -1095,27 +1095,127 @@ export function AuthView({
           ========================================================================= */}
       {mode === "questionnaire" && (
         <div className="min-h-screen bg-[#FEFBF5] flex flex-col">
-          {/* Top Header strictly matching Figma 469:8665 */}
-          <header className="px-6 sm:px-12 py-4 border-b border-[#E6E6E6] bg-[#FEFBF5] sticky top-0 z-30 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-4">
-              <div
-                onClick={() => setMode("story-intro")}
-                className="cursor-pointer"
-              >
-                <SeiyaLogo height={34} />
+          {/* Top Header + Mobile Fixed/Sticky Sub-header */}
+          <div className="sticky top-0 z-30 shrink-0 bg-[#FEFBF5]">
+            <header className="px-6 sm:px-12 py-3.5 sm:py-4 border-b border-[#E6E6E6] bg-[#FEFBF5] flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div
+                  onClick={() => setMode("story-intro")}
+                  className="cursor-pointer"
+                >
+                  <SeiyaLogo height={34} />
+                </div>
+              </div>
+
+              {onClose && (
+                <button
+                  onClick={onClose}
+                  className="text-xs text-[#737373] hover:text-[#000000] flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <SolarIcon name="close-circle" size={18} />
+                  <span className="hidden sm:inline">Exit</span>
+                </button>
+              )}
+            </header>
+
+            {/* Mobile Fixed/Sticky Milestone Dropdown (right below topbar) */}
+            <div className="md:hidden px-4 py-2.5 border-b border-[#E6E6E6] bg-[#FEFBF5]/95 backdrop-blur-xs">
+              <div className="relative max-w-xl mx-auto">
+                <button
+                  type="button"
+                  onClick={() => setMobileStepMenuOpen(!mobileStepMenuOpen)}
+                  className="w-full flex items-center justify-between px-3.5 py-2.5 bg-white rounded-2xl border border-[#e5dcd0] shadow-2xs active:scale-[0.99] transition-all cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-7 h-7 rounded-full bg-[#B45529] text-white flex items-center justify-center font-serif text-xs font-semibold shrink-0">
+                      {activeMilestone?.id || activeMilestoneId}
+                    </div>
+                    <div className="text-left">
+                      <span className="text-[10px] uppercase font-mono tracking-wider text-[#808988] block">
+                        Profiling • Milestone {activeMilestone?.id || activeMilestoneId} of 7
+                      </span>
+                      <span className="font-serif text-sm font-medium text-[#2a2b2f]">
+                        {activeMilestone?.label}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-[#808988] bg-[#FEFBF5] px-2 py-0.5 rounded-full border border-[#e5dcd0]">
+                      {currentScreen} / 22
+                    </span>
+                    <svg
+                      className={`w-4 h-4 text-[#808988] transition-transform duration-200 ${
+                        mobileStepMenuOpen ? "rotate-180" : ""
+                      }`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 9l-7 7-7-7"
+                      />
+                    </svg>
+                  </div>
+                </button>
+
+                {/* Dropdown Menu Items */}
+                {mobileStepMenuOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-30 bg-black/10 backdrop-blur-[1px]"
+                      onClick={() => setMobileStepMenuOpen(false)}
+                    />
+                    <div className="absolute top-full left-0 right-0 mt-2 z-40 bg-white rounded-2xl border border-[#e5dcd0] shadow-xl p-2 space-y-1 animate-in fade-in zoom-in-95 duration-150">
+                      {PROFILING_STEPS.map((s) => {
+                        const isActive = activeMilestoneId === s.id;
+                        const isDone = activeMilestoneId > s.id;
+                        return (
+                          <div
+                            key={s.id}
+                            onClick={() => {
+                              setCurrentScreen(s.startScreen);
+                              setMobileStepMenuOpen(false);
+                            }}
+                            className={`flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                              isActive
+                                ? "bg-[#B45529] text-white font-medium shadow-xs"
+                                : "text-[#515151] hover:bg-[#FEFBF5]"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <div
+                                className={`w-6 h-6 rounded-full flex items-center justify-center font-serif text-xs font-semibold shrink-0 ${
+                                  isActive
+                                    ? "bg-white text-[#B45529]"
+                                    : isDone
+                                    ? "border border-[#2d5232] text-[#2d5232] bg-[#2d5232]/10"
+                                    : "border border-[#808988]/40 text-[#808988]"
+                                }`}
+                              >
+                                {isDone ? "✓" : s.id}
+                              </div>
+                              <span className="font-serif text-sm">
+                                {s.label}
+                              </span>
+                            </div>
+                            {isActive ? (
+                              <span className="text-[11px] font-mono text-white/80">Active</span>
+                            ) : isDone ? (
+                              <span className="text-[11px] font-serif text-[#2d5232]">Done</span>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
-
-            {onClose && (
-              <button
-                onClick={onClose}
-                className="text-xs text-[#737373] hover:text-[#000000] flex items-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <SolarIcon name="close-circle" size={18} />
-                <span className="hidden sm:inline">Exit</span>
-              </button>
-            )}
-          </header>
+          </div>
 
           {/* Main Content: Profiling Two-Column Layout (Figma: 493:8073 & Component Set 472:8257) */}
           <main className="flex-1 flex items-center justify-center px-4 sm:px-6 py-6 sm:py-10 w-full">
@@ -1170,102 +1270,6 @@ export function AuthView({
                   })}
                 </div>
               </aside>
-
-              {/* Mobile Step Dropdown (compact bar + popup milestone list) */}
-              <div className="md:hidden w-full relative">
-                <button
-                  type="button"
-                  onClick={() => setMobileStepMenuOpen(!mobileStepMenuOpen)}
-                  className="w-full flex items-center justify-between px-4 py-3 bg-white rounded-2xl border border-[#e5dcd0] shadow-xs active:scale-[0.99] transition-all cursor-pointer"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-7 h-7 rounded-full bg-[#B45529] text-white flex items-center justify-center font-serif text-xs font-semibold shrink-0">
-                      {activeMilestone?.id || activeMilestoneId}
-                    </div>
-                    <div className="text-left">
-                      <span className="text-[10px] uppercase font-mono tracking-wider text-[#808988] block">
-                        Profiling • Milestone {activeMilestone?.id || activeMilestoneId} of 7
-                      </span>
-                      <span className="font-serif text-sm font-medium text-[#2a2b2f]">
-                        {activeMilestone?.label}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs text-[#808988] bg-[#FEFBF5] px-2 py-0.5 rounded-full border border-[#e5dcd0]">
-                      {currentScreen} / 22
-                    </span>
-                    <svg
-                      className={`w-4 h-4 text-[#808988] transition-transform duration-200 ${
-                        mobileStepMenuOpen ? "rotate-180" : ""
-                      }`}
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </div>
-                </button>
-
-                {/* Dropdown Menu Items */}
-                {mobileStepMenuOpen && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-30"
-                      onClick={() => setMobileStepMenuOpen(false)}
-                    />
-                    <div className="absolute top-full left-0 right-0 mt-2 z-40 bg-white rounded-2xl border border-[#e5dcd0] shadow-xl p-2 space-y-1 animate-in fade-in zoom-in-95 duration-150">
-                      {PROFILING_STEPS.map((s) => {
-                        const isActive = activeMilestoneId === s.id;
-                        const isDone = activeMilestoneId > s.id;
-                        return (
-                          <div
-                            key={s.id}
-                            onClick={() => {
-                              setCurrentScreen(s.startScreen);
-                              setMobileStepMenuOpen(false);
-                            }}
-                            className={`flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
-                              isActive
-                                ? "bg-[#B45529] text-white font-medium shadow-xs"
-                                : "text-[#515151] hover:bg-[#FEFBF5]"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2.5">
-                              <div
-                                className={`w-6 h-6 rounded-full flex items-center justify-center font-serif text-xs font-semibold shrink-0 ${
-                                  isActive
-                                    ? "bg-white text-[#B45529]"
-                                    : isDone
-                                    ? "border border-[#2d5232] text-[#2d5232] bg-[#2d5232]/10"
-                                    : "border border-[#808988]/40 text-[#808988]"
-                                }`}
-                              >
-                                {isDone ? "✓" : s.id}
-                              </div>
-                              <span className="font-serif text-sm">
-                                {s.label}
-                              </span>
-                            </div>
-                            {isActive ? (
-                              <span className="text-[11px] font-mono text-white/80">Active</span>
-                            ) : isDone ? (
-                              <span className="text-[11px] font-serif text-[#2d5232]">Done</span>
-                            ) : null}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-              </div>
 
             {/* Right Interactive Area */}
             <section className="w-full max-w-xl space-y-4">
