@@ -18,11 +18,13 @@ import { ActivityView } from "@/components/views/activity-view";
 import { SettingsView } from "@/components/views/settings-view";
 import { ProfileView } from "@/components/views/profile-view";
 import { LandingView } from "@/components/views/landing-view";
+import { AuthView, AuthMode } from "@/components/views/auth-view";
 
 function MainApp() {
   const { setCurrentUser } = useApp();
   const [currentTab, setCurrentTab] = useState<NavTab>("home");
   const [isLandingPage, setIsLandingPage] = useState<boolean>(false);
+  const [authMode, setAuthMode] = useState<AuthMode | null>(null);
   const [profileInitialTab, setProfileInitialTab] = useState<"overview" | "contract" | "security" | "privacy" | "preferences">("overview");
 
   const handleOpenProfile = (tab: "overview" | "contract" | "security" | "privacy" | "preferences" = "overview") => {
@@ -37,6 +39,24 @@ function MainApp() {
     }
     setCurrentTab(tab);
   };
+
+  if (authMode) {
+    return (
+      <AuthView
+        initialMode={authMode}
+        onSuccess={(persona) => {
+          if (persona) setCurrentUser(persona);
+          setAuthMode(null);
+          setIsLandingPage(false);
+          setCurrentTab("home");
+        }}
+        onClose={() => {
+          setAuthMode(null);
+          setIsLandingPage(true);
+        }}
+      />
+    );
+  }
 
   if (isLandingPage) {
     return (
@@ -56,7 +76,7 @@ function MainApp() {
       <Sidebar
         currentTab={currentTab}
         onTabChange={handleTabChange}
-        onLogout={() => setIsLandingPage(true)}
+        onLogout={() => setAuthMode("login")}
         onOpenProfile={() => handleOpenProfile("overview")}
         onOpenContract={() => handleOpenProfile("contract")}
       />
@@ -91,7 +111,7 @@ function MainApp() {
             <Header
               currentTab={currentTab}
               onOpenAskSeiya={() => setCurrentTab("seiya")}
-              onLogout={() => setIsLandingPage(true)}
+              onLogout={() => setAuthMode("login")}
               onOpenProfile={() => handleOpenProfile("overview")}
               onNavigate={handleTabChange}
             />
@@ -127,7 +147,7 @@ function MainApp() {
             {currentTab === "settings" && <SettingsView />}
             {currentTab === "profile" && (
               <ProfileView
-                onLogout={() => setIsLandingPage(true)}
+                onLogout={() => setAuthMode("login")}
                 initialTab={profileInitialTab}
               />
             )}
