@@ -16,6 +16,18 @@ const Orb = dynamic(() => import("orb-ui").then((mod) => mod.Orb), {
   ssr: false,
 });
 
+const orangeCloudTheme = {
+  name: "cloud" as const,
+  appearance: {
+    deepColor: "#8c320a",      // Rich burnt orange / terracotta
+    upperColor: "#f26a1b",     // Radiant vibrant sunset orange
+    lowerColor: "#fb923c",     // Soft warm amber peach
+    highlightColor: "#fff7ed", // Luminous sunlight gold cream
+    launchColor: "#f26a1b",
+    spinnerColor: "#ea580c",
+  },
+};
+
 
 interface ChatSession {
   id: string;
@@ -1409,7 +1421,8 @@ export function ChatView() {
             <button
               type="button"
               onClick={() => setIsVoiceMuted(!isVoiceMuted)}
-              className="relative flex items-center justify-center rounded-full transition-transform duration-300 active:scale-95 cursor-pointer focus:outline-none"
+              className="relative flex items-center justify-center rounded-full transition-transform duration-300 active:scale-95 cursor-pointer focus:outline-none border-0 border-none outline-none ring-0 shadow-none appearance-none bg-transparent"
+              style={{ border: "none", outline: "none", boxShadow: "none" }}
               title={
                 isVoiceSpeaking
                   ? "Seiya is speaking..."
@@ -1424,11 +1437,38 @@ export function ChatView() {
               aria-label="Cloud Voice Orb"
             >
               <Orb
-                theme="cloud"
+                theme={orangeCloudTheme}
                 signal={orbSignal}
                 size={160}
                 interactive={false}
-                className="drop-shadow-[0_12px_32px_rgba(92,99,251,0.28)]"
+                slotProps={{
+                  root: {
+                    className: "border-0 border-none outline-none ring-0 shadow-none",
+                    style: { border: "none", outline: "none", boxShadow: "none" },
+                  },
+                  content: {
+                    className: "overflow-hidden rounded-full border-0 border-none outline-none ring-0 shadow-none",
+                    style: {
+                      border: "none",
+                      outline: "none",
+                      boxShadow: "none",
+                      overflow: "hidden",
+                      borderRadius: "50%",
+                      WebkitMaskImage: "-webkit-radial-gradient(white, black)",
+                    },
+                  },
+                  surface: {
+                    className: "border-0 border-none outline-none ring-0 shadow-none",
+                    style: {
+                      border: "none",
+                      outline: "none",
+                      boxShadow: "none",
+                      clipPath: "circle(49% at 50% 50%)",
+                      WebkitClipPath: "circle(49% at 50% 50%)",
+                    },
+                  },
+                }}
+                className="border-0 border-none outline-none ring-0 shadow-none"
               />
               {isVoiceMuted && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
