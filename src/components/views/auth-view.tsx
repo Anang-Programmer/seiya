@@ -1015,13 +1015,13 @@ export function AuthView({
       {mode === "questionnaire" && (
         <div className="min-h-screen bg-[#FEFBF5] flex flex-col justify-between">
           {/* Top Header strictly matching Figma 469:8665 */}
-          <header className="px-6 sm:px-12 py-6 border-b border-[#E6E6E6] bg-[#FEFBF5] sticky top-0 z-30 flex items-center justify-between">
+          <header className="px-6 sm:px-12 py-4 border-b border-[#E6E6E6] bg-[#FEFBF5] sticky top-0 z-30 flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div
                 onClick={() => setMode("story-intro")}
                 className="cursor-pointer"
               >
-                <SeiyaLogo height={42} />
+                <SeiyaLogo height={34} />
               </div>
             </div>
 
@@ -1037,19 +1037,19 @@ export function AuthView({
           </header>
 
           {/* Main Content: Profiling Two-Column Layout (Figma: 493:8073 & Component Set 472:8257) */}
-          <main className="max-w-6xl mx-auto px-6 py-8 sm:py-12 flex-1 w-full flex flex-col md:flex-row gap-10 lg:gap-16 items-start">
+          <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex-1 w-full flex flex-col md:flex-row gap-8 lg:gap-12 items-start">
             {/* Left Sidebar: Profiling List (7 milestones strictly matching Figma 472:8190 / 493:8073) */}
-            <aside className="w-full md:w-[360px] shrink-0 space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="font-serif text-[24px] text-[#737373] tracking-tight">
+            <aside className="w-full md:w-64 lg:w-72 shrink-0 space-y-4">
+              <div className="flex items-center justify-between pb-1">
+                <h2 className="font-serif text-lg text-[#515151] font-medium tracking-tight">
                   Profiling
                 </h2>
-                <span className="font-mono text-xs text-[#737373]/70">
+                <span className="font-mono text-xs text-[#808988]">
                   {currentScreen} / 22
                 </span>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {PROFILING_STEPS.map((s) => {
                   const isActive = activeMilestoneId === s.id;
                   const isDone = activeMilestoneId > s.id;
@@ -1057,28 +1057,28 @@ export function AuthView({
                     <div
                       key={s.id}
                       onClick={() => setCurrentScreen(s.startScreen)}
-                      className={`flex items-center gap-[22px] px-5 py-3 rounded-[20px] cursor-pointer transition-all ${
+                      className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl cursor-pointer transition-all ${
                         isActive
-                          ? "bg-[#B4562A] text-white shadow-xs"
-                          : "text-[#737373] hover:text-[#000000] hover:bg-black/[0.02]"
+                          ? "bg-[#B45529] text-white shadow-xs"
+                          : "text-[#515151] hover:text-[#2a2b2f] hover:bg-black/[0.03]"
                       }`}
                     >
                       <div
-                        className={`w-10 h-10 rounded-full flex items-center justify-center font-serif text-lg font-medium transition-all ${
+                        className={`w-7 h-7 rounded-full flex items-center justify-center font-serif text-xs font-semibold shrink-0 transition-all ${
                           isActive
-                            ? "bg-white text-[#B4562A]"
+                            ? "bg-white text-[#B45529]"
                             : isDone
-                            ? "border-2 border-[#2d5232] text-[#2d5232] bg-[#2d5232]/5"
-                            : "border-2 border-[#737373]/50 text-[#737373]"
+                            ? "border border-[#2d5232] text-[#2d5232] bg-[#2d5232]/10"
+                            : "border border-[#808988]/40 text-[#808988]"
                         }`}
                       >
                         {isDone ? "✓" : s.id}
                       </div>
                       <span
-                        className={`font-serif text-xl ${
+                        className={`font-serif text-sm sm:text-base ${
                           isActive
                             ? "text-white font-medium"
-                            : "text-[#737373] font-normal"
+                            : "text-[#515151] font-normal"
                         }`}
                       >
                         {s.label}
@@ -1090,16 +1090,16 @@ export function AuthView({
             </aside>
 
             {/* Right Interactive Area */}
-            <section className="flex-1 w-full max-w-2xl space-y-6">
+            <section className="flex-1 w-full max-w-xl lg:max-w-2xl space-y-4">
               {/* Category, Title, and Subtitle */}
               <div className="space-y-1">
-                <span className="font-serif text-lg sm:text-xl text-[#737373] block">
+                <span className="font-serif text-xs sm:text-sm text-[#808988] block">
                   {currentScreenConfig.category}
                 </span>
-                <h1 className="font-serif text-[32px] sm:text-[38px] font-normal text-[#000000] tracking-tight leading-tight">
+                <h1 className="font-serif text-xl sm:text-2xl font-normal text-[#2a2b2f] tracking-tight leading-snug">
                   {currentScreenConfig.question}
                 </h1>
-                <p className="font-serif text-base sm:text-lg text-[#737373] pt-1">
+                <p className="font-sans text-xs sm:text-sm text-[#515151] pt-0.5 leading-relaxed">
                   {currentScreenConfig.subtitle}
                 </p>
               </div>
@@ -1108,33 +1108,33 @@ export function AuthView({
 
               {/* 1. Choice Options (Figma Radio Grid) */}
               {currentScreenConfig.type === "choice" && (
-                <div className="bg-white rounded-[30px] p-6 sm:p-8 shadow-xl border border-black/5 space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-[#e5dcd0] space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {currentScreenConfig.options?.map((opt) => {
                       const isSelected = currentScreenConfig.selectedString === opt;
                       return (
                         <div
                           key={opt}
                           onClick={() => currentScreenConfig.onSelectString?.(opt)}
-                          className={`p-4 rounded-[15px] border transition-all cursor-pointer flex items-center gap-3.5 ${
+                          className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-center gap-3 text-left ${
                             isSelected
-                              ? "border-[#B4562A] bg-[#FEFBF5]/50 shadow-xs ring-1 ring-[#B4562A]"
-                              : "border-[#BFBFBF] hover:border-[#737373] bg-white"
+                              ? "border-[#B45529] bg-[#fbf0eb] shadow-2xs ring-1 ring-[#B45529]"
+                              : "border-[#e5dcd0] hover:border-[#B45529]/50 bg-white hover:bg-[#fefcf6]"
                           }`}
                         >
                           {/* Radio Circle */}
                           <div
-                            className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                            className={`w-4.5 h-4.5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
                               isSelected
-                                ? "border-[#B4562A] bg-[#B4562A]"
-                                : "border-[#BFBFBF]"
+                                ? "border-[#B45529] bg-[#B45529]"
+                                : "border-[#d1c9bf]"
                             }`}
                           >
                             {isSelected && (
-                              <div className="w-2.5 h-2.5 rounded-full bg-white" />
+                              <div className="w-1.5 h-1.5 rounded-full bg-white" />
                             )}
                           </div>
-                          <span className="font-serif text-lg sm:text-xl text-[#000000]">
+                          <span className="font-serif text-sm sm:text-base text-[#2a2b2f]">
                             {opt}
                           </span>
                         </div>
@@ -1146,9 +1146,9 @@ export function AuthView({
 
               {/* 2. Scale 1..11 or 1..5 Options */}
               {currentScreenConfig.type === "scale" && (
-                <div className="bg-white rounded-[30px] p-6 sm:p-8 shadow-xl border border-black/5 space-y-6">
+                <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-[#e5dcd0] space-y-4">
                   {/* Row of scale numbers */}
-                  <div className="flex items-center justify-between gap-1.5 sm:gap-2.5 overflow-x-auto py-2">
+                  <div className="flex items-center justify-between gap-1 sm:gap-2 overflow-x-auto py-1">
                     {Array.from(
                       {
                         length:
@@ -1167,10 +1167,10 @@ export function AuthView({
                           onClick={() =>
                             currentScreenConfig.onSelectNumber?.(num)
                           }
-                          className={`min-w-[36px] sm:min-w-[46px] h-12 rounded-[15px] border flex items-center justify-center font-serif text-lg sm:text-xl transition-all cursor-pointer ${
+                          className={`min-w-[30px] sm:min-w-[38px] h-9 sm:h-10 rounded-lg sm:rounded-xl border flex items-center justify-center font-serif text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                             isSelected
-                              ? "border-[#B4562A] bg-[#B4562A] text-white shadow-sm scale-105"
-                              : "border-[#BFBFBF] text-[#2a2b2f] hover:border-[#737373] bg-white hover:bg-black/[0.02]"
+                              ? "border-[#B45529] bg-[#B45529] text-white shadow-xs scale-105"
+                              : "border-[#e5dcd0] text-[#515151] hover:border-[#B45529] bg-white hover:bg-[#fefcf6]"
                           }`}
                         >
                           {num}
@@ -1180,7 +1180,7 @@ export function AuthView({
                   </div>
 
                   {/* Scale Labels */}
-                  <div className="flex items-center justify-between font-serif text-xs sm:text-sm text-[#737373] pt-1 px-1">
+                  <div className="flex items-center justify-between font-serif text-xs text-[#808988] pt-1 px-1">
                     <span>{currentScreenConfig.scaleMinLabel}</span>
                     <span>{currentScreenConfig.scaleMaxLabel}</span>
                   </div>
@@ -1189,17 +1189,17 @@ export function AuthView({
 
               {/* 3. Text Area Input */}
               {currentScreenConfig.type === "text" && (
-                <div className="bg-white rounded-[30px] p-6 sm:p-8 shadow-xl border border-black/5 space-y-4">
+                <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-[#e5dcd0] space-y-3">
                   <textarea
-                    rows={4}
+                    rows={3}
                     value={currentScreenConfig.selectedString || ""}
                     onChange={(e) =>
                       currentScreenConfig.onSelectString?.(e.target.value)
                     }
                     placeholder={currentScreenConfig.placeholder}
-                    className="w-full p-4 rounded-[15px] border border-[#BFBFBF] font-serif text-lg text-[#2a2b2f] placeholder-[#a69e96] focus:border-[#B4562A] focus:outline-none focus:ring-1 focus:ring-[#B4562A] bg-white resize-none"
+                    className="w-full p-3.5 rounded-xl border border-[#e5dcd0] font-serif text-sm sm:text-base text-[#2a2b2f] placeholder-[#808988] focus:border-[#B45529] focus:outline-none focus:ring-1 focus:ring-[#B45529] bg-white resize-none"
                   />
-                  <p className="text-xs font-serif text-[#737373] italic">
+                  <p className="text-xs font-sans text-[#808988] italic">
                     Type your thoughts in your own words, then click Continue.
                   </p>
                 </div>
@@ -1207,8 +1207,8 @@ export function AuthView({
 
               {/* 4. Multi-Select Checkboxes */}
               {currentScreenConfig.type === "multiselect" && (
-                <div className="bg-white rounded-[30px] p-6 sm:p-8 shadow-xl border border-black/5 space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-[#e5dcd0] space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {currentScreenConfig.options?.map((opt) => {
                       const isSelected =
                         currentScreenConfig.selectedArray?.includes(opt);
@@ -1218,26 +1218,26 @@ export function AuthView({
                           onClick={() =>
                             currentScreenConfig.onToggleArray?.(opt)
                           }
-                          className={`p-4 rounded-[15px] border transition-all cursor-pointer flex items-center gap-3.5 ${
+                          className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-center gap-3 text-left ${
                             isSelected
-                              ? "border-[#B4562A] bg-[#FEFBF5]/50 shadow-xs ring-1 ring-[#B4562A]"
-                              : "border-[#BFBFBF] hover:border-[#737373] bg-white"
+                              ? "border-[#B45529] bg-[#fbf0eb] shadow-2xs ring-1 ring-[#B45529]"
+                              : "border-[#e5dcd0] hover:border-[#B45529]/50 bg-white hover:bg-[#fefcf6]"
                           }`}
                         >
                           <div
-                            className={`w-6 h-6 rounded-[8px] border-2 flex items-center justify-center shrink-0 transition-all ${
+                            className={`w-4.5 h-4.5 rounded-md border flex items-center justify-center shrink-0 transition-all ${
                               isSelected
-                                ? "border-[#B4562A] bg-[#B4562A] text-white"
-                                : "border-[#BFBFBF]"
+                                ? "border-[#B45529] bg-[#B45529] text-white"
+                                : "border-[#d1c9bf]"
                             }`}
                           >
                             {isSelected && (
-                              <span className="text-xs font-bold leading-none">
+                              <span className="text-[10px] font-bold leading-none">
                                 ✓
                               </span>
                             )}
                           </div>
-                          <span className="font-serif text-lg sm:text-xl text-[#000000]">
+                          <span className="font-serif text-sm sm:text-base text-[#2a2b2f]">
                             {opt}
                           </span>
                         </div>
@@ -1249,46 +1249,46 @@ export function AuthView({
 
               {/* 5. Screen 22: Initial Profile Complete & Summary */}
               {currentScreenConfig.type === "summary" && (
-                <div className="space-y-6">
+                <div className="space-y-4">
                   {/* Summary Overview Card */}
-                  <div className="bg-white rounded-[30px] p-6 sm:p-8 shadow-xl border border-black/5 space-y-6">
-                    <h3 className="font-serif text-xl sm:text-2xl font-normal text-[#2a2b2f] border-b border-[#f0ebe3] pb-3">
+                  <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-[#e5dcd0] space-y-4">
+                    <h3 className="font-serif text-lg font-normal text-[#2a2b2f] border-b border-[#f0ebe3] pb-2.5">
                       Initial summary
                     </h3>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 text-left font-serif">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left font-serif">
                       <div className="space-y-1">
-                        <span className="text-xs text-[#737373] block">
+                        <span className="text-xs text-[#808988] block">
                           Your starting point
                         </span>
-                        <div className="inline-flex items-center px-3 py-1 rounded-full bg-[#B4562A]/10 text-[#B4562A] text-sm font-medium">
+                        <div className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-[#B45529]/10 text-[#B45529] text-xs font-medium">
                           Ready to arrange
                         </div>
                       </div>
 
                       <div className="space-y-1">
-                        <span className="text-xs text-[#737373] block">
+                        <span className="text-xs text-[#808988] block">
                           The main purpose
                         </span>
-                        <p className="text-base text-[#2a2b2f] font-normal">
+                        <p className="text-sm text-[#2a2b2f] font-normal">
                           {biggestGoal || "Have sufficient emergency funds"}
                         </p>
                       </div>
 
                       <div className="space-y-1">
-                        <span className="text-xs text-[#737373] block">
+                        <span className="text-xs text-[#808988] block">
                           How to manage money
                         </span>
-                        <p className="text-base text-[#2a2b2f] font-normal">
+                        <p className="text-sm text-[#2a2b2f] font-normal">
                           {moneyManagementNow}
                         </p>
                       </div>
 
                       <div className="space-y-1">
-                        <span className="text-xs text-[#737373] block">
+                        <span className="text-xs text-[#808988] block">
                           Topic money data
                         </span>
-                        <p className="text-base text-[#2a2b2f] font-normal">
+                        <p className="text-sm text-[#2a2b2f] font-normal">
                           {sharedDataCategories.length > 0
                             ? sharedDataCategories.join(", ")
                             : "Total Balance, Transaction Details"}
@@ -1297,15 +1297,15 @@ export function AuthView({
                     </div>
 
                     {/* Dual Partner Vault Signatures */}
-                    <div className="pt-4 border-t border-[#f0ebe3] space-y-3">
-                      <span className="font-serif text-sm text-[#737373] block">
+                    <div className="pt-3 border-t border-[#f0ebe3] space-y-2.5">
+                      <span className="font-serif text-xs text-[#808988] block">
                         Dual Partner Vault Signatures:
                       </span>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                         <button
                           type="button"
                           onClick={() => setPartnerASigned(true)}
-                          className={`p-3 rounded-full text-xs font-serif transition-all cursor-pointer flex items-center justify-center gap-2 border ${
+                          className={`p-2.5 rounded-full text-xs font-serif transition-all cursor-pointer flex items-center justify-center gap-2 border ${
                             partnerASigned
                               ? "bg-[#2d5232]/10 border-[#2d5232]/30 text-[#2d5232] font-semibold"
                               : "bg-[#fcf8f0] border-[#ded7ce] text-[#2a2b2f] hover:bg-white"
@@ -1313,7 +1313,7 @@ export function AuthView({
                         >
                           <SolarIcon
                             name={partnerASigned ? "check-circle" : "shield-check"}
-                            size={18}
+                            size={16}
                           />
                           <span>
                             {partnerASigned
@@ -1325,7 +1325,7 @@ export function AuthView({
                         <button
                           type="button"
                           onClick={() => setPartnerBSigned(true)}
-                          className={`p-3 rounded-full text-xs font-serif transition-all cursor-pointer flex items-center justify-center gap-2 border ${
+                          className={`p-2.5 rounded-full text-xs font-serif transition-all cursor-pointer flex items-center justify-center gap-2 border ${
                             partnerBSigned
                               ? "bg-[#2d5232]/10 border-[#2d5232]/30 text-[#2d5232] font-semibold"
                               : "bg-[#fcf8f0] border-[#ded7ce] text-[#2a2b2f] hover:bg-white"
@@ -1333,7 +1333,7 @@ export function AuthView({
                         >
                           <SolarIcon
                             name={partnerBSigned ? "check-circle" : "shield-check"}
-                            size={18}
+                            size={16}
                           />
                           <span>
                             {partnerBSigned
@@ -1346,15 +1346,15 @@ export function AuthView({
                   </div>
 
                   {/* Next Step Card */}
-                  <div className="bg-white rounded-[24px] p-6 shadow-md border border-black/5 flex items-start gap-4 text-left">
-                    <div className="w-9 h-9 rounded-full bg-[#B4562A] text-white font-serif text-base font-bold flex items-center justify-center shrink-0 shadow-xs">
+                  <div className="rounded-xl p-4 border border-[#e5dcd0] bg-[#fefcf6] flex items-start gap-3 text-left">
+                    <div className="w-7 h-7 rounded-full bg-[#B45529] text-white font-serif text-xs font-bold flex items-center justify-center shrink-0 shadow-xs">
                       1
                     </div>
-                    <div className="space-y-1">
-                      <h4 className="font-serif text-lg text-[#2a2b2f]">
+                    <div className="space-y-0.5">
+                      <h4 className="font-serif text-sm font-medium text-[#2a2b2f]">
                         Invite your partner to join
                       </h4>
-                      <p className="font-serif text-sm text-[#737373]">
+                      <p className="font-sans text-xs text-[#515151]">
                         You will review privacy rules, transaction limits, and
                         mutual agreements together.
                       </p>
@@ -1374,10 +1374,10 @@ export function AuthView({
                       setMode("story-intro");
                     }
                   }}
-                  className="flex items-center gap-2 text-[#737373] hover:text-[#000000] font-serif text-lg transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 text-[#515151] hover:text-[#2a2b2f] font-serif text-xs sm:text-sm transition-colors cursor-pointer"
                 >
                   <svg
-                    className="w-4 h-4 text-[#737373]"
+                    className="w-3.5 h-3.5 text-[#515151]"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -1392,35 +1392,35 @@ export function AuthView({
                   <span>Back</span>
                 </button>
 
-                <div className="flex items-center gap-6">
+                <div className="flex items-center gap-4">
                   {currentScreen < 22 && (
                     <button
                       type="button"
                       onClick={() => setCurrentScreen((p) => p + 1)}
-                      className="text-[#737373] hover:text-[#000000] font-serif text-lg transition-colors cursor-pointer"
+                      className="text-[#808988] hover:text-[#2a2b2f] font-serif text-xs sm:text-sm transition-colors cursor-pointer"
                     >
                       Skip
                     </button>
                   )}
 
                   {currentScreen === 22 ? (
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
                       <button
                         type="button"
                         onClick={() => setCurrentScreen(1)}
-                        className="text-[#737373] hover:text-[#000000] font-serif text-base underline cursor-pointer"
+                        className="text-[#808988] hover:text-[#2a2b2f] font-serif text-xs underline cursor-pointer"
                       >
                         Change answer
                       </button>
                       <button
                         type="button"
                         onClick={handleCompleteQuestionnaire}
-                        className="px-7 py-3 rounded-[15px] bg-[#B4562A] hover:bg-[#9c4820] text-white font-sans font-semibold text-base flex items-center gap-2.5 transition-all shadow-xs cursor-pointer active:scale-[0.99]"
+                        className="px-5 py-2.5 rounded-full bg-[#B45529] hover:bg-[#9e382b] text-white font-sans font-medium text-xs sm:text-sm flex items-center gap-2 transition-all shadow-xs cursor-pointer active:scale-[0.99]"
                       >
                         <span>Make couple invitations</span>
-                        <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
+                        <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center">
                           <svg
-                            className="w-3 h-3 text-white"
+                            className="w-2.5 h-2.5 text-white"
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
@@ -1439,15 +1439,15 @@ export function AuthView({
                     <button
                       type="button"
                       onClick={() => setCurrentScreen((p) => p + 1)}
-                      className="px-7 py-3 rounded-[15px] bg-[#B4562A] hover:bg-[#9c4820] text-white font-sans font-semibold text-base flex items-center gap-2.5 transition-all shadow-xs cursor-pointer active:scale-[0.99]"
+                      className="px-5 py-2.5 rounded-full bg-[#B45529] hover:bg-[#9e382b] text-white font-sans font-medium text-xs sm:text-sm flex items-center gap-2 transition-all shadow-xs cursor-pointer active:scale-[0.99]"
                     >
                       <span>
                         {(currentScreenConfig as any).continueButtonText ||
                           "Continue"}
                       </span>
-                      <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
+                      <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center">
                         <svg
-                          className="w-3 h-3 text-white"
+                          className="w-2.5 h-2.5 text-white"
                           fill="none"
                           viewBox="0 0 24 24"
                           stroke="currentColor"
