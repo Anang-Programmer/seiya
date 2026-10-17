@@ -1037,7 +1037,7 @@ export function AuthView({
           </header>
 
           {/* Main Content: Profiling Two-Column Layout (Figma: 493:8073 & Component Set 472:8257) */}
-          <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex-1 w-full flex flex-col md:flex-row gap-8 lg:gap-12 items-start">
+          <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex-1 w-full flex flex-col md:flex-row gap-8 lg:gap-12 items-start justify-center my-auto">
             {/* Left Sidebar: Profiling List (7 milestones strictly matching Figma 472:8190 / 493:8073) */}
             <aside className="w-full md:w-64 lg:w-72 shrink-0 space-y-4">
               <div className="flex items-center justify-between pb-1">
@@ -1148,7 +1148,7 @@ export function AuthView({
               {currentScreenConfig.type === "scale" && (
                 <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-[#e5dcd0] space-y-4">
                   {/* Row of scale numbers */}
-                  <div className="flex items-center justify-between gap-1 sm:gap-2 overflow-x-auto py-1">
+                  <div className="flex items-center justify-center gap-1 sm:gap-2 overflow-x-auto py-1">
                     {Array.from(
                       {
                         length:
