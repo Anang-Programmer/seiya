@@ -221,11 +221,18 @@ export function ChatView() {
   const [isVoiceSpeaking, setIsVoiceSpeaking] = useState(false);
   const [isVoiceListening, setIsVoiceListening] = useState(false);
   const [liveVoiceTranscript, setLiveVoiceTranscript] = useState("");
+  const [hasVoiceTranscribed, setHasVoiceTranscribed] = useState(false);
   const recognitionRef = useRef<any>(null);
   const mascotVideoRef = useRef<HTMLVideoElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const activeSession = activeSessionId ? sessions.find((s) => s.id === activeSessionId) || null : null;
+  const shouldHideLandingHero = Boolean(
+    activeSession ||
+    liveVoiceTranscript.trim().length > 0 ||
+    hasVoiceTranscribed ||
+    isProcessing
+  );
 
   const sharedCount = sessions.filter((s) => s.isShared).length;
   const privateCount = sessions.filter((s) => !s.isShared).length;
@@ -325,6 +332,8 @@ export function ChatView() {
     setActiveSessionId(null);
     setNewChatMode(mode);
     setInputText("");
+    setHasVoiceTranscribed(false);
+    setLiveVoiceTranscript("");
     if (typeof window !== "undefined" && window.innerWidth < 768) {
       setShowHistory(false);
     }
@@ -524,6 +533,9 @@ export function ChatView() {
         }
         const spoken = final || interim;
         setLiveVoiceTranscript(spoken);
+        if (spoken.trim()) {
+          setHasVoiceTranscribed(true);
+        }
 
         if (final.trim()) {
           rec.stop();
@@ -557,6 +569,7 @@ export function ChatView() {
   // Handle Voice Message Submission
   const handleVoiceSubmit = async (queryText: string) => {
     if (!queryText.trim()) return;
+    setHasVoiceTranscribed(true);
     setLiveVoiceTranscript("");
     await handleSend(queryText);
 
@@ -1118,7 +1131,13 @@ export function ChatView() {
         <div className={`flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 ${isVoiceChatActive ? "pb-24 sm:pb-28" : ""}`}>
           {/* Neutral Condition (No active session selected yet): AI landing screen with suggestions */}
           {!activeSession && (
-            <div className="h-full flex flex-col items-center justify-center text-center max-w-lg mx-auto py-8 sm:py-12 animate-in fade-in-0 duration-300">
+            <div
+              className={`flex flex-col items-center justify-center text-center max-w-lg mx-auto transition-all duration-700 ease-in-out ${
+                shouldHideLandingHero
+                  ? "opacity-0 -translate-y-8 scale-95 max-h-0 overflow-hidden pointer-events-none py-0 mb-0"
+                  : "opacity-100 translate-y-0 scale-100 max-h-[1400px] pointer-events-auto py-8 sm:py-12"
+              }`}
+            >
               <SeiyaVideoAvatar size={210} className="mb-2" />
               <h2 className="text-2xl font-serif font-normal text-[#2a2b2f] mb-2">
                 How can I help you today, {activeName}?
@@ -1418,77 +1437,15 @@ export function ChatView() {
           </div>
         )}
 
-        {/* Bottom Dock: Voice Mode Toolbar vs Standard Chat Input */}
-        {isVoiceChatActive ? (
-          /* Voice Assistance Bottom Dock in Warm Paper Theme */
-          <div className="p-2.5 sm:p-4 bg-[#f5eee1] border-t border-[#d1c9bf]/30 flex items-center gap-2 sm:gap-3 z-30 transition-all">
-            {/* Input pill with plus icon */}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (inputText.trim()) {
-                  handleVoiceSubmit(inputText.trim());
-                  setInputText("");
-                }
-              }}
-              className="flex-1 flex items-center bg-[#fef9ef] hover:bg-[#fffdf9] border border-[#d1c9bf] focus-within:border-[#B45529]/40 focus-within:ring-2 focus-within:ring-[#B45529]/15 rounded-full px-3.5 sm:px-4 py-2 sm:py-2.5 transition-all shadow-2xs"
-            >
-              <button
-                type="button"
-                onClick={() => handleSend("Here is our budget update document.")}
-                className="text-[#808988] hover:text-[#B45529] transition-colors mr-2.5 cursor-pointer shrink-0"
-                title="Add document"
-              >
-                <SolarIcon name="plus" size={17} />
-              </button>
-              <input
-                type="text"
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                placeholder={`Ask Seiya as ${activeName}...`}
-                className="flex-1 bg-transparent text-xs sm:text-sm text-[#2a2b2f] placeholder-[#808988] focus:outline-none"
-              />
-            </form>
-
-            {/* Mic Mute / Unmute Button */}
-            <button
-              type="button"
-              onClick={() => setIsVoiceMuted(!isVoiceMuted)}
-              className={`w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all cursor-pointer shrink-0 shadow-2xs ${
-                isVoiceMuted
-                  ? "bg-[#fbf0eb] text-[#B45529] border border-[#B45529]/40"
-                  : "bg-[#fef9ef] hover:bg-[#ece3d3] text-[#515151] hover:text-[#B45529] border border-[#d1c9bf]"
-              }`}
-              title={isVoiceMuted ? "Unmute microphone" : "Mute microphone"}
-              aria-label={isVoiceMuted ? "Unmute microphone" : "Mute microphone"}
-            >
-              <SolarIcon name={isVoiceMuted ? "microphone-slash" : "microphone"} size={19} />
-            </button>
-
-            {/* Close / Exit Voice Mode Button */}
-            <button
-              type="button"
-              onClick={() => {
-                setIsVoiceChatActive(false);
-                if (typeof window !== "undefined" && "speechSynthesis" in window) {
-                  window.speechSynthesis.cancel();
-                }
-              }}
-              className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#fef9ef] hover:bg-[#ece3d3] border border-[#d1c9bf] text-[#515151] hover:text-[#B45529] flex items-center justify-center transition-all shadow-2xs cursor-pointer shrink-0"
-              title="Exit Voice Mode"
-              aria-label="Exit Voice Mode"
-            >
-              <SolarIcon name="close-circle" size={20} />
-            </button>
-          </div>
-        ) : (
-          /* Standard Input Bar with unified wave/send button */
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSend();
-            }}
-            className="p-2.5 sm:p-4 bg-[#f5eee1] border-t border-[#d1c9bf]/30 flex items-center gap-1.5 sm:gap-2"
+        {/* Bottom Dock: Smooth Morphing Between Standard Chat Input and Voice Controls */}
+        <div className="p-2.5 sm:p-4 bg-[#f5eee1] border-t border-[#d1c9bf]/30 flex items-center justify-between gap-2 sm:gap-3 z-30 transition-all duration-500 ease-in-out relative min-h-[58px] sm:min-h-[64px]">
+          {/* 1. Standard Chat Input (Smoothly transitions out and hides when Voice Chat is active) */}
+          <div
+            className={`w-full flex items-center gap-1.5 sm:gap-2 transition-all duration-500 ease-in-out ${
+              isVoiceChatActive
+                ? "opacity-0 -translate-y-2 pointer-events-none absolute inset-x-2.5 sm:inset-x-4 invisible"
+                : "opacity-100 translate-y-0 relative visible"
+            }`}
           >
             {/* Action buttons: Attach File & Image */}
             <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
@@ -1512,21 +1469,31 @@ export function ChatView() {
               </button>
             </div>
 
-            <input
-              type="text"
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              placeholder={`Ask Seiya as ${activeName}...`}
-              className="flex-1 min-w-0 px-3 sm:px-4 py-2 sm:py-2.5 rounded-full bg-[#fef9ef] border border-[#d1c9bf] text-xs sm:text-sm text-[#2a2b2f] placeholder-[#808988] focus:outline-none focus:ring-2 focus:ring-[#B45529]/20 transition-all shadow-2xs"
-            />
+            {/* Chat Textformfield */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSend();
+              }}
+              className="flex-1 min-w-0"
+            >
+              <input
+                type="text"
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                placeholder={`Ask Seiya as ${activeName}...`}
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 rounded-full bg-[#fef9ef] border border-[#d1c9bf] text-xs sm:text-sm text-[#2a2b2f] placeholder-[#808988] focus:outline-none focus:ring-2 focus:ring-[#B45529]/20 transition-all shadow-2xs"
+              />
+            </form>
 
             {/* Unified Dynamic Voice Chat & Send Action Button */}
             <button
-              type={inputText.trim() ? "submit" : "button"}
+              type="button"
               disabled={isProcessing}
-              onClick={(e) => {
-                if (!inputText.trim()) {
-                  e.preventDefault();
+              onClick={() => {
+                if (inputText.trim()) {
+                  handleSend();
+                } else {
                   setIsVoiceChatActive(true);
                 }
               }}
@@ -1566,8 +1533,62 @@ export function ChatView() {
                 </span>
               </div>
             </button>
-          </form>
-        )}
+          </div>
+
+          {/* 2. Voice Chat Controls (Smoothly transitions in when Voice Chat is active; NO textformfield) */}
+          <div
+            className={`w-full flex items-center justify-between gap-2 sm:gap-3 transition-all duration-500 ease-in-out ${
+              isVoiceChatActive
+                ? "opacity-100 translate-y-0 relative visible"
+                : "opacity-0 translate-y-2 pointer-events-none absolute inset-x-2.5 sm:inset-x-4 invisible"
+            }`}
+          >
+            {/* Mic Mute / Unmute Button */}
+            <button
+              type="button"
+              onClick={() => setIsVoiceMuted(!isVoiceMuted)}
+              className={`h-9 sm:h-10 px-3 sm:px-4 rounded-full flex items-center gap-1.5 text-xs font-semibold transition-all cursor-pointer shadow-2xs shrink-0 ${
+                isVoiceMuted
+                  ? "bg-[#fbf0eb] text-[#B45529] border border-[#B45529]/40"
+                  : "bg-[#fef9ef] hover:bg-[#ece3d3] text-[#515151] hover:text-[#B45529] border border-[#d1c9bf]"
+              }`}
+              title={isVoiceMuted ? "Unmute microphone" : "Mute microphone"}
+            >
+              <SolarIcon name={isVoiceMuted ? "microphone-slash" : "microphone"} size={17} />
+              <span className="hidden sm:inline">{isVoiceMuted ? "Unmute" : "Mute"}</span>
+            </button>
+
+            {/* Central Voice Status Indicator */}
+            <div className="flex items-center gap-2 text-xs font-medium text-[#B45529] px-3 sm:px-4 py-1.5 rounded-full bg-[#fef9ef] border border-[#d1c9bf]/60 shadow-2xs truncate">
+              <span className="w-2 h-2 rounded-full bg-[#B45529] animate-ping shrink-0" />
+              <span className="truncate">
+                {isVoiceSpeaking
+                  ? "Seiya is speaking..."
+                  : isVoiceListening
+                  ? `Listening to ${activeName}...`
+                  : isVoiceMuted
+                  ? "Microphone muted"
+                  : "Listening... speak anytime"}
+              </span>
+            </div>
+
+            {/* Close / Exit Voice Mode Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsVoiceChatActive(false);
+                if (typeof window !== "undefined" && "speechSynthesis" in window) {
+                  window.speechSynthesis.cancel();
+                }
+              }}
+              className="h-9 sm:h-10 px-3 sm:px-4 rounded-full bg-[#fef9ef] hover:bg-[#ece3d3] border border-[#d1c9bf] text-[#515151] hover:text-[#B45529] flex items-center gap-1.5 text-xs font-semibold transition-all shadow-2xs cursor-pointer shrink-0"
+              title="Exit Voice Mode"
+            >
+              <SolarIcon name="close-circle" size={17} />
+              <span className="hidden sm:inline">Exit</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
