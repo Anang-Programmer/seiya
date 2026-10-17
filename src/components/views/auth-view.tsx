@@ -1013,9 +1013,9 @@ export function AuthView({
           SCREEN 5: PROFILING QUESTIONNAIRE (Figma: 469-8665 Canvas + 493-8073 Component)
           ========================================================================= */}
       {mode === "questionnaire" && (
-        <div className="min-h-screen bg-[#FEFBF5] flex flex-col justify-between">
+        <div className="min-h-screen bg-[#FEFBF5] flex flex-col">
           {/* Top Header strictly matching Figma 469:8665 */}
-          <header className="px-6 sm:px-12 py-4 border-b border-[#E6E6E6] bg-[#FEFBF5] sticky top-0 z-30 flex items-center justify-between">
+          <header className="px-6 sm:px-12 py-4 border-b border-[#E6E6E6] bg-[#FEFBF5] sticky top-0 z-30 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-4">
               <div
                 onClick={() => setMode("story-intro")}
@@ -1037,9 +1037,10 @@ export function AuthView({
           </header>
 
           {/* Main Content: Profiling Two-Column Layout (Figma: 493:8073 & Component Set 472:8257) */}
-          <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex-1 w-full flex flex-col md:flex-row justify-center items-center md:items-start gap-8 lg:gap-14 my-auto">
-            {/* Left Sidebar: Profiling List (7 milestones strictly matching Figma 472:8190 / 493:8073) */}
-            <aside className="w-full md:w-64 lg:w-72 shrink-0 space-y-4">
+          <main className="flex-1 flex items-center justify-center px-4 sm:px-6 py-6 sm:py-10 w-full">
+            <div className="w-full max-w-4xl mx-auto flex flex-col md:flex-row items-center md:items-start justify-center gap-8 lg:gap-14 my-auto">
+              {/* Left Sidebar: Profiling List (7 milestones strictly matching Figma 472:8190 / 493:8073) */}
+              <aside className="w-full md:w-64 lg:w-72 shrink-0 space-y-4">
               <div className="flex items-center justify-between pb-1">
                 <h2 className="font-serif text-lg text-[#515151] font-medium tracking-tight">
                   Profiling
@@ -1090,7 +1091,7 @@ export function AuthView({
             </aside>
 
             {/* Right Interactive Area */}
-            <section className="flex-1 w-full max-w-xl lg:max-w-2xl space-y-4">
+            <section className="w-full max-w-xl space-y-4">
               {/* Category, Title, and Subtitle */}
               <div className="space-y-1">
                 <span className="font-serif text-xs sm:text-sm text-[#808988] block">
@@ -1465,10 +1466,8 @@ export function AuthView({
                 </div>
               </div>
             </section>
+            </div>
           </main>
-
-          {/* Minimal Bottom Margin */}
-          <div className="h-10" />
         </div>
       )}
 
