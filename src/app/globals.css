@@ -135,68 +135,54 @@ input[type="number"],
   animation: floatMascotSmooth 3.6s ease-in-out infinite;
 }
 
-/* ChatGPT-style Voice Circle Morphing Keyframes */
-@keyframes chatGptMorphSpeaking {
-  0% {
-    border-radius: 50% 50% 50% 50% / 50% 50% 50% 50%;
-    transform: scale(1) rotate(0deg);
-  }
-  20% {
-    border-radius: 42% 58% 62% 38% / 48% 46% 54% 52%;
-    transform: scale(1.08) rotate(4deg);
-  }
-  40% {
-    border-radius: 58% 42% 40% 60% / 56% 38% 62% 44%;
-    transform: scale(1.03) rotate(-3deg);
-  }
-  65% {
-    border-radius: 46% 54% 65% 35% / 40% 64% 36% 60%;
-    transform: scale(1.12) rotate(3deg);
-  }
-  85% {
-    border-radius: 54% 46% 45% 55% / 52% 44% 56% 48%;
-    transform: scale(1.05) rotate(-2deg);
-  }
-  100% {
-    border-radius: 50% 50% 50% 50% / 50% 50% 50% 50%;
-    transform: scale(1) rotate(0deg);
-  }
-}
-
-@keyframes chatGptMorphListening {
+/* ChatGPT Voice Orb Keyframes */
+@keyframes chatgptOrbBreathe {
   0%, 100% {
-    border-radius: 50% 50% 50% 50%;
     transform: scale(1);
+    filter: drop-shadow(0 4px 16px rgba(180, 85, 41, 0.35));
   }
-  35% {
-    border-radius: 48% 52% 51% 49% / 52% 49% 51% 48%;
+  50% {
     transform: scale(1.06);
-  }
-  70% {
-    border-radius: 51% 49% 48% 52% / 49% 51% 48% 52%;
-    transform: scale(0.97);
+    filter: drop-shadow(0 6px 26px rgba(180, 85, 41, 0.55));
   }
 }
 
-@keyframes chatGptMorphIdle {
+@keyframes chatgptOrbSpeaking {
   0%, 100% {
-    border-radius: 50%;
+    transform: scale(1);
+    filter: drop-shadow(0 4px 18px rgba(180, 85, 41, 0.4));
+  }
+  25% {
+    transform: scale(1.12);
+    filter: drop-shadow(0 8px 30px rgba(180, 85, 41, 0.65));
+  }
+  50% {
+    transform: scale(0.96);
+    filter: drop-shadow(0 4px 16px rgba(180, 85, 41, 0.35));
+  }
+  75% {
+    transform: scale(1.14);
+    filter: drop-shadow(0 8px 32px rgba(201, 138, 79, 0.7));
+  }
+}
+
+@keyframes chatgptOrbListening {
+  0%, 100% {
     transform: scale(1);
   }
   50% {
-    border-radius: 49% 51% 51% 49% / 51% 49% 51% 49%;
-    transform: scale(1.03);
+    transform: scale(1.08);
   }
 }
 
-.animate-chatgpt-speaking {
-  animation: chatGptMorphSpeaking 3.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+.animate-chatgpt-orb {
+  animation: chatgptOrbBreathe 3s ease-in-out infinite;
 }
 
-.animate-chatgpt-listening {
-  animation: chatGptMorphListening 2.4s ease-in-out infinite;
+.animate-chatgpt-orb-speaking {
+  animation: chatgptOrbSpeaking 1.6s ease-in-out infinite;
 }
 
-.animate-chatgpt-idle {
-  animation: chatGptMorphIdle 3.4s ease-in-out infinite;
+.animate-chatgpt-orb-listening {
+  animation: chatgptOrbListening 2s ease-in-out infinite;
 }

@@ -222,6 +222,7 @@ export function ChatView() {
   const [isVoiceListening, setIsVoiceListening] = useState(false);
   const [liveVoiceTranscript, setLiveVoiceTranscript] = useState("");
   const recognitionRef = useRef<any>(null);
+  const mascotVideoRef = useRef<HTMLVideoElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const activeSession = activeSessionId ? sessions.find((s) => s.id === activeSessionId) || null : null;
@@ -587,6 +588,9 @@ export function ChatView() {
     } else {
       if (!isVoiceMuted) {
         startVoiceListening();
+      }
+      if (mascotVideoRef.current) {
+        mascotVideoRef.current.play().catch(() => {});
       }
     }
   }, [isVoiceChatActive, isVoiceMuted]);
@@ -1111,7 +1115,7 @@ export function ChatView() {
         )}
 
         {/* Messages Scroll Area */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+        <div className={`flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 ${isVoiceChatActive ? "pb-24 sm:pb-28" : ""}`}>
           {/* Neutral Condition (No active session selected yet): AI landing screen with suggestions */}
           {!activeSession && (
             <div className="h-full flex flex-col items-center justify-center text-center max-w-lg mx-auto py-8 sm:py-12 animate-in fade-in-0 duration-300">
@@ -1328,124 +1332,91 @@ export function ChatView() {
             </div>
           )}
 
-          {/* Circular Water Avatar Pulse for Seiya Mascot */}
-          {isVoiceChatActive && (
-            <div className="py-6 sm:py-8 flex flex-col items-center justify-center shrink-0 relative select-none animate-in fade-in-0 zoom-in-95 duration-500">
-              {/* Circular Water Pulse Ripples (Concentric liquid rings radiating outward) */}
-              <div className="relative flex items-center justify-center">
-                {/* Outermost expanding water ripple */}
-                <div
-                  className={`absolute rounded-full border border-[#B45529]/25 bg-[#B45529]/5 pointer-events-none ${
-                    isVoiceSpeaking || isVoiceListening
-                      ? "w-56 h-56 sm:w-64 sm:h-64 animate-water-pulse-slow opacity-90"
-                      : "w-44 h-44 sm:w-48 sm:h-48 animate-water-pulse-slow opacity-40"
-                  }`}
-                />
-
-                {/* Primary Water Pulse Ring 1 */}
-                <div
-                  className={`absolute rounded-full border-2 border-[#B45529]/35 bg-[#B45529]/10 pointer-events-none ${
-                    isVoiceSpeaking || isVoiceListening
-                      ? "w-48 h-48 sm:w-56 sm:h-56 animate-water-pulse-1 opacity-95"
-                      : "w-40 h-40 sm:w-44 sm:h-44 animate-water-pulse-1 opacity-50"
-                  }`}
-                />
-
-                {/* Primary Water Pulse Ring 2 (harmonic wave delay) */}
-                <div
-                  className={`absolute rounded-full border border-[#C98A4F]/40 bg-[#C98A4F]/10 pointer-events-none ${
-                    isVoiceSpeaking || isVoiceListening
-                      ? "w-48 h-48 sm:w-56 sm:h-56 animate-water-pulse-2 opacity-85"
-                      : "w-40 h-40 sm:w-44 sm:h-44 animate-water-pulse-2 opacity-40"
-                  }`}
-                />
-
-                {/* Primary Water Pulse Ring 3 */}
-                <div
-                  className={`absolute rounded-full border border-[#B45529]/30 bg-[#B45529]/5 pointer-events-none ${
-                    isVoiceSpeaking || isVoiceListening
-                      ? "w-48 h-48 sm:w-56 sm:h-56 animate-water-pulse-3 opacity-75"
-                      : "w-40 h-40 sm:w-44 sm:h-44 animate-water-pulse-3 opacity-30"
-                  }`}
-                />
-
-                {/* Warm Ambient Water Glow Halo */}
-                <div className="absolute w-40 h-40 rounded-full bg-gradient-to-tr from-[#B45529]/20 via-[#C98A4F]/15 to-transparent blur-2xl pointer-events-none" />
-
-                {/* ChatGPT-style Organic Morphing Voice Circle */}
-                <div
-                  className={`relative z-10 w-28 h-28 sm:w-32 sm:h-32 bg-gradient-to-tr from-[#202124] via-[#2a2b2f] to-[#3a3b40] shadow-[0_12px_36px_rgba(42,43,47,0.2),0_0_20px_rgba(180,85,41,0.25)] ring-2 ring-[#B45529]/30 flex items-center justify-center transition-all duration-500 ${
-                    isVoiceSpeaking
-                      ? "animate-chatgpt-speaking ring-[#B45529]/60 shadow-[0_16px_44px_rgba(42,43,47,0.25),0_0_28px_rgba(180,85,41,0.35)]"
-                      : isVoiceListening
-                      ? "animate-chatgpt-listening ring-[#B45529]/40"
-                      : "animate-chatgpt-idle"
-                  }`}
-                >
-                  {/* Internal ambient radial glow & subtle specular highlight */}
-                  <div className="absolute inset-0 rounded-[inherit] bg-[radial-gradient(circle_at_35%_30%,rgba(201,138,79,0.35)_0%,rgba(180,85,41,0.15)_40%,transparent_70%)] pointer-events-none" />
-
-                  {/* Dynamic Voice Center Visualizer / Minimalist Emblem */}
-                  <div className="relative z-10 flex items-center justify-center">
-                    {isVoiceSpeaking ? (
-                      /* Dynamic Soundwave Bars pulsating inside the ChatGPT circle */
-                      <div className="flex items-center gap-1.5 h-8">
-                        <span className="w-1 bg-[#fef9ef] rounded-full animate-bounce [animation-delay:-0.3s] h-4" />
-                        <span className="w-1 bg-[#fef9ef] rounded-full animate-bounce [animation-delay:-0.15s] h-7" />
-                        <span className="w-1 bg-[#fef9ef] rounded-full animate-bounce [animation-delay:-0.45s] h-5" />
-                        <span className="w-1 bg-[#fef9ef] rounded-full animate-bounce [animation-delay:-0.2s] h-8" />
-                        <span className="w-1 bg-[#fef9ef] rounded-full animate-bounce [animation-delay:-0.35s] h-4" />
-                      </div>
-                    ) : isVoiceListening ? (
-                      /* Listening Pulse Dot inside the ChatGPT circle */
-                      <div className="relative flex items-center justify-center">
-                        <span className="w-4 h-4 rounded-full bg-[#fef9ef] animate-ping opacity-75 absolute" />
-                        <span className="w-3.5 h-3.5 rounded-full bg-[#fef9ef] relative shadow-xs" />
-                      </div>
-                    ) : (
-                      /* Minimalist Clean Seiya Diamond Emblem */
-                      <div className="opacity-90 hover:opacity-100 transition-opacity">
-                        <SeiyaIcon size={28} color="#fef9ef" isThinking={false} />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Status Indicator Pill */}
-              <div className="mt-4 z-10">
-                <div
-                  className={`px-3.5 py-1 rounded-full text-xs font-semibold flex items-center gap-2 shadow-2xs border transition-all ${
-                    isVoiceSpeaking
-                      ? "bg-[#B45529] text-[#fef9ef] border-[#8a3b16]"
-                      : isVoiceListening
-                      ? "bg-[#2d5232] text-[#fef9ef] border-[#1d3821]"
-                      : "bg-[#fef9ef] text-[#2a2b2f] border-[#d1c9bf]/60"
-                  }`}
-                >
-                  {isVoiceSpeaking ? (
-                    <>
-                      <span className="w-2 h-2 rounded-full bg-[#fef9ef] animate-pulse" />
-                      <span>Seiya Speaking</span>
-                    </>
-                  ) : isVoiceListening ? (
-                    <>
-                      <span className="w-2 h-2 rounded-full bg-[#fef9ef] animate-ping" />
-                      <span>Listening to {activeName}...</span>
-                    </>
-                  ) : (
-                    <>
-                      <SolarIcon name="soundwave" size={14} className="text-[#B45529]" />
-                      <span>Voice Assistant Active</span>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
           <div ref={messagesEndRef} />
         </div>
+
+        {/* ChatGPT-style Voice Circle Orb fixed above the textform field (only circle) */}
+        {isVoiceChatActive && (
+          <div className="absolute bottom-[66px] sm:bottom-[78px] left-1/2 -translate-x-1/2 z-20 flex items-center justify-center pointer-events-none select-none animate-in fade-in-0 zoom-in-90 duration-300">
+            <div className="relative flex items-center justify-center">
+              {/* Outermost expanding water ripple ring */}
+              <div
+                className={`absolute rounded-full border border-[#B45529]/20 bg-[#B45529]/5 pointer-events-none ${
+                  isVoiceSpeaking || isVoiceListening
+                    ? "w-32 h-32 sm:w-40 sm:h-40 animate-water-pulse-slow opacity-90"
+                    : "w-22 h-22 sm:w-26 sm:h-26 animate-water-pulse-slow opacity-40"
+                }`}
+              />
+
+              {/* Concentric Water Pulse Ring 1 */}
+              <div
+                className={`absolute rounded-full border-2 border-[#B45529]/30 bg-[#B45529]/10 pointer-events-none ${
+                  isVoiceSpeaking || isVoiceListening
+                    ? "w-24 h-24 sm:w-30 sm:h-30 animate-water-pulse-1 opacity-95"
+                    : "w-18 h-18 sm:w-22 sm:h-22 animate-water-pulse-1 opacity-50"
+                }`}
+              />
+
+              {/* Concentric Water Pulse Ring 2 */}
+              <div
+                className={`absolute rounded-full border border-[#C98A4F]/35 bg-[#C98A4F]/10 pointer-events-none ${
+                  isVoiceSpeaking || isVoiceListening
+                    ? "w-24 h-24 sm:w-30 sm:h-30 animate-water-pulse-2 opacity-85"
+                    : "w-18 h-18 sm:w-22 sm:h-22 animate-water-pulse-2 opacity-40"
+                }`}
+              />
+
+              {/* Concentric Water Pulse Ring 3 */}
+              <div
+                className={`absolute rounded-full border border-[#B45529]/25 bg-[#B45529]/5 pointer-events-none ${
+                  isVoiceSpeaking || isVoiceListening
+                    ? "w-24 h-24 sm:w-30 sm:h-30 animate-water-pulse-3 opacity-75"
+                    : "w-18 h-18 sm:w-22 sm:h-22 animate-water-pulse-3 opacity-30"
+                }`}
+              />
+
+              {/* Warm Ambient Water Glow Halo */}
+              <div className="absolute w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-gradient-to-tr from-[#B45529]/25 via-[#C98A4F]/20 to-transparent blur-xl pointer-events-none" />
+
+              {/* The Pure ChatGPT Voice Circle (Hanya buletan) */}
+              <button
+                type="button"
+                onClick={() => setIsVoiceMuted(!isVoiceMuted)}
+                className={`relative z-10 w-13 h-13 sm:w-16 sm:h-16 rounded-full transition-all duration-300 pointer-events-auto cursor-pointer shadow-warm-lg ring-2 ring-[#B45529]/30 flex items-center justify-center overflow-hidden active:scale-95 ${
+                  isVoiceSpeaking
+                    ? "animate-chatgpt-orb-speaking"
+                    : isVoiceListening
+                    ? "animate-chatgpt-orb-listening"
+                    : "animate-chatgpt-orb"
+                }`}
+                style={{
+                  background:
+                    "radial-gradient(circle at 35% 30%, #fef9ef 0%, #C98A4F 38%, #B45529 78%, #8a3b16 100%)",
+                  boxShadow: isVoiceSpeaking
+                    ? "0 0 24px rgba(180, 85, 41, 0.55), inset 0 2px 6px rgba(255, 255, 255, 0.7)"
+                    : "0 0 16px rgba(180, 85, 41, 0.35), inset 0 2px 6px rgba(255, 255, 255, 0.6)",
+                }}
+                title={isVoiceSpeaking ? "Seiya is speaking..." : isVoiceListening ? "Listening to you..." : "Tap to mute / unmute"}
+                aria-label="ChatGPT style voice circle"
+              >
+                {/* Internal fluid light reflection / organic shimmer */}
+                <div
+                  className="absolute inset-0 rounded-full pointer-events-none opacity-80"
+                  style={{
+                    background:
+                      "radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.15) 30%, transparent 60%)",
+                  }}
+                />
+                {/* Inner glowing white core */}
+                <div
+                  className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-white/80 blur-[1.5px] transition-transform duration-300 ${
+                    isVoiceSpeaking ? "scale-125 opacity-90" : isVoiceListening ? "scale-110 opacity-80" : "scale-100 opacity-60"
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Bottom Dock: Voice Mode Toolbar vs Standard Chat Input */}
         {isVoiceChatActive ? (
