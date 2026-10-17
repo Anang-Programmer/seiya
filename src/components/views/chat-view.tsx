@@ -222,7 +222,6 @@ export function ChatView() {
   const [isVoiceListening, setIsVoiceListening] = useState(false);
   const [liveVoiceTranscript, setLiveVoiceTranscript] = useState("");
   const recognitionRef = useRef<any>(null);
-  const mascotVideoRef = useRef<HTMLVideoElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const activeSession = activeSessionId ? sessions.find((s) => s.id === activeSessionId) || null : null;
@@ -588,9 +587,6 @@ export function ChatView() {
     } else {
       if (!isVoiceMuted) {
         startVoiceListening();
-      }
-      if (mascotVideoRef.current) {
-        mascotVideoRef.current.play().catch(() => {});
       }
     }
   }, [isVoiceChatActive, isVoiceMuted]);
@@ -1376,30 +1372,42 @@ export function ChatView() {
                 {/* Warm Ambient Water Glow Halo */}
                 <div className="absolute w-40 h-40 rounded-full bg-gradient-to-tr from-[#B45529]/20 via-[#C98A4F]/15 to-transparent blur-2xl pointer-events-none" />
 
-                {/* Circular Water Avatar Frame */}
+                {/* ChatGPT-style Organic Morphing Voice Circle */}
                 <div
-                  className={`relative z-10 w-32 h-32 sm:w-36 sm:h-36 rounded-full p-1 bg-gradient-to-b from-[#fefcf6] via-[#fdf7ee] to-[#f4ebe0] shadow-warm-lg ring-4 ring-[#B45529]/20 flex items-center justify-center transition-all duration-500 ${
+                  className={`relative z-10 w-28 h-28 sm:w-32 sm:h-32 bg-gradient-to-tr from-[#202124] via-[#2a2b2f] to-[#3a3b40] shadow-[0_12px_36px_rgba(42,43,47,0.2),0_0_20px_rgba(180,85,41,0.25)] ring-2 ring-[#B45529]/30 flex items-center justify-center transition-all duration-500 ${
                     isVoiceSpeaking
-                      ? "scale-105 ring-[#B45529]/40 shadow-xl"
+                      ? "animate-chatgpt-speaking ring-[#B45529]/60 shadow-[0_16px_44px_rgba(42,43,47,0.25),0_0_28px_rgba(180,85,41,0.35)]"
                       : isVoiceListening
-                      ? "scale-102 ring-[#B45529]/30"
-                      : "scale-100"
+                      ? "animate-chatgpt-listening ring-[#B45529]/40"
+                      : "animate-chatgpt-idle"
                   }`}
                 >
-                  {/* Inner Circular Water Mask */}
-                  <div className="w-full h-full rounded-full overflow-hidden bg-gradient-to-b from-[#fffefc] to-[#f7efe3] flex items-center justify-center relative border border-[#d1c9bf]/40">
-                    <div className="w-28 h-28 sm:w-32 sm:h-32 relative flex items-center justify-center animate-float-mascot-smooth">
-                      <video
-                        ref={mascotVideoRef}
-                        src="/ask-seiya/curiousseiya_clean.mp4"
-                        autoPlay
-                        loop
-                        muted
-                        playsInline
-                        preload="auto"
-                        className="w-full h-full object-contain pointer-events-none"
-                      />
-                    </div>
+                  {/* Internal ambient radial glow & subtle specular highlight */}
+                  <div className="absolute inset-0 rounded-[inherit] bg-[radial-gradient(circle_at_35%_30%,rgba(201,138,79,0.35)_0%,rgba(180,85,41,0.15)_40%,transparent_70%)] pointer-events-none" />
+
+                  {/* Dynamic Voice Center Visualizer / Minimalist Emblem */}
+                  <div className="relative z-10 flex items-center justify-center">
+                    {isVoiceSpeaking ? (
+                      /* Dynamic Soundwave Bars pulsating inside the ChatGPT circle */
+                      <div className="flex items-center gap-1.5 h-8">
+                        <span className="w-1 bg-[#fef9ef] rounded-full animate-bounce [animation-delay:-0.3s] h-4" />
+                        <span className="w-1 bg-[#fef9ef] rounded-full animate-bounce [animation-delay:-0.15s] h-7" />
+                        <span className="w-1 bg-[#fef9ef] rounded-full animate-bounce [animation-delay:-0.45s] h-5" />
+                        <span className="w-1 bg-[#fef9ef] rounded-full animate-bounce [animation-delay:-0.2s] h-8" />
+                        <span className="w-1 bg-[#fef9ef] rounded-full animate-bounce [animation-delay:-0.35s] h-4" />
+                      </div>
+                    ) : isVoiceListening ? (
+                      /* Listening Pulse Dot inside the ChatGPT circle */
+                      <div className="relative flex items-center justify-center">
+                        <span className="w-4 h-4 rounded-full bg-[#fef9ef] animate-ping opacity-75 absolute" />
+                        <span className="w-3.5 h-3.5 rounded-full bg-[#fef9ef] relative shadow-xs" />
+                      </div>
+                    ) : (
+                      /* Minimalist Clean Seiya Diamond Emblem */
+                      <div className="opacity-90 hover:opacity-100 transition-opacity">
+                        <SeiyaIcon size={28} color="#fef9ef" isThinking={false} />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
