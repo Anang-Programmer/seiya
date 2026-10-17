@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import dynamic from "next/dynamic";
+import type { OrbSignal } from "orb-ui";
 import { SolarIcon } from "@/components/icons/solar";
 import { SeiyaIcon } from "@/components/icons/seiya-logo";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +11,11 @@ import { SeiyaVideoAvatar } from "@/components/ui/seiya-video-avatar";
 import { ActionCard, PlanCard, ClarificationCard } from "@/components/cards/domain-cards";
 import { formatMoneyConverted } from "@/lib/utils";
 import { useApp, ChatMessage } from "@/lib/store";
+
+const Orb = dynamic(() => import("orb-ui").then((mod) => mod.Orb), {
+  ssr: false,
+});
+
 
 interface ChatSession {
   id: string;
@@ -222,9 +229,50 @@ export function ChatView() {
   const [isVoiceListening, setIsVoiceListening] = useState(false);
   const [liveVoiceTranscript, setLiveVoiceTranscript] = useState("");
   const [hasVoiceTranscribed, setHasVoiceTranscribed] = useState(false);
+  const [orbVolume, setOrbVolume] = useState(0);
   const recognitionRef = useRef<any>(null);
   const mascotVideoRef = useRef<HTMLVideoElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Audio-reactive volume animation for Cloud Voice Orb
+  useEffect(() => {
+    if (!isVoiceChatActive || isVoiceMuted) {
+      setOrbVolume(0);
+      return;
+    }
+
+    if (isVoiceSpeaking) {
+      const interval = setInterval(() => {
+        setOrbVolume(0.55 + Math.sin(Date.now() / 150) * 0.25 + Math.random() * 0.15);
+      }, 80);
+      return () => clearInterval(interval);
+    }
+
+    if (isVoiceListening) {
+      const interval = setInterval(() => {
+        if (liveVoiceTranscript.trim().length > 0) {
+          setOrbVolume(0.45 + Math.sin(Date.now() / 180) * 0.2 + Math.random() * 0.2);
+        } else {
+          setOrbVolume(0.08 + Math.random() * 0.08);
+        }
+      }, 100);
+      return () => clearInterval(interval);
+    }
+
+    setOrbVolume(0);
+  }, [isVoiceChatActive, isVoiceMuted, isVoiceSpeaking, isVoiceListening, liveVoiceTranscript]);
+
+  const orbSignal: OrbSignal = {
+    state: !isVoiceChatActive
+      ? "idle"
+      : isVoiceSpeaking
+      ? "speaking"
+      : isProcessing
+      ? "thinking"
+      : "listening",
+    inputVolume: isVoiceListening && !isVoiceMuted ? orbVolume : 0,
+    outputVolume: isVoiceSpeaking ? orbVolume : 0,
+  };
 
   const activeSession = activeSessionId ? sessions.find((s) => s.id === activeSessionId) || null : null;
   const shouldHideLandingHero = Boolean(
@@ -1355,56 +1403,40 @@ export function ChatView() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* ChatGPT-style Pure Voice Circle Orb with Dynamic Internal Liquid Movement (No outer waves) */}
+        {/* Voice AI Orb with orb-ui Cloud Theme */}
         {isVoiceChatActive && (
-          <div className="absolute bottom-[66px] sm:bottom-[78px] left-1/2 -translate-x-1/2 z-20 flex items-center justify-center pointer-events-auto select-none animate-in fade-in-0 zoom-in-90 duration-300">
-            {/* The Pure ChatGPT Voice Circle (Hanya buletan, gerak2 di dalemnya) */}
+          <div className="absolute bottom-[66px] sm:bottom-[78px] left-1/2 -translate-x-1/2 z-20 flex flex-col items-center justify-center pointer-events-auto select-none animate-in fade-in-0 zoom-in-95 duration-300">
             <button
               type="button"
               onClick={() => setIsVoiceMuted(!isVoiceMuted)}
-              className="relative w-18 h-18 sm:w-22 sm:h-22 rounded-full overflow-hidden shadow-[0_12px_36px_rgba(42,43,47,0.22),0_4px_16px_rgba(180,85,41,0.3)] ring-1 ring-black/10 transition-transform duration-300 active:scale-95 cursor-pointer bg-gradient-to-tr from-[#6a290d] via-[#B45529] to-[#C98A4F]"
-              title={isVoiceSpeaking ? "Seiya is speaking..." : isVoiceListening ? `Listening to ${activeName}...` : isVoiceMuted ? "Muted (tap to unmute)" : "Voice active (tap to mute)"}
-              aria-label="ChatGPT style voice circle"
+              className="relative flex items-center justify-center rounded-full transition-transform duration-300 active:scale-95 cursor-pointer focus:outline-none"
+              title={
+                isVoiceSpeaking
+                  ? "Seiya is speaking..."
+                  : isVoiceListening
+                  ? isVoiceMuted
+                    ? "Muted (tap to unmute)"
+                    : `Listening to ${activeName}... (tap to mute)`
+                  : isVoiceMuted
+                  ? "Muted (tap to unmute)"
+                  : "Voice active (tap to mute)"
+              }
+              aria-label="Cloud Voice Orb"
             >
-              {/* Internal Dynamic Fluid Liquid Mesh Blobs */}
-              <div className="absolute inset-0 overflow-hidden rounded-full pointer-events-none">
-                {/* Blob 1: Luminous cream/sunrise gold swirling fluid */}
-                <div
-                  className={`absolute -top-3 -left-3 w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-[#FFF8EE] via-[#F6BD89] to-[#C98A4F] blur-md opacity-90 ${
-                    isVoiceSpeaking
-                      ? "animate-fluid-speaking-1"
-                      : "animate-fluid-blob-1"
-                  }`}
-                />
-
-                {/* Blob 2: Deep rich terracotta fluid eddy */}
-                <div
-                  className={`absolute -bottom-3 -right-3 w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-tl from-[#5E250E] via-[#8a3b16] to-[#B45529] blur-md opacity-85 ${
-                    isVoiceSpeaking
-                      ? "animate-fluid-speaking-2"
-                      : "animate-fluid-blob-2"
-                  }`}
-                />
-
-                {/* Blob 3: Radiant glowing white/amber core that dynamically reacts to speech */}
-                <div
-                  className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-gradient-to-r from-white via-[#FFF0DE] to-[#F3A971] blur-sm ${
-                    isVoiceSpeaking
-                      ? "animate-fluid-speaking-3 animate-fluid-speaking-pulse"
-                      : "animate-fluid-blob-3"
-                  }`}
-                />
-              </div>
-
-              {/* Specular glass highlight overlay for 3D liquid sphere effect */}
-              <div
-                className="absolute inset-0 rounded-full pointer-events-none"
-                style={{
-                  background:
-                    "radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.72) 0%, rgba(255, 255, 255, 0.18) 32%, transparent 65%)",
-                  boxShadow: "inset 0 1.5px 3px rgba(255, 255, 255, 0.8), inset 0 -2px 6px rgba(0, 0, 0, 0.25)",
-                }}
+              <Orb
+                theme="cloud"
+                signal={orbSignal}
+                size={160}
+                interactive={false}
+                className="drop-shadow-[0_12px_32px_rgba(92,99,251,0.28)]"
               />
+              {isVoiceMuted && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <span className="px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase bg-[#1c1b1a]/85 text-white rounded-full backdrop-blur-xs border border-white/20 shadow-sm">
+                    Muted
+                  </span>
+                </div>
+              )}
             </button>
           </div>
         )}
