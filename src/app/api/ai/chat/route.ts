@@ -26,14 +26,14 @@ function mapAgentError(error: unknown): { status: number; code: string; message:
       case "NO_PROVIDER_CONFIGURED":
       case "NO_CAPABLE_PROVIDER":
       case "ALL_PROVIDERS_FAILED":
-        return { status: 503, code: error.code, message: "Seiya AI sedang tidak tersedia. Coba lagi sebentar." };
+        return { status: 503, code: error.code, message: "Seiya AI is temporarily unavailable. Please retry shortly." };
       case "DEADLINE_EXCEEDED":
-        return { status: 504, code: error.code, message: "Permintaan memerlukan waktu terlalu lama. Coba dengan pertanyaan yang lebih spesifik." };
+        return { status: 504, code: error.code, message: "The request timed out. Please try asking a more specific question." };
       case "INVALID_REQUEST":
-        return { status: 502, code: error.code, message: "Model AI tidak dapat memproses permintaan ini dengan format yang aman." };
+        return { status: 502, code: error.code, message: "The AI model could not process this request in a safe format." };
     }
   }
-  return { status: 500, code: "AGENT_INTERNAL_ERROR", message: "Terjadi kesalahan saat memproses pesan. Coba lagi nanti." };
+  return { status: 500, code: "AGENT_INTERNAL_ERROR", message: "An error occurred while processing the message. Please try again later." };
 }
 
 type StoredHistoryRow = { role: "user" | "assistant"; content: string; created_at: string };
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
   const allowance = consumeAgentRequestAllowance(user.id);
   if (!allowance.allowed) {
     return NextResponse.json(
-      { success: false, message: "Kamu sudah mengirim cukup banyak pesan dalam satu menit. Tunggu sebentar lalu coba lagi." },
+      { success: false, message: "Rate limit exceeded. Please wait a moment before sending another message." },
       { status: 429, headers: { ...RESPONSE_HEADERS, "Retry-After": String(allowance.retryAfterSeconds) } },
     );
   }
@@ -210,9 +210,11 @@ export async function POST(request: Request) {
     return json({
       success: true,
       message: agentResult.message,
+      ...(agentResult.cardType ? { cardType: agentResult.cardType } : {}),
+      ...(agentResult.cardData ? { cardData: agentResult.cardData } : {}),
       conversationId: input.conversationId ?? null,
       historySaved: false,
-      warning: "Jawaban dibuat, tetapi riwayat percakapan belum tersimpan. Pesan berikutnya mungkin tidak memiliki konteks ini.",
+      warning: "Response generated, but conversation history could not be saved. Subsequent messages might lack this context.",
       meta: {
         provider: agentResult.provider,
         latencyMs: agentResult.latencyMs,
@@ -228,6 +230,8 @@ export async function POST(request: Request) {
   return json({
     success: true,
     message: agentResult.message,
+    ...(agentResult.cardType ? { cardType: agentResult.cardType } : {}),
+    ...(agentResult.cardData ? { cardData: agentResult.cardData } : {}),
     conversationId,
     historySaved: true,
     meta: {

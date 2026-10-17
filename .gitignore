@@ -46,3 +46,5 @@ seiya_agent_orchestrator/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/backupcode_coding-high

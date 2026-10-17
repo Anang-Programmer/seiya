@@ -138,13 +138,12 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
-    const validation =
+    const rawRules =
       typeof body === "object" && body !== null && "rules" in body
-        ? validateFinanceRules((body as { rules: unknown }).rules)
-        : {
-            ok: false as const,
-            message: "Rules are required.",
-          };
+        ? (body as { rules: unknown }).rules
+        : body;
+
+    const validation = validateFinanceRules(rawRules);
 
     if (!validation.ok) {
       return NextResponse.json(

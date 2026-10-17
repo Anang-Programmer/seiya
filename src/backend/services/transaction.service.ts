@@ -40,3 +40,65 @@ export async function executeHeldSimulatedTransaction(
     p_transaction_id: transactionId,
   });
 }
+
+export async function undoSimulatedTransaction(
+  supabase: SupabaseClient,
+  householdId: string,
+  transactionId: string
+) {
+  const { data: tx, error: findError } = await supabase
+    .from("transactions")
+    .select("*")
+    .eq("household_id", householdId)
+    .eq("id", transactionId)
+    .maybeSingle();
+
+  if (findError || !tx) {
+    return { success: false, code: "NOT_FOUND", message: "Transaction not found." };
+  }
+
+  const createdAt = new Date(tx.created_at).getTime();
+  const now = Date.now();
+  if (now - createdAt > 10 * 60 * 1000) {
+    return { success: false, code: "UNDO_WINDOW_EXPIRED", message: "Undo window (10 minutes) has elapsed." };
+  }
+
+  if (tx.status === "executed" && tx.wallet_id) {
+    const { data: wallet } = await supabase
+      .from("wallets")
+      .select("id, simulated_balance")
+      .eq("id", tx.wallet_id)
+      .maybeSingle();
+
+    if (wallet) {
+      const delta = tx.transaction_type === "expense" ? Number(tx.amount) : -Number(tx.amount);
+      await supabase
+        .from("wallets")
+        .update({
+          simulated_balance: Number(wallet.simulated_balance) + delta,
+        })
+        .eq("id", wallet.id);
+    }
+  }
+
+  const { error: updateError } = await supabase
+    .from("transactions")
+    .update({ status: "cancelled" })
+    .eq("id", transactionId);
+
+  if (!updateError) {
+    await supabase.from("activities").insert({
+      household_id: householdId,
+      title: `Undo: ${tx.description || "Transaction"}`,
+      category: "Undo",
+      actor: "partner_a",
+      status: "INFO",
+      amount: tx.amount,
+      currency: tx.currency,
+      reason: "Eligible transaction entry reverted within 10-minute undo window.",
+    });
+  }
+
+  return { success: !updateError, message: "Transaction undone successfully." };
+}
+
