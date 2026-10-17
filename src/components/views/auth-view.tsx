@@ -47,6 +47,9 @@ export function AuthView({
   const [inviteCode, setInviteCode] = useState("SEIYA-7F3X");
   const [joinError, setJoinError] = useState("");
 
+  // Choose Your Path selection state ("create" | "join" | null)
+  const [selectedPath, setSelectedPath] = useState<"create" | "join" | null>(null);
+
   // =========================================================================
   // PROFILING QUESTIONNAIRE STATES (Figma 472:8257 - 22 Screens in 7 Steps)
   // =========================================================================
@@ -818,8 +821,18 @@ export function AuthView({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 max-w-4xl mx-auto w-full">
               {/* Card 1: Create a Shared Space */}
               <div
-                onClick={() => setMode("story-intro")}
-                className="group relative bg-[#B4562A] hover:bg-[#a64e24] text-white rounded-[28px] p-7 sm:p-9 flex flex-col justify-between cursor-pointer transition-all duration-300 shadow-md hover:shadow-xl hover:-translate-y-1.5 overflow-hidden"
+                onClick={() => {
+                  if (selectedPath === "create") {
+                    setMode("story-intro");
+                  } else {
+                    setSelectedPath("create");
+                  }
+                }}
+                className={`group relative rounded-[28px] p-7 sm:p-9 flex flex-col justify-between cursor-pointer transition-all duration-300 shadow-md hover:shadow-xl hover:-translate-y-1.5 overflow-hidden ${
+                  selectedPath === "create"
+                    ? "bg-[#B4562A] hover:bg-[#a64e24] text-white ring-2 ring-[#B4562A]/40 shadow-xl -translate-y-1"
+                    : "bg-[#FDF8E7] hover:bg-[#fbf4de] text-[#2a2b2f] border border-[#eeddc8]/70"
+                }`}
               >
                 <div className="relative w-full aspect-square max-h-[290px] mx-auto flex items-center justify-center mb-6">
                   <Image
@@ -832,10 +845,20 @@ export function AuthView({
                 </div>
 
                 <div className="space-y-2 relative z-10">
-                  <h3 className="font-serif text-[24px] sm:text-[26px] font-normal text-white">
+                  <h3
+                    className={`font-serif text-[24px] sm:text-[26px] font-normal transition-colors duration-300 ${
+                      selectedPath === "create" ? "text-white" : "text-[#2a2b2f]"
+                    }`}
+                  >
                     Create a Shared Space
                   </h3>
-                  <p className="text-white/85 text-xs sm:text-sm font-sans leading-relaxed">
+                  <p
+                    className={`text-xs sm:text-sm font-sans leading-relaxed transition-colors duration-300 ${
+                      selectedPath === "create"
+                        ? "text-white/85"
+                        : "text-[#686057]"
+                    }`}
+                  >
                     The first user creates a shared financial space and obtains
                     an invitation code
                   </p>
@@ -844,8 +867,18 @@ export function AuthView({
 
               {/* Card 2: Join a Shared Space */}
               <div
-                onClick={() => setShowJoinModal(true)}
-                className="group relative bg-[#FDF8E7] hover:bg-[#fbf4de] text-[#2a2b2f] rounded-[28px] p-7 sm:p-9 flex flex-col justify-between cursor-pointer transition-all duration-300 shadow-md hover:shadow-xl hover:-translate-y-1.5 border border-[#eeddc8]/70 overflow-hidden"
+                onClick={() => {
+                  if (selectedPath === "join") {
+                    setShowJoinModal(true);
+                  } else {
+                    setSelectedPath("join");
+                  }
+                }}
+                className={`group relative rounded-[28px] p-7 sm:p-9 flex flex-col justify-between cursor-pointer transition-all duration-300 shadow-md hover:shadow-xl hover:-translate-y-1.5 overflow-hidden ${
+                  selectedPath === "join"
+                    ? "bg-[#B4562A] hover:bg-[#a64e24] text-white ring-2 ring-[#B4562A]/40 shadow-xl -translate-y-1"
+                    : "bg-[#FDF8E7] hover:bg-[#fbf4de] text-[#2a2b2f] border border-[#eeddc8]/70"
+                }`}
               >
                 <div className="relative w-full aspect-square max-h-[290px] mx-auto flex items-center justify-center mb-6">
                   <Image
@@ -858,15 +891,60 @@ export function AuthView({
                 </div>
 
                 <div className="space-y-2 relative z-10">
-                  <h3 className="font-serif text-[24px] sm:text-[26px] font-normal text-[#2a2b2f]">
+                  <h3
+                    className={`font-serif text-[24px] sm:text-[26px] font-normal transition-colors duration-300 ${
+                      selectedPath === "join" ? "text-white" : "text-[#2a2b2f]"
+                    }`}
+                  >
                     Join a Shared Space
                   </h3>
-                  <p className="text-[#686057] text-xs sm:text-sm font-sans leading-relaxed">
+                  <p
+                    className={`text-xs sm:text-sm font-sans leading-relaxed transition-colors duration-300 ${
+                      selectedPath === "join" ? "text-white/85" : "text-[#686057]"
+                    }`}
+                  >
                     Enter your partner&apos;s invite code to join their shared
                     financial space
                   </p>
                 </div>
               </div>
+            </div>
+
+            {/* Continue Button */}
+            <div className="flex items-center justify-end max-w-4xl mx-auto w-full pt-6">
+              <button
+                type="button"
+                disabled={!selectedPath}
+                onClick={() => {
+                  if (selectedPath === "create") {
+                    setMode("story-intro");
+                  } else if (selectedPath === "join") {
+                    setShowJoinModal(true);
+                  }
+                }}
+                className={`py-3 px-8 rounded-full font-serif text-sm transition-all duration-300 flex items-center gap-2 cursor-pointer ${
+                  selectedPath
+                    ? "bg-[#B4562A] hover:bg-[#9c4820] text-white shadow-md hover:shadow-lg active:scale-95"
+                    : "bg-[#e5dcd0] text-[#8c827a] cursor-not-allowed opacity-50"
+                }`}
+              >
+                <span>Continue</span>
+                <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center">
+                  <svg
+                    className="w-2.5 h-2.5 text-white"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2.5}
+                      d="M9 5l7 7-7 7"
+                    />
+                  </svg>
+                </span>
+              </button>
             </div>
           </main>
 
