@@ -529,10 +529,9 @@ export function AuthView({
           </div>
 
           {/* Right Mascot Illustration Column */}
-          <div className="hidden lg:flex lg:w-1/2 bg-[#FEF9E9] relative items-center justify-center p-12 overflow-hidden border-l border-[#f2e7d7]">
-            <div className="absolute inset-0 bg-radial from-white/60 via-transparent to-transparent pointer-events-none" />
+          <div className="hidden lg:flex lg:w-1/2 bg-[#FEF9E9] relative items-center justify-center p-12 overflow-hidden">
             <div className="relative max-w-lg w-full flex flex-col items-center justify-center select-none">
-              <div className="relative w-full aspect-[4/5] max-h-[640px] drop-shadow-sm">
+              <div className="relative w-full aspect-[4/5] max-h-[640px]">
                 <Image
                   src="/images/auth/auth-mascot.png"
                   alt="Seiya Mascot on Laptop"
