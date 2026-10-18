@@ -32,6 +32,7 @@ export function AuthView({
   const {
     partnerAName,
     partnerBName,
+    setPartnerNames,
     setCurrentUser,
     reportingCurrency,
     locale,
@@ -49,6 +50,25 @@ export function AuthView({
   // Dynamic names
   const activePartnerAName = fullName.trim() ? fullName.trim() : partnerAName;
   const activePartnerBName = partnerBName;
+
+  // Post-Profiling & Couple Setup Screens 22-26 States (PDF Flow)
+  const [invitedPartnerName, setInvitedPartnerName] = useState<string>(() => {
+    return partnerBName && partnerBName !== "Morgan" && partnerBName !== "Dina" ? partnerBName : "Yolanda";
+  });
+  const [inviteMethod, setInviteMethod] = useState<string>("Disposable personal link");
+  const [selectedPromiseClauses, setSelectedPromiseClauses] = useState<number[]>([0, 1, 2, 3, 4]);
+  const [recentTransactions, setRecentTransactions] = useState([
+    { id: "tx-1", merchant: "Whole Foods Market", amount: 48.50, category: "Groceries", date: "Yesterday" },
+    { id: "tx-2", merchant: "Weekend Dining & Drinks", amount: 68.00, category: "Dining Out", date: "2 days ago" },
+    { id: "tx-3", merchant: "City Electric & Utilities", amount: 85.00, category: "Utilities", date: "3 days ago" },
+    { id: "tx-4", merchant: "Subway Commute & Transit", amount: 16.50, category: "Transportation", date: "4 days ago" },
+    { id: "tx-5", merchant: "Streaming & Cloud Apps", amount: 14.99, category: "Subscriptions", date: "5 days ago" },
+  ]);
+  const [newTxMerchant, setNewTxMerchant] = useState("");
+  const [newTxAmount, setNewTxAmount] = useState("");
+  const [newTxCategory, setNewTxCategory] = useState("Groceries");
+  const [showAddTxForm, setShowAddTxForm] = useState(false);
+  const [copiedInviteLink, setCopiedInviteLink] = useState(false);
 
   // Join Space Invite Code Modal state
   const [showJoinModal, setShowJoinModal] = useState(false);
@@ -328,7 +348,53 @@ export function AuthView({
   const activeMilestone = PROFILING_STEPS.find((s) => s.id === activeMilestoneId);
   const [mobileStepMenuOpen, setMobileStepMenuOpen] = useState(false);
 
-  // 22 Profiling Screens strictly matching Figma Component Set 472:8257
+  // Candidate clauses for Seiya's Promise Draft (Screen 23 / 2 of 3)
+  const CANDIDATE_CLAUSES = [
+    {
+      id: 0,
+      category: "Common Goals · Relationships and Achievements",
+      title: "Mutual Financial Transparency",
+      subtitle: "Your values and targets will be aligned once your profile is complete.",
+      footerNote: "Seiya will show progress and remind you when you start to fall behind on your plan.",
+    },
+    {
+      id: 1,
+      category: "Common Goals · Relationships and Achievements",
+      title: "Maintain 3-Month Emergency Cushion",
+      subtitle: "Your values and targets will be aligned once your profile is complete.",
+      footerNote: "Seiya will show progress and remind you when you start to fall behind on your plan.",
+    },
+    {
+      id: 2,
+      category: "Common Goals · Relationships and Achievements",
+      title: "Discretionary Personal Freedom",
+      subtitle: "Your values and targets will be aligned once your profile is complete.",
+      footerNote: "Seiya will show progress and remind you when you start to fall behind on your plan.",
+    },
+    {
+      id: 3,
+      category: "Common Goals · Relationships and Achievements",
+      title: "Consensus on Large Purchases Over $500",
+      subtitle: "Your values and targets will be aligned once your profile is complete.",
+      footerNote: "Seiya will show progress and remind you when you start to fall behind on your plan.",
+    },
+    {
+      id: 4,
+      category: "Common Goals · Relationships and Achievements",
+      title: "Shared Milestones & Priority Contributions",
+      subtitle: "Your values and targets will be aligned once your profile is complete.",
+      footerNote: "Seiya will show progress and remind you when you start to fall behind on your plan.",
+    },
+    {
+      id: 5,
+      category: "Common Goals · Relationships and Achievements",
+      title: "Quarterly Review & Agreement Adaptation",
+      subtitle: "Your values and targets will be aligned once your profile is complete.",
+      footerNote: "Seiya will show progress and remind you when you start to fall behind on your plan.",
+    },
+  ];
+
+  // 26 Profiling & Couple Setup Screens strictly matching PDF flow
   const currentScreenConfig = {
     1: {
       category: "About your relationship",
@@ -582,13 +648,37 @@ export function AuthView({
       scaleMaxLabel: "11 (Very hard to spend)",
       selectedNumber: partnerMoneyStyleGuess,
       onSelectNumber: (v: number) => setPartnerMoneyStyleGuess(v),
-      continueButtonText: "See Summary",
+      continueButtonText: "Couple Setup →",
     },
     22: {
-      category: "Initial profile complete",
-      question: "Thank you for starting with honesty.",
-      subtitle: "Your profile is now complete. The full results, including your guess about your partner's money style, will be revealed after they complete the form",
-      type: "summary" as const,
+      category: "Couple setup · 1 of 3",
+      question: "Now, make room for the two of you.",
+      subtitle: "Your partner will provide their own perspective. Your answers will remain hidden from each other until you both agree to share your results.",
+      type: "couple-setup" as const,
+    },
+    23: {
+      category: "Seiya's promise draft · 2 of 3",
+      question: "The rules of money are visible, before they collide",
+      subtitle: "Select 4-5 potential clauses. Once you've completed your profile, Seiya will draft a final version for you to approve individually",
+      type: "promise-draft" as const,
+    },
+    24: {
+      category: "Transaction history · 3 of 3",
+      question: "Help Seiya recognize the pattern of the past few days",
+      subtitle: "Enter some of your most recent expenses. It doesn't have to be complete—three to seven days is enough to get a rough idea",
+      type: "transaction-history" as const,
+    },
+    25: {
+      category: "Initial setup is complete",
+      question: "Your space is ready to open",
+      subtitle: `Seiya has prepared five potential clauses for the Seiya Promise and read the initial 0 outlay. Next, invite ${invitedPartnerName || "Yolanda"} to fill in their perspective`,
+      type: "setup-complete" as const,
+    },
+    26: {
+      category: "Invite a partner",
+      question: `Start this journey with ${invitedPartnerName || "Yolanda"}`,
+      subtitle: "Copy this private link and share it via WeChat or your preferred app. Your answers will not be shared",
+      type: "invite-partner" as const,
     },
   }[currentScreen] || {
     category: "About your relationship",
@@ -646,31 +736,94 @@ export function AuthView({
           Story Intro
         </button>
         <button
-          onClick={() => setMode("questionnaire")}
-          className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
-            mode === "questionnaire"
+          onClick={() => {
+            setMode("questionnaire");
+            setCurrentScreen(1);
+          }}
+          className={`px-2.5 py-1 rounded-full transition-all cursor-pointer ${
+            mode === "questionnaire" && currentScreen <= 21
               ? "bg-[#B4562A] text-white font-semibold shadow-xs"
               : "text-white/70 hover:text-white"
           }`}
         >
-          Profiling (493-8073)
+          Profiling (1)
         </button>
         <button
-          onClick={() => setMode("connect-partner")}
-          className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
-            mode === "connect-partner"
+          onClick={() => {
+            setMode("questionnaire");
+            setCurrentScreen(22);
+          }}
+          className={`px-2 py-1 rounded-full transition-all cursor-pointer ${
+            mode === "questionnaire" && currentScreen === 22
               ? "bg-[#B4562A] text-white font-semibold shadow-xs"
               : "text-white/70 hover:text-white"
           }`}
+          title="Couple setup · 1 of 3"
         >
-          Connect
+          Setup (22)
+        </button>
+        <button
+          onClick={() => {
+            setMode("questionnaire");
+            setCurrentScreen(23);
+          }}
+          className={`px-2 py-1 rounded-full transition-all cursor-pointer ${
+            mode === "questionnaire" && currentScreen === 23
+              ? "bg-[#B4562A] text-white font-semibold shadow-xs"
+              : "text-white/70 hover:text-white"
+          }`}
+          title="Seiya's promise draft · 2 of 3"
+        >
+          Promise (23)
+        </button>
+        <button
+          onClick={() => {
+            setMode("questionnaire");
+            setCurrentScreen(24);
+          }}
+          className={`px-2 py-1 rounded-full transition-all cursor-pointer ${
+            mode === "questionnaire" && currentScreen === 24
+              ? "bg-[#B4562A] text-white font-semibold shadow-xs"
+              : "text-white/70 hover:text-white"
+          }`}
+          title="Transaction history · 3 of 3"
+        >
+          Tx (24)
+        </button>
+        <button
+          onClick={() => {
+            setMode("questionnaire");
+            setCurrentScreen(25);
+          }}
+          className={`px-2 py-1 rounded-full transition-all cursor-pointer ${
+            mode === "questionnaire" && currentScreen === 25
+              ? "bg-[#B4562A] text-white font-semibold shadow-xs"
+              : "text-white/70 hover:text-white"
+          }`}
+          title="Initial setup is complete"
+        >
+          Ready (25)
+        </button>
+        <button
+          onClick={() => {
+            setMode("questionnaire");
+            setCurrentScreen(26);
+          }}
+          className={`px-2 py-1 rounded-full transition-all cursor-pointer ${
+            mode === "questionnaire" && currentScreen === 26
+              ? "bg-[#B4562A] text-white font-semibold shadow-xs"
+              : "text-white/70 hover:text-white"
+          }`}
+          title="Invite a partner"
+        >
+          Invite (26)
         </button>
         <button
           onClick={() => {
             if (!aiApplied) applyAISuggestions();
             setMode("contract-setup");
           }}
-          className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
+          className={`px-2.5 py-1 rounded-full transition-all cursor-pointer ${
             mode === "contract-setup"
               ? "bg-[#B4562A] text-white font-semibold shadow-xs"
               : "text-white/70 hover:text-white"
@@ -1340,8 +1493,9 @@ export function AuthView({
                   />
                   <div className="absolute top-full left-0 right-0 mt-2 z-40 bg-white rounded-2xl border border-[#e5dcd0] shadow-xl p-2 space-y-1 animate-in fade-in zoom-in-95 duration-150">
                     {PROFILING_STEPS.map((s) => {
-                      const isActive = activeMilestoneId === s.id;
-                      const isDone = activeMilestoneId > s.id;
+                      const isAllDone = currentScreen >= 22;
+                      const isActive = !isAllDone && activeMilestoneId === s.id;
+                      const isDone = isAllDone || activeMilestoneId > s.id;
                       return (
                         <div
                           key={s.id}
@@ -1361,7 +1515,7 @@ export function AuthView({
                                 isActive
                                   ? "bg-white text-[#B45529]"
                                   : isDone
-                                  ? "border border-[#2d5232] text-[#2d5232] bg-[#2d5232]/10"
+                                  ? "bg-[#B45529] text-white border border-[#B45529]"
                                   : "border border-[#808988]/40 text-[#808988]"
                               }`}
                             >
@@ -1374,7 +1528,7 @@ export function AuthView({
                           {isActive ? (
                             <span className="text-[11px] font-mono text-white/80">Active</span>
                           ) : isDone ? (
-                            <span className="text-[11px] font-serif text-[#2d5232]">Done</span>
+                            <span className="text-[11px] font-serif text-[#B45529] font-medium">Done ✓</span>
                           ) : null}
                         </div>
                       );
@@ -1395,14 +1549,15 @@ export function AuthView({
                     Profiling
                   </h2>
                   <span className="font-mono text-xs text-[#808988]">
-                    {currentScreen} / 22
+                    {currentScreen <= 21 ? `${currentScreen} / 21` : `Setup · ${currentScreen - 21} of 5`}
                   </span>
                 </div>
 
                 <div className="space-y-2">
                   {PROFILING_STEPS.map((s) => {
-                    const isActive = activeMilestoneId === s.id;
-                    const isDone = activeMilestoneId > s.id;
+                    const isAllDone = currentScreen >= 22;
+                    const isActive = !isAllDone && activeMilestoneId === s.id;
+                    const isDone = isAllDone || activeMilestoneId > s.id;
                     return (
                       <div
                         key={s.id}
@@ -1418,7 +1573,7 @@ export function AuthView({
                             isActive
                               ? "bg-white text-[#B45529]"
                               : isDone
-                              ? "border border-[#2d5232] text-[#2d5232] bg-[#2d5232]/10"
+                              ? "bg-[#B45529] text-white border border-[#B45529]"
                               : "border border-[#808988]/40 text-[#808988]"
                           }`}
                         >
@@ -1597,153 +1752,589 @@ export function AuthView({
                 </div>
               )}
 
-              {/* 5. Screen 22: Initial Profile Complete & Summary */}
-              {currentScreenConfig.type === "summary" && (
-                <div className="space-y-4">
-                  {/* Summary Overview Card */}
-                  <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-[#e5dcd0] space-y-4">
-                    <h3 className="font-serif text-lg font-normal text-[#2a2b2f] border-b border-[#f0ebe3] pb-2.5">
-                      Initial summary
-                    </h3>
+              {/* 5. Screen 22: Couple setup · 1 of 3 (PDF Screen 1) */}
+              {currentScreenConfig.type === "couple-setup" && (
+                <div className="space-y-6">
+                  <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-[#e5dcd0] space-y-5">
+                    {/* Field 1: Initial summary / Partner's name */}
+                    <div className="space-y-1.5 text-left">
+                      <label className="font-serif text-xs text-[#808988] block">
+                        Initial summary
+                      </label>
+                      <input
+                        type="text"
+                        value={invitedPartnerName}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setInvitedPartnerName(val);
+                          if (val.trim()) {
+                            setPartnerNames(partnerAName, val.trim());
+                          }
+                        }}
+                        placeholder="Partner's name"
+                        className="w-full px-4 py-3 rounded-xl border border-[#e5dcd0] bg-white text-sm text-[#2a2b2f] placeholder-[#808988] focus:border-[#B45529] focus:outline-none focus:ring-1 focus:ring-[#B45529] transition-all font-serif"
+                      />
+                    </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left font-serif">
-                      <div className="space-y-1">
-                        <span className="text-xs text-[#808988] block">
-                          Your starting point
-                        </span>
-                        <div className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-[#B45529]/10 text-[#B45529] text-xs font-medium">
-                          Ready to arrange
+                    {/* Field 2: How to invite */}
+                    <div className="space-y-1.5 text-left">
+                      <label className="font-serif text-xs text-[#808988] block">
+                        How to invite
+                      </label>
+                      <div className="p-3.5 rounded-xl border border-[#e5dcd0] bg-white flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-[#FEFBF5] border border-[#eedecb] text-[#B45529] flex items-center justify-center shrink-0">
+                            <SolarIcon name="paperclip" size={16} />
+                          </div>
+                          <div>
+                            <span className="font-serif text-sm font-medium text-[#2a2b2f] block">
+                              Disposable personal link
+                            </span>
+                            <span className="text-xs text-[#808988] block">
+                              Share via WeChat
+                            </span>
+                          </div>
                         </div>
-                      </div>
-
-                      <div className="space-y-1">
-                        <span className="text-xs text-[#808988] block">
-                          The main purpose
-                        </span>
-                        <p className="text-sm text-[#2a2b2f] font-normal">
-                          {biggestGoal || "Have sufficient emergency funds"}
-                        </p>
-                      </div>
-
-                      <div className="space-y-1">
-                        <span className="text-xs text-[#808988] block">
-                          How to manage money
-                        </span>
-                        <p className="text-sm text-[#2a2b2f] font-normal">
-                          {moneyManagementNow}
-                        </p>
-                      </div>
-
-                      <div className="space-y-1">
-                        <span className="text-xs text-[#808988] block">
-                          Topic money data
-                        </span>
-                        <p className="text-sm text-[#2a2b2f] font-normal">
-                          {sharedDataCategories.length > 0
-                            ? sharedDataCategories.join(", ")
-                            : "Total Balance, Transaction Details"}
-                        </p>
+                        <SolarIcon name="check-circle" size={18} className="text-[#B45529]" />
                       </div>
                     </div>
 
-                    {/* Dual Partner Vault Signatures */}
-                    <div className="pt-3 border-t border-[#f0ebe3] space-y-2.5">
-                      <span className="font-serif text-xs text-[#808988] block">
-                        Dual Partner Vault Signatures:
-                      </span>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        <button
-                          type="button"
-                          onClick={() => setPartnerASigned(true)}
-                          className={`p-2.5 rounded-full text-xs font-serif transition-all cursor-pointer flex items-center justify-center gap-2 border ${
-                            partnerASigned
-                              ? "bg-[#2d5232]/10 border-[#2d5232]/30 text-[#2d5232] font-semibold"
-                              : "bg-[#fcf8f0] border-[#ded7ce] text-[#2a2b2f] hover:bg-white"
-                          }`}
-                        >
-                          <SolarIcon
-                            name={partnerASigned ? "check-circle" : "shield-check"}
-                            size={16}
-                          />
-                          <span>
-                            {partnerASigned
-                              ? `${partnerAName} Signed ✓`
-                              : `Sign as ${partnerAName}`}
-                          </span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setPartnerBSigned(true)}
-                          className={`p-2.5 rounded-full text-xs font-serif transition-all cursor-pointer flex items-center justify-center gap-2 border ${
-                            partnerBSigned
-                              ? "bg-[#2d5232]/10 border-[#2d5232]/30 text-[#2d5232] font-semibold"
-                              : "bg-[#fcf8f0] border-[#ded7ce] text-[#2a2b2f] hover:bg-white"
-                          }`}
-                        >
-                          <SolarIcon
-                            name={partnerBSigned ? "check-circle" : "shield-check"}
-                            size={16}
-                          />
-                          <span>
-                            {partnerBSigned
-                              ? `${partnerBName} Signed ✓`
-                              : `Sign as ${partnerBName}`}
-                          </span>
-                        </button>
+                    {/* Info Card: Two profiles, one shared space */}
+                    <div className="rounded-2xl p-4 bg-[#fcf9f2] border border-[#eedecb] flex items-start gap-3.5 text-left">
+                      <div className="w-8 h-8 rounded-lg bg-white border border-[#eedecb] text-[#B45529] flex items-center justify-center shrink-0 shadow-2xs">
+                        <SolarIcon name="lock-keyhole" size={16} />
+                      </div>
+                      <div className="space-y-0.5">
+                        <h4 className="font-serif text-sm font-semibold text-[#2a2b2f]">
+                          Two profiles, one shared space
+                        </h4>
+                        <p className="text-xs text-[#78716c] leading-relaxed">
+                          Invitations haven&apos;t been sent yet. You can still review recommendations and preliminary data before inviting your partner
+                        </p>
                       </div>
                     </div>
                   </div>
 
-                  {/* Next Step Card */}
-                  <div className="rounded-xl p-4 border border-[#e5dcd0] bg-[#fefcf6] flex items-start gap-3 text-left">
-                    <div className="w-7 h-7 rounded-full bg-[#B45529] text-white font-serif text-xs font-bold flex items-center justify-center shrink-0 shadow-xs">
-                      1
+                  {/* Dedicated Bottom Navigation for Step 22 */}
+                  <div className="flex items-center justify-between pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentScreen(21)}
+                      className="flex items-center gap-1.5 text-[#515151] hover:text-[#2a2b2f] font-serif text-xs sm:text-sm transition-colors cursor-pointer"
+                    >
+                      <svg className="w-3.5 h-3.5 text-[#515151]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                      <span>Back</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setCurrentScreen(23)}
+                      className="px-6 py-2.5 rounded-full bg-[#B45529] hover:bg-[#9e382b] text-white font-sans font-medium text-xs sm:text-sm flex items-center gap-2 transition-all shadow-xs cursor-pointer active:scale-[0.99]"
+                    >
+                      <span>See Recommendations</span>
+                      <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center">
+                        <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 6. Screen 23: Seiya's promise draft · 2 of 3 (PDF Screen 2) */}
+              {currentScreenConfig.type === "promise-draft" && (
+                <div className="space-y-5">
+                  {/* Profiles status card */}
+                  <div className="bg-white rounded-2xl p-4 shadow-sm border border-[#e5dcd0] flex items-center justify-between text-left">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-[#B45529]/15 text-[#B45529] flex items-center justify-center font-serif font-bold text-sm shrink-0">
+                        {activePartnerAName.charAt(0) || "Y"}
+                      </div>
+                      <div>
+                        <span className="font-serif font-semibold text-sm text-[#2a2b2f] block">
+                          Your profile
+                        </span>
+                        <span className="text-xs text-[#808988]">Done</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <span className="font-serif font-semibold text-sm text-[#2a2b2f] block">
+                          {invitedPartnerName || "Yolanda"}
+                        </span>
+                        <span className="text-xs font-medium text-[#c04e28]">
+                          Waiting for an invitation
+                        </span>
+                      </div>
+                      <div className="w-9 h-9 rounded-full bg-[#faece5] text-[#B45529] border border-[#e5dcd0] flex items-center justify-center font-serif font-bold text-sm shrink-0">
+                        {(invitedPartnerName || "Y").charAt(0)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Select candidate clause section */}
+                  <div className="space-y-3 text-left">
+                    <div>
+                      <h3 className="font-serif text-sm font-semibold text-[#2a2b2f]">
+                        Select candidate clause
+                      </h3>
+                      <p className="text-xs text-[#808988]">
+                        Seiya recommends five based on your profile
+                      </p>
+                    </div>
+
+                    <div className="space-y-3">
+                      {CANDIDATE_CLAUSES.map((clause) => {
+                        const isSelected = selectedPromiseClauses.includes(clause.id);
+                        return (
+                          <div
+                            key={clause.id}
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedPromiseClauses(selectedPromiseClauses.filter((id) => id !== clause.id));
+                              } else {
+                                setSelectedPromiseClauses([...selectedPromiseClauses, clause.id]);
+                              }
+                            }}
+                            className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-2 text-left ${
+                              isSelected
+                                ? "bg-[#fbf4ee] border-[#B45529] ring-1 ring-[#B45529]/30 shadow-2xs"
+                                : "bg-white border-[#e5dcd0] hover:border-[#B45529]/40 hover:bg-[#fefcf6]"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <span className="font-mono text-[11px] text-[#808988] tracking-wide">
+                                {clause.category}
+                              </span>
+                              <div
+                                className={`w-4.5 h-4.5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                                  isSelected
+                                    ? "border-[#B45529] bg-[#B45529]"
+                                    : "border-[#d1c9bf]"
+                                }`}
+                              >
+                                {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                              </div>
+                            </div>
+
+                            <div>
+                              <h4 className="font-serif text-sm font-medium text-[#2a2b2f]">
+                                {clause.title}
+                              </h4>
+                              <p className="text-xs text-[#515151] pt-0.5 leading-relaxed">
+                                {clause.subtitle}
+                              </p>
+                            </div>
+
+                            <p className="text-[11px] text-[#808988] italic pt-0.5">
+                              {clause.footerNote}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Legal Alert */}
+                  <div className="rounded-2xl p-4 bg-[#fcf9f2] border border-[#eedecb] flex items-start gap-3.5 text-left">
+                    <div className="w-8 h-8 rounded-lg bg-white border border-[#eedecb] text-[#B45529] flex items-center justify-center shrink-0 shadow-2xs">
+                      <SolarIcon name="shield-check" size={16} />
                     </div>
                     <div className="space-y-0.5">
-                      <h4 className="font-serif text-sm font-medium text-[#2a2b2f]">
-                        Invite your partner to join
+                      <h4 className="font-serif text-sm font-semibold text-[#2a2b2f]">
+                        Seiya&apos;s Promise is not a legal document
                       </h4>
-                      <p className="font-sans text-xs text-[#515151]">
-                        You will review privacy rules, transaction limits, and
-                        mutual agreements together.
+                      <p className="text-xs text-[#78716c] leading-relaxed">
+                        Each clause must be approved by each HP, can be renegotiated or revoked at any time, and will be reviewed every 3 months.
                       </p>
+                    </div>
+                  </div>
+
+                  {/* Dedicated Bottom Navigation for Step 23 */}
+                  <div className="flex items-center justify-between pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentScreen(22)}
+                      className="flex items-center gap-1.5 text-[#515151] hover:text-[#2a2b2f] font-serif text-xs sm:text-sm transition-colors cursor-pointer"
+                    >
+                      <svg className="w-3.5 h-3.5 text-[#515151]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                      <span>Back</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setCurrentScreen(24)}
+                      className="px-6 py-2.5 rounded-full bg-[#B45529] hover:bg-[#9e382b] text-white font-sans font-medium text-xs sm:text-sm flex items-center gap-2 transition-all shadow-xs cursor-pointer active:scale-[0.99]"
+                    >
+                      <span>Save Recommendations</span>
+                      <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center">
+                        <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 7. Screen 24: Transaction history · 3 of 3 (PDF Screen 3) */}
+              {currentScreenConfig.type === "transaction-history" && (
+                <div className="space-y-5">
+                  {/* Transaction items box */}
+                  <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-[#e5dcd0] space-y-4 text-left">
+                    <div className="flex items-center justify-between border-b border-[#f0ebe3] pb-3">
+                      <div>
+                        <span className="font-serif text-sm font-semibold text-[#2a2b2f] block">
+                          Recent Expenses Sample
+                        </span>
+                        <span className="text-xs text-[#808988]">
+                          {recentTransactions.length} transactions recorded
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddTxForm(!showAddTxForm)}
+                        className="text-xs font-serif text-[#B45529] hover:text-[#9e382b] flex items-center gap-1 cursor-pointer"
+                      >
+                        <SolarIcon name={showAddTxForm ? "close-circle" : "plus"} size={16} />
+                        <span>{showAddTxForm ? "Close Form" : "Add Expense"}</span>
+                      </button>
+                    </div>
+
+                    {showAddTxForm && (
+                      <div className="p-3.5 rounded-xl bg-[#FEFBF5] border border-[#eedecb] space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          <input
+                            type="text"
+                            placeholder="Merchant / Item (e.g. Coffee)"
+                            value={newTxMerchant}
+                            onChange={(e) => setNewTxMerchant(e.target.value)}
+                            className="px-3 py-2 rounded-lg border border-[#e5dcd0] bg-white text-xs font-serif text-[#2a2b2f] focus:outline-none focus:border-[#B45529]"
+                          />
+                          <input
+                            type="number"
+                            placeholder="Amount ($ USD)"
+                            value={newTxAmount}
+                            onChange={(e) => setNewTxAmount(e.target.value)}
+                            className="px-3 py-2 rounded-lg border border-[#e5dcd0] bg-white text-xs font-serif text-[#2a2b2f] focus:outline-none focus:border-[#B45529]"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <select
+                            value={newTxCategory}
+                            onChange={(e) => setNewTxCategory(e.target.value)}
+                            className="px-3 py-1.5 rounded-lg border border-[#e5dcd0] bg-white text-xs font-serif text-[#2a2b2f]"
+                          >
+                            <option value="Groceries">Groceries</option>
+                            <option value="Dining Out">Dining Out</option>
+                            <option value="Utilities">Utilities</option>
+                            <option value="Transportation">Transportation</option>
+                            <option value="Subscriptions">Subscriptions</option>
+                            <option value="Health">Health</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (newTxMerchant.trim() && newTxAmount.trim()) {
+                                setRecentTransactions([
+                                  ...recentTransactions,
+                                  {
+                                    id: `tx-${Date.now()}`,
+                                    merchant: newTxMerchant.trim(),
+                                    amount: parseFloat(newTxAmount) || 10,
+                                    category: newTxCategory,
+                                    date: "Today",
+                                  },
+                                ]);
+                                setNewTxMerchant("");
+                                setNewTxAmount("");
+                                setShowAddTxForm(false);
+                              }
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-[#B45529] text-white text-xs font-serif font-medium cursor-pointer"
+                          >
+                            Save Entry
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="divide-y divide-[#f0ebe3]">
+                      {recentTransactions.map((tx) => (
+                        <div key={tx.id} className="py-2.5 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-[#faece5] text-[#B45529] flex items-center justify-center text-xs font-mono font-bold shrink-0">
+                              $
+                            </div>
+                            <div>
+                              <span className="font-serif text-sm font-medium text-[#2a2b2f] block">
+                                {tx.merchant}
+                              </span>
+                              <span className="text-[11px] text-[#808988]">
+                                {tx.category} • {tx.date}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <span className="font-mono text-sm font-semibold text-[#2a2b2f]">
+                              ${tx.amount.toFixed(2)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setRecentTransactions(recentTransactions.filter((t) => t.id !== tx.id))}
+                              className="text-[#808988] hover:text-red-600 transition-colors cursor-pointer"
+                            >
+                              <SolarIcon name="close-circle" size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Dedicated Bottom Navigation for Step 24 */}
+                  <div className="flex items-center justify-between pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentScreen(23)}
+                      className="flex items-center gap-1.5 text-[#515151] hover:text-[#2a2b2f] font-serif text-xs sm:text-sm transition-colors cursor-pointer"
+                    >
+                      <svg className="w-3.5 h-3.5 text-[#515151]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                      <span>Back</span>
+                    </button>
+
+                    <div className="flex items-center gap-4">
+                      <button
+                        type="button"
+                        onClick={() => setCurrentScreen(25)}
+                        className="text-[#808988] hover:text-[#2a2b2f] font-serif text-xs sm:text-sm transition-colors cursor-pointer"
+                      >
+                        Skip
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setCurrentScreen(25)}
+                        className="px-6 py-2.5 rounded-full bg-[#B45529] hover:bg-[#9e382b] text-white font-sans font-medium text-xs sm:text-sm flex items-center gap-2 transition-all shadow-xs cursor-pointer active:scale-[0.99]"
+                      >
+                        <span>See History</span>
+                        <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center">
+                          <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </span>
+                      </button>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Bottom Navigation: Back, Skip, Continue / Make Invitations */}
-              <div className="flex items-center justify-between pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (currentScreen > 1) {
-                      setCurrentScreen((p) => p - 1);
-                    } else {
-                      setMode("story-intro");
-                    }
-                  }}
-                  className="flex items-center gap-1.5 text-[#515151] hover:text-[#2a2b2f] font-serif text-xs sm:text-sm transition-colors cursor-pointer"
-                >
-                  <svg
-                    className="w-3.5 h-3.5 text-[#515151]"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 19l-7-7 7-7"
-                    />
-                  </svg>
-                  <span>Back</span>
-                </button>
+              {/* 8. Screen 25: Initial setup is complete (PDF Screen 4) */}
+              {currentScreenConfig.type === "setup-complete" && (
+                <div className="space-y-6">
+                  {/* 3 Metric Cards matching PDF Screenshot Screen 4 */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 text-left">
+                    <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#e5dcd0] shadow-sm space-y-1">
+                      <span className="text-xs text-[#808988] block font-serif">
+                        The main purpose
+                      </span>
+                      <p className="font-serif text-sm sm:text-base font-semibold text-[#2a2b2f] truncate">
+                        {biggestGoal || "Have sufficient emergency funds"}
+                      </p>
+                    </div>
 
-                <div className="flex items-center gap-4">
-                  {currentScreen < 22 && (
+                    <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#e5dcd0] shadow-sm space-y-1">
+                      <span className="text-xs text-[#808988] block font-serif">
+                        Seiya&apos;s promise
+                      </span>
+                      <p className="font-serif text-sm sm:text-base font-semibold text-[#2a2b2f]">
+                        {selectedPromiseClauses.length} Recommendations
+                      </p>
+                    </div>
+
+                    <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#e5dcd0] shadow-sm space-y-1">
+                      <span className="text-xs text-[#808988] block font-serif">
+                        Transaction history
+                      </span>
+                      <p className="font-serif text-sm sm:text-base font-semibold text-[#2a2b2f]">
+                        {recentTransactions.length} transactions
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Dedicated Bottom Navigation for Step 25 */}
+                  <div className="flex flex-col sm:flex-row items-center justify-start gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentScreen(26)}
+                      className="w-full sm:w-auto px-6 py-3 rounded-full bg-[#B45529] hover:bg-[#9e382b] text-white font-sans font-medium text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer active:scale-[0.99]"
+                    >
+                      <span>Review and send invitations</span>
+                      <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center">
+                        <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setCurrentScreen(22)}
+                      className="px-4 py-2.5 text-[#808988] hover:text-[#2a2b2f] font-serif text-xs sm:text-sm transition-colors cursor-pointer"
+                    >
+                      Change setup
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 9. Screen 26: Invite a partner (PDF Screen 5) */}
+              {currentScreenConfig.type === "invite-partner" && (
+                <div className="space-y-6">
+                  <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-[#e5dcd0] space-y-5">
+                    {/* Field 1: Initial summary / Partner's name */}
+                    <div className="space-y-1.5 text-left">
+                      <label className="font-serif text-xs text-[#808988] block">
+                        Initial summary
+                      </label>
+                      <input
+                        type="text"
+                        value={invitedPartnerName}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setInvitedPartnerName(val);
+                          if (val.trim()) {
+                            setPartnerNames(partnerAName, val.trim());
+                          }
+                        }}
+                        placeholder="Partner's name"
+                        className="w-full px-4 py-3 rounded-xl border border-[#e5dcd0] bg-white text-sm text-[#2a2b2f] placeholder-[#808988] focus:border-[#B45529] focus:outline-none focus:ring-1 focus:ring-[#B45529] transition-all font-serif"
+                      />
+                    </div>
+
+                    {/* Field 2: Invitation link with copy button */}
+                    <div className="space-y-1.5 text-left">
+                      <label className="font-serif text-xs text-[#808988] block">
+                        Invitation link
+                      </label>
+                      <div className="p-3 sm:p-3.5 rounded-xl border border-[#e5dcd0] bg-[#FEFBF5] flex items-center justify-between gap-3">
+                        <span className="font-mono text-xs sm:text-sm text-[#2a2b2f] truncate select-all">
+                          {`https://seiya.promise/join/${generatedPairCode}`}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard?.writeText(`https://seiya.promise/join/${generatedPairCode}`);
+                            setCopiedInviteLink(true);
+                            setTimeout(() => setCopiedInviteLink(false), 2500);
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-white border border-[#eedecb] text-[#B45529] hover:bg-[#fbf4de] text-xs font-serif font-medium flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 shadow-2xs"
+                        >
+                          <SolarIcon name={copiedInviteLink ? "check-circle" : "paperclip"} size={14} />
+                          <span>{copiedInviteLink ? "Copied!" : "Copy"}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Info Card: What your partner can see */}
+                    <div className="rounded-2xl p-4 bg-[#fcf9f2] border border-[#eedecb] flex items-start gap-3.5 text-left">
+                      <div className="w-8 h-8 rounded-lg bg-white border border-[#eedecb] text-[#B45529] flex items-center justify-center shrink-0 shadow-2xs">
+                        <SolarIcon name="lock-keyhole" size={16} />
+                      </div>
+                      <div className="space-y-0.5">
+                        <h4 className="font-serif text-sm font-semibold text-[#2a2b2f]">
+                          What your partner can see
+                        </h4>
+                        <p className="text-xs text-[#78716c] leading-relaxed">
+                          Your account name, invitation message, and mutual purpose, onboarding answers, and financial data remain private until you choose to share them
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Dedicated Bottom Navigation for Step 26 */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentScreen(25)}
+                      className="flex items-center gap-1.5 text-[#515151] hover:text-[#2a2b2f] font-serif text-xs sm:text-sm transition-colors cursor-pointer"
+                    >
+                      <svg className="w-3.5 h-3.5 text-[#515151]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                      <span>Back</span>
+                    </button>
+
+                    <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard?.writeText(`https://seiya.promise/join/${generatedPairCode}`);
+                          setCopiedInviteLink(true);
+                          setTimeout(() => setCopiedInviteLink(false), 2500);
+                        }}
+                        className="flex-1 sm:flex-none px-6 py-2.5 rounded-full bg-[#B45529] hover:bg-[#9e382b] text-white font-sans font-medium text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer active:scale-[0.99]"
+                      >
+                        <SolarIcon name={copiedInviteLink ? "check-circle" : "paperclip"} size={16} />
+                        <span>{copiedInviteLink ? "Invitation Link Copied!" : "Copy Invitation Link"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!aiApplied) applyAISuggestions();
+                          setMode("contract-setup");
+                        }}
+                        className="px-4 py-2.5 rounded-full bg-white hover:bg-[#fbf4de] text-[#2a2b2f] border border-[#eedecb] font-serif text-xs sm:text-sm flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+                        title="Proceed to review and edit mutual contract"
+                      >
+                        <span>Couple Contract →</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Standard Bottom Navigation for Profiling Questions (Screens 1 to 21) */}
+              {currentScreen < 22 && (
+                <div className="flex items-center justify-between pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (currentScreen > 1) {
+                        setCurrentScreen((p) => p - 1);
+                      } else {
+                        setMode("story-intro");
+                      }
+                    }}
+                    className="flex items-center gap-1.5 text-[#515151] hover:text-[#2a2b2f] font-serif text-xs sm:text-sm transition-colors cursor-pointer"
+                  >
+                    <svg
+                      className="w-3.5 h-3.5 text-[#515151]"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15 19l-7-7 7-7"
+                      />
+                    </svg>
+                    <span>Back</span>
+                  </button>
+
+                  <div className="flex items-center gap-4">
                     <button
                       type="button"
                       onClick={() => setCurrentScreen((p) => p + 1)}
@@ -1751,41 +2342,7 @@ export function AuthView({
                     >
                       Skip
                     </button>
-                  )}
 
-                  {currentScreen === 22 ? (
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setCurrentScreen(1)}
-                        className="text-[#808988] hover:text-[#2a2b2f] font-serif text-xs underline cursor-pointer"
-                      >
-                        Change answer
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleCompleteQuestionnaire}
-                        className="px-5 py-2.5 rounded-full bg-[#B45529] hover:bg-[#9e382b] text-white font-sans font-medium text-xs sm:text-sm flex items-center gap-2 transition-all shadow-xs cursor-pointer active:scale-[0.99]"
-                      >
-                        <span>Make couple invitations</span>
-                        <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center">
-                          <svg
-                            className="w-2.5 h-2.5 text-white"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2.5}
-                              d="M9 5l7 7-7 7"
-                            />
-                          </svg>
-                        </span>
-                      </button>
-                    </div>
-                  ) : (
                     <button
                       type="button"
                       onClick={() => setCurrentScreen((p) => p + 1)}
@@ -1811,9 +2368,9 @@ export function AuthView({
                         </svg>
                       </span>
                     </button>
-                  )}
+                  </div>
                 </div>
-              </div>
+              )}
             </section>
             </div>
           </main>
