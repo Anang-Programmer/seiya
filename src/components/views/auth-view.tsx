@@ -2738,7 +2738,7 @@ export function AuthView({
             </div>
 
             {/* Official Ratified Contract Certificate Card */}
-            <div className="bg-[#FEF9E9] border-2 border-[#d4af37]/60 rounded-3xl p-6 sm:p-8 shadow-xl text-left space-y-6 relative overflow-hidden">
+            <div className="bg-[#FEF9E9] rounded-3xl p-6 sm:p-8 text-left space-y-6 relative overflow-hidden">
               {/* Subtle Watermark Stamp */}
               <div className="absolute right-4 bottom-4 opacity-5 pointer-events-none">
                 <SolarIcon name="shield-check" size={160} />
