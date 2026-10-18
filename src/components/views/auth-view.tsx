@@ -2729,10 +2729,6 @@ export function AuthView({
           <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-8 sm:py-12 flex flex-col justify-center space-y-8 text-center">
             {/* Header Celebration */}
             <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-serif font-bold border border-emerald-200 shadow-2xs animate-bounce">
-                <span>🎉</span>
-                <span>Smart Contract Ratified & Active</span>
-              </div>
               <h1 className="font-serif text-3xl sm:text-5xl text-[#2a2b2f] font-normal tracking-tight">
                 Welcome to Seiya, {activePartnerAName} & {activePartnerBName}!
               </h1>
