@@ -6,6 +6,16 @@ import { updateHouseholdBill, deleteHouseholdBill } from "@/backend/services/bil
 type RouteContext = { params: Promise<{ householdId: string; billId: string }> };
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+function billErrorResponse(error: { code?: string; message?: string }, fallback: string) {
+  const known: Record<string, number> = { P0002: 404, "42501": 403, "22023": 409 };
+  const status = known[error.code ?? ""];
+  if (!status) {
+    return NextResponse.json({ success: false, message: fallback }, { status: 500 });
+  }
+  const message = status === 404 ? "Bill not found." : status === 403 ? "Active household membership required." : error.message || fallback;
+  return NextResponse.json({ success: false, message }, { status });
+}
+
 export async function PATCH(request: Request, context: RouteContext) {
   const { householdId, billId } = await context.params;
   if (!UUID_PATTERN.test(householdId) || !UUID_PATTERN.test(billId)) {
@@ -33,7 +43,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const { data, error } = await updateHouseholdBill(supabase, householdId, billId, validation.data);
     if (error) {
-      return NextResponse.json({ success: false, message: "Unable to update bill." }, { status: 500 });
+      return billErrorResponse(error, "Unable to update bill.");
     }
 
     return NextResponse.json({ success: true, message: "Bill updated successfully.", bill: data });
@@ -58,7 +68,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
     const { error } = await deleteHouseholdBill(supabase, householdId, billId);
     if (error) {
-      return NextResponse.json({ success: false, message: "Unable to delete bill." }, { status: 500 });
+      return billErrorResponse(error, "Unable to delete bill.");
     }
 
     return NextResponse.json({ success: true, message: "Bill deleted successfully." });

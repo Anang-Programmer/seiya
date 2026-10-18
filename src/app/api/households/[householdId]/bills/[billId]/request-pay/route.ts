@@ -18,8 +18,9 @@ export async function POST(_request: Request, context: RouteContext) {
       return NextResponse.json({ success: false, message: "Login required." }, { status: 401 });
     }
 
-    const result = await requestPayHouseholdBill(supabase, householdId, user.id, billId);
-    return NextResponse.json(result, { status: result.success ? 200 : 400 });
+    const result = await requestPayHouseholdBill(supabase, householdId, billId);
+    const status = result.success ? 200 : result.code === "P0002" ? 404 : result.code === "42501" ? 403 : 400;
+    return NextResponse.json(result, { status });
   } catch (error) {
     console.error("[bills/request-pay] Unexpected error:", error);
     return NextResponse.json({ success: false, message: "An unexpected error occurred." }, { status: 500 });

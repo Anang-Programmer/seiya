@@ -36,8 +36,11 @@ export async function POST(_request: Request, context: RouteContext) {
       return NextResponse.json({ success: false, message: "No active household found." }, { status: 404 });
     }
 
-    const result = await continueHouseholdHeldPurchase(supabase, householdId, user.id, heldId);
-    return NextResponse.json(result, { status: result.success ? 200 : 400 });
+    const result = await continueHouseholdHeldPurchase(supabase, heldId);
+    const status = result.success
+      ? 200
+      : result.code === "P0002" ? 404 : result.code === "42501" ? 403 : result.code === "P1001" ? 409 : 400;
+    return NextResponse.json(result, { status });
   } catch (error) {
     console.error("[waiting-list/continue] Unexpected error:", error);
     return NextResponse.json({ success: false, message: "An unexpected error occurred." }, { status: 500 });

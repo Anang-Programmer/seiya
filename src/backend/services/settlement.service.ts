@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { recordHouseholdActivity } from "./activity.service";
+import { getHouseholdRole, recordHouseholdActivity } from "./activity.service";
 
 export async function getHouseholdSettlement(supabase: SupabaseClient, householdId: string) {
   const { data, error } = await supabase
@@ -41,7 +41,7 @@ export async function getHouseholdSettlement(supabase: SupabaseClient, household
   };
 }
 
-export async function settleUpHousehold(supabase: SupabaseClient, householdId: string) {
+export async function settleUpHousehold(supabase: SupabaseClient, householdId: string, userId: string) {
   const { data, error } = await supabase
     .from("household_settlements")
     .update({
@@ -57,7 +57,7 @@ export async function settleUpHousehold(supabase: SupabaseClient, householdId: s
     await recordHouseholdActivity(supabase, householdId, {
       title: "Settlement Completed",
       category: "Settlement",
-      actor: "partner_a",
+      actor: await getHouseholdRole(supabase, householdId, userId),
       status: "ALLOW",
       reason: "Shared expense ledger balance settled between partners.",
     });

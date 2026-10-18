@@ -62,7 +62,9 @@ export async function POST(request: Request, context: RouteContext) {
         P0002: 404,
         "22023": 409,
         SELF_APPROVAL: 403,
+        FORBIDDEN: 403,
         INVALID_PIN: 401,
+        INSUFFICIENT_BALANCE: 409,
       };
       return NextResponse.json(
         { success: false, code: result.code, message: result.message },

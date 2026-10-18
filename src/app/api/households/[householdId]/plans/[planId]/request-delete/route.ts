@@ -41,7 +41,10 @@ export async function POST(request: Request, context: RouteContext) {
       validation.data.partnerBPin
     );
 
-    return NextResponse.json(result, { status: result.success ? 200 : 400 });
+    const status = result.success
+      ? 200
+      : "code" in result && result.code === "INVALID_PIN" ? 401 : "code" in result && result.code === "PIN_LOCKED" ? 429 : 400;
+    return NextResponse.json(result, { status });
   } catch (error) {
     console.error("[plans/request-delete] Unexpected error:", error);
     return NextResponse.json({ success: false, message: "An unexpected error occurred." }, { status: 500 });

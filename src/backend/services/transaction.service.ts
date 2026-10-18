@@ -41,64 +41,30 @@ export async function executeHeldSimulatedTransaction(
   });
 }
 
+const UNDO_ERRORS: Record<string, { code: string; message: string }> = {
+  P0002: { code: "NOT_FOUND", message: "Transaction not found." },
+  P1007: { code: "UNDO_WINDOW_EXPIRED", message: "Undo window (10 minutes) has elapsed." },
+  "42501": { code: "FORBIDDEN", message: "Only the member who created a transaction can undo it." },
+  P1001: { code: "INSUFFICIENT_BALANCE", message: "This income has already been spent and cannot be undone." },
+  "22023": { code: "NOT_UNDOABLE", message: "This transaction can no longer be undone." },
+};
+
+// Refunds the wallet (if executed), cancels the transaction and its pending
+// approvals, and reverses the settlement share atomically.
 export async function undoSimulatedTransaction(
   supabase: SupabaseClient,
-  householdId: string,
   transactionId: string
 ) {
-  const { data: tx, error: findError } = await supabase
-    .from("transactions")
-    .select("*")
-    .eq("household_id", householdId)
-    .eq("id", transactionId)
-    .maybeSingle();
+  const { error } = await supabase.rpc("undo_simulated_transaction", {
+    p_transaction_id: transactionId,
+  });
 
-  if (findError || !tx) {
-    return { success: false, code: "NOT_FOUND", message: "Transaction not found." };
+  if (error) {
+    const mapped = UNDO_ERRORS[error.code ?? ""];
+    return mapped
+      ? { success: false, ...mapped }
+      : { success: false, code: "DB_ERROR", message: "Unable to undo transaction." };
   }
 
-  const createdAt = new Date(tx.created_at).getTime();
-  const now = Date.now();
-  if (now - createdAt > 10 * 60 * 1000) {
-    return { success: false, code: "UNDO_WINDOW_EXPIRED", message: "Undo window (10 minutes) has elapsed." };
-  }
-
-  if (tx.status === "executed" && tx.wallet_id) {
-    const { data: wallet } = await supabase
-      .from("wallets")
-      .select("id, simulated_balance")
-      .eq("id", tx.wallet_id)
-      .maybeSingle();
-
-    if (wallet) {
-      const delta = tx.transaction_type === "expense" ? Number(tx.amount) : -Number(tx.amount);
-      await supabase
-        .from("wallets")
-        .update({
-          simulated_balance: Number(wallet.simulated_balance) + delta,
-        })
-        .eq("id", wallet.id);
-    }
-  }
-
-  const { error: updateError } = await supabase
-    .from("transactions")
-    .update({ status: "cancelled" })
-    .eq("id", transactionId);
-
-  if (!updateError) {
-    await supabase.from("activities").insert({
-      household_id: householdId,
-      title: `Undo: ${tx.description || "Transaction"}`,
-      category: "Undo",
-      actor: "partner_a",
-      status: "INFO",
-      amount: tx.amount,
-      currency: tx.currency,
-      reason: "Eligible transaction entry reverted within 10-minute undo window.",
-    });
-  }
-
-  return { success: !updateError, message: "Transaction undone successfully." };
+  return { success: true, message: "Transaction undone successfully." };
 }
-
