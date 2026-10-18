@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import Image from "next/image";
 import { SeiyaLogo, SeiyaIcon } from "@/components/icons/seiya-logo";
 import { SolarIcon } from "@/components/icons/solar";
@@ -70,6 +70,10 @@ export function AuthView({
   const [showAddTxForm, setShowAddTxForm] = useState(false);
   const [copiedInviteLink, setCopiedInviteLink] = useState(false);
   const [showCertificateDetail, setShowCertificateDetail] = useState(false);
+  const [statementFile, setStatementFile] = useState<File | null>(null);
+  const [isProcessingOcr, setIsProcessingOcr] = useState(false);
+  const [ocrSuccessMessage, setOcrSuccessMessage] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Join Space Invite Code Modal state
   const [showJoinModal, setShowJoinModal] = useState(false);
@@ -1987,6 +1991,106 @@ export function AuthView({
               {/* 7. Screen 24: Transaction history · 3 of 3 (PDF Screen 3) */}
               {currentScreenConfig.type === "transaction-history" && (
                 <div className="space-y-5">
+                  {/* Upload Bank Statement / PDF / CSV OCR Card */}
+                  <div className="bg-[#FAF7F2] rounded-2xl p-4 sm:p-5 border border-dashed border-[#d8c7b5] text-left space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-[#B45529]/10 text-[#B45529] flex items-center justify-center shrink-0 mt-0.5">
+                          <SolarIcon name="receipt" size={22} />
+                        </div>
+                        <div>
+                          <span className="font-serif text-sm font-semibold text-[#2a2b2f] block">
+                            Import Bank Statement (PDF, CSV, Excel)
+                          </span>
+                          <span className="text-xs text-[#808988] leading-relaxed">
+                            Upload your recent e-statement. Our AI OCR parser will read and extract your recent transactions automatically.
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="shrink-0 flex items-center gap-2">
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept=".pdf,.csv,.xlsx,.xls,.png,.jpg,.jpeg"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            setStatementFile(file);
+                            setIsProcessingOcr(true);
+                            setOcrSuccessMessage("");
+
+                            // Simulate backend OCR processing
+                            setTimeout(() => {
+                              setIsProcessingOcr(false);
+                              setOcrSuccessMessage(`Extracted from ${file.name}`);
+                              // Prepend parsed transactions
+                              setRecentTransactions((prev) => [
+                                {
+                                  id: `tx-ocr-1-${Date.now()}`,
+                                  merchant: "Starbucks Reserve Roastery",
+                                  amount: 14.25,
+                                  category: "Dining Out",
+                                  date: "Today",
+                                },
+                                {
+                                  id: `tx-ocr-2-${Date.now()}`,
+                                  merchant: "Target Supercenter",
+                                  amount: 62.40,
+                                  category: "Groceries",
+                                  date: "Yesterday",
+                                },
+                                {
+                                  id: `tx-ocr-3-${Date.now()}`,
+                                  merchant: "Shell Fuel & Gas",
+                                  amount: 45.00,
+                                  category: "Transportation",
+                                  date: "3 days ago",
+                                },
+                                ...prev,
+                              ]);
+                            }, 1400);
+                          }}
+                        />
+
+                        <button
+                          type="button"
+                          disabled={isProcessingOcr}
+                          onClick={() => fileInputRef.current?.click()}
+                          className={`px-3.5 py-2 rounded-xl text-xs font-serif font-medium flex items-center gap-2 transition-all cursor-pointer ${
+                            isProcessingOcr
+                              ? "bg-[#eeddc8] text-[#8c827a] cursor-wait"
+                              : "bg-white hover:bg-[#f6ede1] border border-[#d8c7b5] text-[#4d4439] shadow-2xs"
+                          }`}
+                        >
+                          {isProcessingOcr ? (
+                            <>
+                              <svg className="animate-spin w-3.5 h-3.5 text-[#B45529]" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                              </svg>
+                              <span>Scanning OCR...</span>
+                            </>
+                          ) : (
+                            <>
+                              <SolarIcon name="paperclip" size={15} className="text-[#B45529]" />
+                              <span>{statementFile ? "Upload Another File" : "Upload Statement"}</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* OCR Status banner */}
+                    {ocrSuccessMessage && (
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs">
+                        <SolarIcon name="check-circle" size={14} className="text-emerald-600" />
+                        <span>OCR Success: 3 recent transactions extracted from <strong>{statementFile?.name}</strong></span>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Transaction items box */}
                   <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-[#e5dcd0] space-y-4 text-left">
                     <div className="flex items-center justify-between border-b border-[#f0ebe3] pb-3">
