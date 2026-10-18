@@ -2523,7 +2523,7 @@ export function AuthView({
             </div>
 
             {/* Central Invite & Pairing Card */}
-            <div className="bg-[#FEF9E9] border border-[#eeddc8] rounded-[28px] p-6 sm:p-9 shadow-sm space-y-8">
+            <div className="bg-white border border-[#e5dcd0] rounded-[28px] p-6 sm:p-9 shadow-sm space-y-8">
               {/* Partner Code Box */}
               <div className="space-y-4">
                 <label className="block text-xs font-bold text-[#5c5349] uppercase tracking-wider text-center">
@@ -2772,8 +2772,8 @@ export function AuthView({
               </div>
 
               {/* AI Recommendations Banner */}
-              <div className="bg-[#FFF9EA] border-2 border-[#e8cba5] rounded-3xl p-6 sm:p-7 shadow-xs relative overflow-hidden">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#ebd7be]">
+              <div className="bg-white border border-[#e5dcd0] rounded-3xl p-6 sm:p-7 shadow-sm relative overflow-hidden">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#f0ebe3]">
                   <div className="flex items-center gap-3">
                     <SeiyaIcon size={38} className="shrink-0" trackCursor={true} />
                     <div>
@@ -2789,7 +2789,7 @@ export function AuthView({
                   <button
                     type="button"
                     onClick={applyAISuggestions}
-                    className="self-start sm:self-auto px-4 py-2 rounded-xl bg-white hover:bg-[#fbf4de] text-[#B4562A] border border-[#B4562A]/40 text-xs font-serif font-medium flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                    className="self-start sm:self-auto px-4 py-2 rounded-xl bg-[#FAF7F2] hover:bg-[#f3ede3] text-[#B4562A] border border-[#e5dcd0] text-xs font-serif font-medium flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
                   >
                     <SolarIcon name="refresh" size={14} />
                     <span>Reset to AI Suggestions</span>
@@ -2798,7 +2798,7 @@ export function AuthView({
 
                 {/* AI Rationale Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 text-xs">
-                  <div className="p-3.5 rounded-xl bg-white/80 border border-[#edd7be] space-y-1">
+                  <div className="p-3.5 rounded-xl bg-[#FAF7F2]/70 border border-[#e8ded1] space-y-1">
                     <div className="flex items-center justify-between text-[#2a2b2f] font-semibold">
                       <span>Suggested Split:</span>
                       <span className="px-2 py-0.5 rounded-md bg-[#B4562A]/10 text-[#B4562A] font-bold">
@@ -2810,10 +2810,10 @@ export function AuthView({
                     </p>
                   </div>
 
-                  <div className="p-3.5 rounded-xl bg-white/80 border border-[#edd7be] space-y-1">
+                  <div className="p-3.5 rounded-xl bg-[#FAF7F2]/70 border border-[#e8ded1] space-y-1">
                     <div className="flex items-center justify-between text-[#2a2b2f] font-semibold">
                       <span>Dual Approval Threshold:</span>
-                      <span className="px-2 py-0.5 rounded-md bg-stone-100 text-stone-800 font-bold">
+                      <span className="px-2 py-0.5 rounded-md bg-white border border-[#e5dcd0] text-stone-800 font-bold">
                         ${ai.threshold} USD
                       </span>
                     </div>
@@ -2822,7 +2822,7 @@ export function AuthView({
                     </p>
                   </div>
 
-                  <div className="p-3.5 rounded-xl bg-white/80 border border-[#edd7be] space-y-1">
+                  <div className="p-3.5 rounded-xl bg-[#FAF7F2]/70 border border-[#e8ded1] space-y-1">
                     <div className="flex items-center justify-between text-[#2a2b2f] font-semibold">
                       <span>Vault Model:</span>
                       <span className="text-[#B4562A] font-bold">Hybrid Smart Vault</span>
@@ -2832,7 +2832,7 @@ export function AuthView({
                     </p>
                   </div>
 
-                  <div className="p-3.5 rounded-xl bg-white/80 border border-[#edd7be] space-y-1">
+                  <div className="p-3.5 rounded-xl bg-[#FAF7F2]/70 border border-[#e8ded1] space-y-1">
                     <div className="flex items-center justify-between text-[#2a2b2f] font-semibold">
                       <span>Late-Night Cooling Hold:</span>
                       <span className={ai.coolingOff ? "text-emerald-700 font-bold" : "text-[#78716c]"}>
@@ -2856,7 +2856,7 @@ export function AuthView({
                 </div>
 
                 {/* 1. Contribution Split (Berapa:Berapa) */}
-                <div className="bg-[#FEF9E9] border border-[#eeddc8] rounded-2xl p-6 sm:p-7 space-y-5">
+                <div className="bg-white border border-[#e5dcd0] rounded-2xl p-6 sm:p-7 space-y-5 shadow-xs">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
                       <h3 className="font-serif text-base text-[#2a2b2f] font-semibold">
@@ -2946,7 +2946,7 @@ export function AuthView({
                 </div>
 
                 {/* 2. Dual-Approval Threshold */}
-                <div className="bg-[#FEF9E9] border border-[#eeddc8] rounded-2xl p-6 sm:p-7 space-y-4">
+                <div className="bg-white border border-[#e5dcd0] rounded-2xl p-6 sm:p-7 space-y-4 shadow-xs">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
                       <h3 className="font-serif text-base text-[#2a2b2f] font-semibold">
@@ -2996,7 +2996,7 @@ export function AuthView({
                 </div>
 
                 {/* 3. Shared Vault Architecture */}
-                <div className="bg-[#FEF9E9] border border-[#eeddc8] rounded-2xl p-6 sm:p-7 space-y-4">
+                <div className="bg-white border border-[#e5dcd0] rounded-2xl p-6 sm:p-7 space-y-4 shadow-xs">
                   <div>
                     <h3 className="font-serif text-base text-[#2a2b2f] font-semibold">
                       3. Shared Vault Architecture
@@ -3058,7 +3058,7 @@ export function AuthView({
                 </div>
 
                 {/* 4. Smart Safeguards Setup */}
-                <div className="bg-[#FEF9E9] border border-[#eeddc8] rounded-2xl p-6 sm:p-7 space-y-4">
+                <div className="bg-white border border-[#e5dcd0] rounded-2xl p-6 sm:p-7 space-y-4 shadow-xs">
                   <div>
                     <h3 className="font-serif text-base text-[#2a2b2f] font-semibold">
                       4. Smart Safeguards & Rule Triggers
@@ -3132,7 +3132,7 @@ export function AuthView({
               </div>
 
               {/* MUTUAL CONSENT & DUAL SIGNATURES (Jika keduanya sudah setuju) */}
-              <div className="bg-[#FFF9EA] border-2 border-[#e8cba5] rounded-3xl p-6 sm:p-8 space-y-6">
+              <div className="bg-white border border-[#e5dcd0] rounded-3xl p-6 sm:p-8 space-y-6 shadow-sm">
                 <div className="text-center space-y-1.5">
                   <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#B4562A]/10 text-[#B4562A] text-xs font-serif font-bold">
                     <SolarIcon name="lock-keyhole" size={14} />
@@ -3379,7 +3379,7 @@ export function AuthView({
 
               {/* Collapsible Certificate Card */}
               {showCertificateDetail && (
-                <div className="w-full bg-[#FEF9E9] rounded-2xl p-5 sm:p-7 text-left space-y-5 relative overflow-hidden border border-[#eeddc8] shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="w-full bg-white rounded-2xl p-5 sm:p-7 text-left space-y-5 relative overflow-hidden border border-[#e5dcd0] shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
                   {/* Subtle Watermark Stamp */}
                   <div className="absolute right-3 bottom-3 opacity-5 pointer-events-none">
                     <SolarIcon name="shield-check" size={140} />
