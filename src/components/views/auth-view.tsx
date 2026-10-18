@@ -2391,28 +2391,7 @@ export function AuthView({
               <SeiyaLogo height={34} />
             </div>
 
-            {/* Step Breadcrumbs */}
-            <div className="hidden md:flex items-center gap-3 text-xs font-serif">
-              <span className="flex items-center gap-1.5 text-emerald-700 font-medium">
-                <span className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center text-[11px]">✓</span>
-                Profiling
-              </span>
-              <span className="text-[#c7bcb0]">→</span>
-              <span className="flex items-center gap-1.5 text-[#B4562A] font-bold">
-                <span className="w-5 h-5 rounded-full bg-[#B4562A] text-white flex items-center justify-center text-[11px]">2</span>
-                Connect Partner
-              </span>
-              <span className="text-[#c7bcb0]">→</span>
-              <span className="text-[#8c827a] flex items-center gap-1.5">
-                <span className="w-5 h-5 rounded-full bg-[#e5ddd3] text-[#78716c] flex items-center justify-center text-[11px]">3</span>
-                Couple Contract
-              </span>
-              <span className="text-[#c7bcb0]">→</span>
-              <span className="text-[#8c827a] flex items-center gap-1.5">
-                <span className="w-5 h-5 rounded-full bg-[#e5ddd3] text-[#78716c] flex items-center justify-center text-[11px]">4</span>
-                Welcome
-              </span>
-            </div>
+
 
             {onClose ? (
               <button
@@ -2660,28 +2639,7 @@ export function AuthView({
                 <SeiyaLogo height={34} />
               </div>
 
-              {/* Step Breadcrumbs */}
-              <div className="hidden md:flex items-center gap-3 text-xs font-serif">
-                <span className="flex items-center gap-1.5 text-emerald-700 font-medium">
-                  <span className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center text-[11px]">✓</span>
-                  Profiling
-                </span>
-                <span className="text-[#c7bcb0]">→</span>
-                <span className="flex items-center gap-1.5 text-emerald-700 font-medium">
-                  <span className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center text-[11px]">✓</span>
-                  Connected
-                </span>
-                <span className="text-[#c7bcb0]">→</span>
-                <span className="flex items-center gap-1.5 text-[#B4562A] font-bold">
-                  <span className="w-5 h-5 rounded-full bg-[#B4562A] text-white flex items-center justify-center text-[11px]">3</span>
-                  Couple Contract
-                </span>
-                <span className="text-[#c7bcb0]">→</span>
-                <span className="text-[#8c827a] flex items-center gap-1.5">
-                  <span className="w-5 h-5 rounded-full bg-[#e5ddd3] text-[#78716c] flex items-center justify-center text-[11px]">4</span>
-                  Welcome
-                </span>
-              </div>
+
 
               {onClose ? (
                 <button
@@ -3264,28 +3222,7 @@ export function AuthView({
               <SeiyaLogo height={34} />
             </div>
 
-            {/* Step Breadcrumbs */}
-            <div className="hidden md:flex items-center gap-3 text-xs font-serif">
-              <span className="flex items-center gap-1.5 text-emerald-700 font-medium">
-                <span className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center text-[11px]">✓</span>
-                Profiling
-              </span>
-              <span className="text-[#c7bcb0]">→</span>
-              <span className="flex items-center gap-1.5 text-emerald-700 font-medium">
-                <span className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center text-[11px]">✓</span>
-                Connected
-              </span>
-              <span className="text-[#c7bcb0]">→</span>
-              <span className="flex items-center gap-1.5 text-emerald-700 font-medium">
-                <span className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center text-[11px]">✓</span>
-                Contract Ratified
-              </span>
-              <span className="text-[#c7bcb0]">→</span>
-              <span className="flex items-center gap-1.5 text-[#B4562A] font-bold">
-                <span className="w-5 h-5 rounded-full bg-[#B4562A] text-white flex items-center justify-center text-[11px]">4</span>
-                Welcome
-              </span>
-            </div>
+
 
             {onClose ? (
               <button
