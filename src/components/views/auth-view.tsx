@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import Image from "next/image";
-import { SeiyaLogo } from "@/components/icons/seiya-logo";
+import { SeiyaLogo, SeiyaIcon } from "@/components/icons/seiya-logo";
 import { SolarIcon } from "@/components/icons/solar";
 import { Button } from "@/components/ui/button";
 import { useApp, UserRole } from "@/lib/store";
@@ -2137,9 +2137,7 @@ export function AuthView({
               <div className="bg-[#FFF9EA] border-2 border-[#e8cba5] rounded-3xl p-6 sm:p-7 shadow-xs relative overflow-hidden">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#ebd7be]">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-[#B4562A] text-white flex items-center justify-center shrink-0 shadow-xs">
-                      <SolarIcon name="sparkles" size={20} />
-                    </div>
+                    <SeiyaIcon size={38} className="shrink-0" trackCursor={true} />
                     <div>
                       <h3 className="font-serif text-base sm:text-lg text-[#2a2b2f] font-medium">
                         Seiya AI Profiling Recommendations
