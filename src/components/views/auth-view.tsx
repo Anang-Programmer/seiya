@@ -1118,7 +1118,7 @@ export function AuthView({
           </header>
 
           {/* Mobile Floating Dropdown Button (fixed below topbar without extra background bar) */}
-          <div className="md:hidden fixed top-[68px] left-0 right-0 z-25 px-4 pointer-events-none">
+          <div className="md:hidden fixed top-[78px] left-0 right-0 z-25 px-4 pointer-events-none">
             <div className="relative max-w-md mx-auto pointer-events-auto">
               <button
                 type="button"
@@ -1216,7 +1216,7 @@ export function AuthView({
           </div>
 
           {/* Main Content: Profiling Two-Column Layout (Figma: 493:8073 & Component Set 472:8257) */}
-          <main className="flex-1 flex items-center justify-center px-4 sm:px-6 pt-20 pb-8 sm:py-10 w-full">
+          <main className="flex-1 flex items-center justify-center px-4 sm:px-6 pt-24 pb-8 sm:py-10 w-full">
             <div className="w-full max-w-4xl mx-auto flex flex-col md:flex-row items-center md:items-start justify-center gap-8 lg:gap-14 my-auto">
               {/* Desktop Left Sidebar: Profiling List (7 milestones strictly matching Figma 472:8190 / 493:8073) */}
               <aside className="hidden md:block md:w-64 lg:w-72 shrink-0 space-y-4">
