@@ -12,8 +12,8 @@
     "test:wellness": "node --env-file=.env.local scripts/test-wellness.mjs",
     "test:expense": "node --env-file=.env.local scripts/test-expense.mjs",
     "test:chat": "node --env-file=.env.local scripts/test-personalization.mjs && node --env-file=.env.local scripts/test-wellness.mjs && node --env-file=.env.local scripts/test-expense.mjs",
-    "postinstall": "node scripts/patch-orb.mjs"
-    "test:statement": "node --env-file=.env.local scripts/test-statement-import.mjs",
+    "postinstall": "node scripts/patch-orb.mjs",
+    "test:statement": "node --env-file=.env.local scripts/test-statement-import.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
