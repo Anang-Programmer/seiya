@@ -1176,13 +1176,13 @@ export function AuthView({
 
               <div className="lg:col-span-6 flex justify-center lg:justify-end">
                 <div className="bg-white rounded-[24px] shadow-xl overflow-hidden border border-[#eedecb]/80 max-w-[440px] w-full">
-                  <div className="relative w-full h-[165px] bg-[#f9eee0] overflow-hidden">
+                  <div className="relative w-full h-[230px] sm:h-[250px] bg-[#f9eee0] overflow-hidden">
                     <Image
                       src="/images/auth/onboarding-banner.png"
                       alt="Seiya Onboarding Journey"
                       fill
                       priority
-                      className="object-cover object-top"
+                      className="object-cover object-[73%_center]"
                     />
                   </div>
 
