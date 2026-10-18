@@ -13,7 +13,10 @@ export type AuthMode =
   | "register"
   | "choose-path"
   | "story-intro"
-  | "questionnaire";
+  | "questionnaire"
+  | "connect-partner"
+  | "contract-setup"
+  | "welcoming";
 
 interface AuthViewProps {
   initialMode?: AuthMode;
@@ -32,6 +35,7 @@ export function AuthView({
     setCurrentUser,
     reportingCurrency,
     locale,
+    activateInitialContract,
   } = useApp();
   const [mode, setMode] = useState<AuthMode>(initialMode);
 
@@ -42,6 +46,10 @@ export function AuthView({
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // Dynamic names
+  const activePartnerAName = fullName.trim() ? fullName.trim() : partnerAName;
+  const activePartnerBName = partnerBName;
+
   // Join Space Invite Code Modal state
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [inviteCode, setInviteCode] = useState("SEIYA-7F3X");
@@ -49,6 +57,27 @@ export function AuthView({
 
   // Choose Your Path selection state ("create" | "join" | null)
   const [selectedPath, setSelectedPath] = useState<"create" | "join" | null>(null);
+
+  // =========================================================================
+  // PARTNER PAIRING & CONNECT CODE STATES
+  // =========================================================================
+  const [partnerConnected, setPartnerConnected] = useState<boolean>(false);
+  const [copiedCode, setCopiedCode] = useState<boolean>(false);
+
+  // =========================================================================
+  // COUPLE CONTRACT SETUP STATES (With AI Suggestions & Manual Editing)
+  // =========================================================================
+  const [contractSplitA, setContractSplitA] = useState<number>(60);
+  const [contractSplitB, setContractSplitB] = useState<number>(40);
+  const [contractThreshold, setContractThreshold] = useState<number>(500);
+  const [contractCurrency, setContractCurrency] = useState<string>("USD");
+  const [contractWalletMode, setContractWalletMode] = useState<"hybrid" | "pooled" | "goals-only">("hybrid");
+  const [contractCoolingOff, setContractCoolingOff] = useState<boolean>(true);
+  const [contractEmergencyLock, setContractEmergencyLock] = useState<boolean>(true);
+  const [contractApproveEveryShared, setContractApproveEveryShared] = useState<boolean>(false);
+  const [contractPartnerASigned, setContractPartnerASigned] = useState<boolean>(false);
+  const [contractPartnerBSigned, setContractPartnerBSigned] = useState<boolean>(false);
+  const [aiApplied, setAiApplied] = useState<boolean>(false);
 
   // =========================================================================
   // PROFILING QUESTIONNAIRE STATES (Figma 472:8257 - 22 Screens in 7 Steps)
@@ -132,18 +161,17 @@ export function AuthView({
     setMode("choose-path");
   };
 
-  // Handle Join Space with Code
+  // Handle Join Space with Code -> proceed directly to Contract Setup
   const handleJoinSpace = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteCode.trim()) {
       setJoinError("Please enter a valid invite code");
       return;
     }
-    setCurrentUser("partner_b");
+    setPartnerConnected(true);
     setShowJoinModal(false);
-    if (onSuccess) {
-      onSuccess("partner_b");
-    }
+    applyAISuggestions();
+    setMode("contract-setup");
   };
 
   // Quick fill demo user
@@ -153,12 +181,112 @@ export function AuthView({
     setConfirmPassword("seiya2026");
   };
 
-  // Finish Questionnaire and enter Dashboard
-  const handleCompleteQuestionnaire = () => {
+  // Dynamic AI Suggestions derived from 22 questionnaire profiling answers
+  const getAISuggestion = () => {
+    let splitA = 50;
+    let splitB = 50;
+    let splitRationale =
+      "Equal 50:50 contribution based on balanced financial profiles and shared goals.";
+
+    if (
+      incomeType.toLowerCase().includes("variable") ||
+      helpFamily.toLowerCase().includes("routine")
+    ) {
+      splitA = 60;
+      splitB = 40;
+      splitRationale = `Proportional 60:40 split recommended because of ${
+        incomeType.toLowerCase().includes("variable")
+          ? "variable income fluctuations"
+          : "regular monthly family obligations"
+      }, giving both partners an equitable safety cushion.`;
+    } else if (spendDifficulty >= 8) {
+      splitA = 55;
+      splitB = 45;
+      splitRationale =
+        "A 55:45 split provides comfortable flexibility while aligning your mutual spending habits.";
+    }
+
+    let threshold = 500;
+    let thresholdRationale =
+      "Standard $500 threshold balances day-to-day autonomy with mutual oversight on major purchases.";
+
+    if (impulseBuy >= 7 || spendingRegret >= 6 || spendDifficulty >= 7) {
+      threshold = 250;
+      thresholdRationale =
+        "Lower $250 threshold recommended to prevent impulsive purchases and encourage mindful joint check-ins.";
+    } else if (spendDifficulty <= 3 && impulseBuy <= 3) {
+      threshold = 1000;
+      thresholdRationale =
+        "Higher $1,000 threshold recommended since both of you demonstrate disciplined spending habits.";
+    }
+
+    const coolingOff = impulseBuy >= 5 || spendingRegret >= 5;
+    const coolingOffRationale = coolingOff
+      ? "Late-night cooling-off enabled: Non-essential online transactions after 10 PM over $100 pause for 6 hours."
+      : "Standard immediate settlement without late-night pause.";
+
+    let walletMode: "hybrid" | "pooled" | "goals-only" = "hybrid";
+    let walletRationale =
+      "Hybrid Smart Vault: Shared bills and couple goals are jointly funded, while personal accounts remain private.";
+
+    if (moneyManagementNow.toLowerCase().includes("combined")) {
+      walletMode = "pooled";
+      walletRationale =
+        "Fully Pooled: All income and expenses flow through your shared couple smart vault.";
+    }
+
+    return {
+      splitA,
+      splitB,
+      splitRationale,
+      threshold,
+      thresholdRationale,
+      coolingOff,
+      coolingOffRationale,
+      walletMode,
+      walletRationale,
+    };
+  };
+
+  const applyAISuggestions = () => {
+    const ai = getAISuggestion();
+    setContractSplitA(ai.splitA);
+    setContractSplitB(ai.splitB);
+    setContractThreshold(ai.threshold);
+    setContractCoolingOff(ai.coolingOff);
+    setContractWalletMode(ai.walletMode);
+    setAiApplied(true);
+  };
+
+  const handleProceedToContract = () => {
+    if (!aiApplied) {
+      applyAISuggestions();
+    }
+    setMode("contract-setup");
+  };
+
+  const handleRatifyContract = () => {
+    activateInitialContract({
+      splitPartnerA: contractSplitA,
+      splitPartnerB: contractSplitB,
+      approvalThreshold: contractThreshold,
+      thresholdCurrency: contractCurrency,
+      coolingOffEnabled: contractCoolingOff,
+      approveEverySharedPurchase: contractApproveEveryShared,
+    });
+    setMode("welcoming");
+  };
+
+  const handleEnterHome = () => {
     setCurrentUser("partner_a");
     if (onSuccess) {
       onSuccess("partner_a");
     }
+  };
+
+  // Finish Questionnaire and proceed to Partner Pairing
+  const handleCompleteQuestionnaire = () => {
+    setMode("connect-partner");
   };
 
   // Profiling 7 Milestones configuration
@@ -517,6 +645,39 @@ export function AuthView({
           }`}
         >
           Profiling (493-8073)
+        </button>
+        <button
+          onClick={() => setMode("connect-partner")}
+          className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
+            mode === "connect-partner"
+              ? "bg-[#B4562A] text-white font-semibold shadow-xs"
+              : "text-white/70 hover:text-white"
+          }`}
+        >
+          Connect
+        </button>
+        <button
+          onClick={() => {
+            if (!aiApplied) applyAISuggestions();
+            setMode("contract-setup");
+          }}
+          className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
+            mode === "contract-setup"
+              ? "bg-[#B4562A] text-white font-semibold shadow-xs"
+              : "text-white/70 hover:text-white"
+          }`}
+        >
+          Contract
+        </button>
+        <button
+          onClick={() => setMode("welcoming")}
+          className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
+            mode === "welcoming"
+              ? "bg-[#B4562A] text-white font-semibold shadow-xs"
+              : "text-white/70 hover:text-white"
+          }`}
+        >
+          Welcome
         </button>
         {onClose && (
           <button
@@ -1647,6 +1808,1077 @@ export function AuthView({
             </section>
             </div>
           </main>
+        </div>
+      )}
+
+      {/* =========================================================================
+          SCREEN 6: CONNECT PARTNER / PAIRING CODE
+          ========================================================================= */}
+      {mode === "connect-partner" && (
+        <div className="flex-1 flex flex-col justify-between min-h-screen bg-[#FEFBF5]">
+          {/* Top Header */}
+          <header className="px-6 sm:px-12 py-5 border-b border-[#eeddc8]/70 flex items-center justify-between bg-white/70 backdrop-blur-md sticky top-0 z-30">
+            <div
+              onClick={() => onClose && onClose()}
+              className="cursor-pointer flex items-center gap-2"
+            >
+              <SeiyaLogo height={34} />
+            </div>
+
+            {/* Step Breadcrumbs */}
+            <div className="hidden md:flex items-center gap-3 text-xs font-serif">
+              <span className="flex items-center gap-1.5 text-emerald-700 font-medium">
+                <span className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center text-[11px]">✓</span>
+                Profiling
+              </span>
+              <span className="text-[#c7bcb0]">→</span>
+              <span className="flex items-center gap-1.5 text-[#B4562A] font-bold">
+                <span className="w-5 h-5 rounded-full bg-[#B4562A] text-white flex items-center justify-center text-[11px]">2</span>
+                Connect Partner
+              </span>
+              <span className="text-[#c7bcb0]">→</span>
+              <span className="text-[#8c827a] flex items-center gap-1.5">
+                <span className="w-5 h-5 rounded-full bg-[#e5ddd3] text-[#78716c] flex items-center justify-center text-[11px]">3</span>
+                Couple Contract
+              </span>
+              <span className="text-[#c7bcb0]">→</span>
+              <span className="text-[#8c827a] flex items-center gap-1.5">
+                <span className="w-5 h-5 rounded-full bg-[#e5ddd3] text-[#78716c] flex items-center justify-center text-[11px]">4</span>
+                Welcome
+              </span>
+            </div>
+
+            {onClose ? (
+              <button
+                onClick={onClose}
+                className="text-xs text-[#78716c] hover:text-[#2a2b2f] flex items-center gap-1.5 cursor-pointer"
+              >
+                <SolarIcon name="close-circle" size={16} />
+                <span>Exit</span>
+              </button>
+            ) : (
+              <div className="w-16" />
+            )}
+          </header>
+
+          {/* Main Content */}
+          <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-8 sm:py-12 flex flex-col justify-center">
+            <div className="text-center space-y-3 mb-8">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#B4562A]/10 text-[#B4562A] text-xs font-serif font-semibold border border-[#B4562A]/20">
+                <SolarIcon name="users-group-rounded" size={15} />
+                <span>Step 2 of 4 • Couple Vault Synchronization</span>
+              </div>
+              <h1 className="font-serif text-3xl sm:text-4xl text-[#2a2b2f] font-normal tracking-tight">
+                Connect with Your Partner
+              </h1>
+              <p className="text-xs sm:text-sm text-[#78716c] max-w-lg mx-auto leading-relaxed">
+                Share your unique invite code with your partner. Once they connect, Seiya&apos;s AI synthesizes both your profiling insights into a mutual contract proposal.
+              </p>
+            </div>
+
+            {/* Central Invite & Pairing Card */}
+            <div className="bg-[#FEF9E9] border border-[#eeddc8] rounded-[28px] p-6 sm:p-9 shadow-sm space-y-8">
+              {/* Partner Code Box */}
+              <div>
+                <label className="block text-xs font-bold text-[#5c5349] uppercase tracking-wider mb-2 text-center">
+                  Your Couple Invite Code
+                </label>
+                <div className="bg-white rounded-2xl border-2 border-dashed border-[#B4562A]/40 p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-xl bg-[#B4562A]/10 text-[#B4562A] flex items-center justify-center shrink-0">
+                      <SolarIcon name="lock-keyhole" size={22} />
+                    </div>
+                    <div className="text-left">
+                      <span className="font-mono text-2xl sm:text-3xl font-bold tracking-widest text-[#B4562A]">
+                        SEIYA-7F3X
+                      </span>
+                      <p className="text-[11px] text-[#8c827a]">
+                        Valid for 7 days • Webank secure pairing channel
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard?.writeText("SEIYA-7F3X");
+                        setCopiedCode(true);
+                        setTimeout(() => setCopiedCode(false), 2500);
+                      }}
+                      className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-[#B4562A] hover:bg-[#9c4820] text-white text-xs font-serif font-medium flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
+                    >
+                      <SolarIcon name={copiedCode ? "check-circle" : "paperclip"} size={14} />
+                      <span>{copiedCode ? "Code Copied!" : "Copy Code"}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard?.writeText("https://seiya.finance/join/SEIYA-7F3X");
+                        setCopiedCode(true);
+                        setTimeout(() => setCopiedCode(false), 2500);
+                      }}
+                      className="px-3 py-2.5 rounded-xl bg-white hover:bg-[#fbf4de] text-[#5c5349] border border-[#ded7ce] text-xs font-serif font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      title="Copy invite URL"
+                    >
+                      <SolarIcon name="arrow-right" size={14} />
+                      <span className="hidden sm:inline">Invite Link</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Live Pairing Visualizer */}
+              <div className="p-5 rounded-2xl bg-white/80 border border-[#eeddc8] space-y-4">
+                <div className="flex items-center justify-between text-xs font-semibold text-[#5c5349] border-b border-[#f0e4d6] pb-2.5">
+                  <span>Pairing Status</span>
+                  <span className={partnerConnected ? "text-emerald-700 font-bold" : "text-amber-700"}>
+                    {partnerConnected ? "✓ Mutual Link Verified" : "⏳ Awaiting Partner Connection"}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-7 items-center gap-3 py-2">
+                  {/* Partner A */}
+                  <div className="sm:col-span-3 flex items-center gap-3 p-3 rounded-xl bg-[#FEFBF5] border border-[#f0e4d6]">
+                    <div className="w-10 h-10 rounded-full bg-[#B4562A]/15 text-[#B4562A] flex items-center justify-center font-serif font-bold text-base">
+                      {activePartnerAName.charAt(0) || "R"}
+                    </div>
+                    <div className="text-left flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-serif font-semibold text-sm text-[#2a2b2f] truncate">
+                          {activePartnerAName}
+                        </span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[#B4562A]/10 text-[#B4562A] font-sans">
+                          You
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 text-[11px] text-emerald-700 mt-0.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                        <span>Profiling Completed</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Connection Node */}
+                  <div className="sm:col-span-1 flex flex-col items-center justify-center py-1 sm:py-0">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                      partnerConnected ? "bg-emerald-100 text-emerald-700 scale-110" : "bg-[#f5ecde] text-[#8c827a]"
+                    }`}>
+                      <SolarIcon name={partnerConnected ? "heart" : "refresh"} size={16} />
+                    </div>
+                  </div>
+
+                  {/* Partner B */}
+                  <div className={`sm:col-span-3 flex items-center gap-3 p-3 rounded-xl border transition-all ${
+                    partnerConnected
+                      ? "bg-emerald-50/70 border-emerald-200"
+                      : "bg-[#fdfaf5] border-dashed border-[#ded7ce]"
+                  }`}>
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-serif font-bold text-base ${
+                      partnerConnected
+                        ? "bg-emerald-200 text-emerald-800"
+                        : "bg-[#e5ddd3] text-[#78716c]"
+                    }`}>
+                      {activePartnerBName.charAt(0) || "D"}
+                    </div>
+                    <div className="text-left flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-serif font-semibold text-sm text-[#2a2b2f] truncate">
+                          {activePartnerBName}
+                        </span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-stone-200 text-stone-700 font-sans">
+                          Partner
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 text-[11px] mt-0.5">
+                        {partnerConnected ? (
+                          <span className="text-emerald-700 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                            Connected & Synced
+                          </span>
+                        ) : (
+                          <span className="text-amber-700 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                            Pending invite entry...
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Simulation helper button for testing/demo */}
+                <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#faf3e6]/80 p-3 rounded-xl border border-[#eeddc8]">
+                  <div className="text-[11px] text-[#78716c] text-center sm:text-left">
+                    <span className="font-semibold text-[#2a2b2f]">Demo & Presentation Mode:</span> Click to simulate your partner joining in real time.
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPartnerConnected(!partnerConnected)}
+                    className="px-3.5 py-1.5 rounded-lg bg-white hover:bg-[#fbf4de] text-[#B4562A] border border-[#B4562A]/30 text-xs font-serif font-medium transition-colors cursor-pointer shrink-0 shadow-2xs"
+                  >
+                    {partnerConnected ? "Simulate Disconnect" : `⚡ Simulate ${activePartnerBName} Connecting`}
+                  </button>
+                </div>
+              </div>
+
+              {/* Bottom Buttons */}
+              <div className="flex items-center justify-between pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentScreen(22);
+                    setMode("questionnaire");
+                  }}
+                  className="text-xs sm:text-sm font-serif text-[#78716c] hover:text-[#2a2b2f] flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <SolarIcon name="arrow-left" size={14} />
+                  <span>Review Profiling</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!partnerConnected) {
+                      setPartnerConnected(true);
+                    }
+                    handleProceedToContract();
+                  }}
+                  className="px-6 py-3 rounded-full bg-[#B4562A] hover:bg-[#9c4820] text-white font-serif text-xs sm:text-sm flex items-center gap-2 transition-all shadow-md hover:shadow-lg cursor-pointer active:scale-95"
+                >
+                  <span>Proceed to Couple Contract Setup</span>
+                  <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center">
+                    <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </span>
+                </button>
+              </div>
+            </div>
+          </main>
+
+          <footer className="px-6 py-4 text-center text-[11px] text-[#8c827a] border-t border-[#eeddc8]/50">
+            Seiya Secure Financial Mediator • Webank Consortium Blockchain Protocol
+          </footer>
+        </div>
+      )}
+
+      {/* =========================================================================
+          SCREEN 7: COUPLE CONTRACT SETUP (AI SUGGESTIONS & MUTUAL AGREEMENT)
+          ========================================================================= */}
+      {mode === "contract-setup" && (() => {
+        const ai = getAISuggestion();
+        const bothSigned = contractPartnerASigned && contractPartnerBSigned;
+
+        return (
+          <div className="flex-1 flex flex-col justify-between min-h-screen bg-[#FEFBF5]">
+            {/* Top Header */}
+            <header className="px-6 sm:px-12 py-5 border-b border-[#eeddc8]/70 flex items-center justify-between bg-white/70 backdrop-blur-md sticky top-0 z-30">
+              <div
+                onClick={() => onClose && onClose()}
+                className="cursor-pointer flex items-center gap-2"
+              >
+                <SeiyaLogo height={34} />
+              </div>
+
+              {/* Step Breadcrumbs */}
+              <div className="hidden md:flex items-center gap-3 text-xs font-serif">
+                <span className="flex items-center gap-1.5 text-emerald-700 font-medium">
+                  <span className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center text-[11px]">✓</span>
+                  Profiling
+                </span>
+                <span className="text-[#c7bcb0]">→</span>
+                <span className="flex items-center gap-1.5 text-emerald-700 font-medium">
+                  <span className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center text-[11px]">✓</span>
+                  Connected
+                </span>
+                <span className="text-[#c7bcb0]">→</span>
+                <span className="flex items-center gap-1.5 text-[#B4562A] font-bold">
+                  <span className="w-5 h-5 rounded-full bg-[#B4562A] text-white flex items-center justify-center text-[11px]">3</span>
+                  Couple Contract
+                </span>
+                <span className="text-[#c7bcb0]">→</span>
+                <span className="text-[#8c827a] flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-full bg-[#e5ddd3] text-[#78716c] flex items-center justify-center text-[11px]">4</span>
+                  Welcome
+                </span>
+              </div>
+
+              {onClose ? (
+                <button
+                  onClick={onClose}
+                  className="text-xs text-[#78716c] hover:text-[#2a2b2f] flex items-center gap-1.5 cursor-pointer"
+                >
+                  <SolarIcon name="close-circle" size={16} />
+                  <span>Exit</span>
+                </button>
+              ) : (
+                <div className="w-16" />
+              )}
+            </header>
+
+            {/* Main Contract Editor Container */}
+            <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-8 sm:py-12 space-y-8">
+              {/* Header Title */}
+              <div className="text-center space-y-3">
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#B4562A]/10 text-[#B4562A] text-xs font-serif font-semibold border border-[#B4562A]/20">
+                  <SolarIcon name="shield-check" size={15} />
+                  <span>Step 3 of 4 • Smart Contract Formulation</span>
+                </div>
+                <h1 className="font-serif text-3xl sm:text-4xl text-[#2a2b2f] font-normal tracking-tight">
+                  Couple Financial Agreement
+                </h1>
+                <p className="text-xs sm:text-sm text-[#78716c] max-w-xl mx-auto leading-relaxed">
+                  Based on your combined profiling answers, Seiya AI formulated the recommendations below. You can customize every parameter manually. Both of you must sign before the contract activates.
+                </p>
+              </div>
+
+              {/* AI Recommendations Banner */}
+              <div className="bg-[#FFF9EA] border-2 border-[#e8cba5] rounded-3xl p-6 sm:p-7 shadow-xs relative overflow-hidden">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#ebd7be]">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-[#B4562A] text-white flex items-center justify-center shrink-0 shadow-xs">
+                      <SolarIcon name="sparkles" size={20} />
+                    </div>
+                    <div>
+                      <h3 className="font-serif text-base sm:text-lg text-[#2a2b2f] font-medium">
+                        Seiya AI Profiling Recommendations
+                      </h3>
+                      <p className="text-xs text-[#8c827a]">
+                        Derived from your 22 profiling data points & couple dynamics
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={applyAISuggestions}
+                    className="self-start sm:self-auto px-4 py-2 rounded-xl bg-white hover:bg-[#fbf4de] text-[#B4562A] border border-[#B4562A]/40 text-xs font-serif font-medium flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                  >
+                    <SolarIcon name="refresh" size={14} />
+                    <span>Reset to AI Suggestions</span>
+                  </button>
+                </div>
+
+                {/* AI Rationale Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 text-xs">
+                  <div className="p-3.5 rounded-xl bg-white/80 border border-[#edd7be] space-y-1">
+                    <div className="flex items-center justify-between text-[#2a2b2f] font-semibold">
+                      <span>Suggested Split:</span>
+                      <span className="px-2 py-0.5 rounded-md bg-[#B4562A]/10 text-[#B4562A] font-bold">
+                        {ai.splitA}% {activePartnerAName} : {ai.splitB}% {activePartnerBName}
+                      </span>
+                    </div>
+                    <p className="text-[#6d6459] leading-relaxed pt-1">
+                      {ai.splitRationale}
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-white/80 border border-[#edd7be] space-y-1">
+                    <div className="flex items-center justify-between text-[#2a2b2f] font-semibold">
+                      <span>Dual Approval Threshold:</span>
+                      <span className="px-2 py-0.5 rounded-md bg-stone-100 text-stone-800 font-bold">
+                        ${ai.threshold} USD
+                      </span>
+                    </div>
+                    <p className="text-[#6d6459] leading-relaxed pt-1">
+                      {ai.thresholdRationale}
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-white/80 border border-[#edd7be] space-y-1">
+                    <div className="flex items-center justify-between text-[#2a2b2f] font-semibold">
+                      <span>Vault Model:</span>
+                      <span className="text-[#B4562A] font-bold">Hybrid Smart Vault</span>
+                    </div>
+                    <p className="text-[#6d6459] leading-relaxed pt-1">
+                      {ai.walletRationale}
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-white/80 border border-[#edd7be] space-y-1">
+                    <div className="flex items-center justify-between text-[#2a2b2f] font-semibold">
+                      <span>Late-Night Cooling Hold:</span>
+                      <span className={ai.coolingOff ? "text-emerald-700 font-bold" : "text-[#78716c]"}>
+                        {ai.coolingOff ? "Recommended ON" : "Optional"}
+                      </span>
+                    </div>
+                    <p className="text-[#6d6459] leading-relaxed pt-1">
+                      {ai.coolingOffRationale}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* MANUAL EDITABLE CONTROLS SECTION */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2">
+                  <SolarIcon name="edit" size={18} className="text-[#B4562A]" />
+                  <h2 className="font-serif text-xl sm:text-2xl text-[#2a2b2f]">
+                    Customize Your Terms
+                  </h2>
+                </div>
+
+                {/* 1. Contribution Split (Berapa:Berapa) */}
+                <div className="bg-[#FEF9E9] border border-[#eeddc8] rounded-2xl p-6 sm:p-7 space-y-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <h3 className="font-serif text-base text-[#2a2b2f] font-semibold">
+                        1. Contribution & Split Ratio
+                      </h3>
+                      <p className="text-xs text-[#78716c]">
+                        How should shared household bills, groceries, and joint savings goals be split?
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 self-start sm:self-auto">
+                      {[
+                        { label: "50:50 Equal", a: 50, b: 50 },
+                        { label: "60:40 Proportional", a: 60, b: 40 },
+                        { label: "70:30 Supported", a: 70, b: 30 },
+                      ].map((preset) => {
+                        const active = contractSplitA === preset.a && contractSplitB === preset.b;
+                        return (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => {
+                              setContractSplitA(preset.a);
+                              setContractSplitB(preset.b);
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-serif transition-colors cursor-pointer ${
+                              active
+                                ? "bg-[#B4562A] text-white font-medium shadow-2xs"
+                                : "bg-white hover:bg-[#fbf4de] text-[#5c5349] border border-[#ded7ce]"
+                            }`}
+                          >
+                            {preset.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Dual Colored Visual Bar */}
+                  <div className="space-y-2">
+                    <div className="h-7 rounded-full overflow-hidden flex shadow-inner border border-[#d9ccbd]">
+                      <div
+                        style={{ width: `${contractSplitA}%` }}
+                        className="bg-[#B4562A] flex items-center justify-start px-3 text-white font-mono font-bold text-xs transition-all duration-300 truncate"
+                        title={`${activePartnerAName}: ${contractSplitA}%`}
+                      >
+                        {activePartnerAName} ({contractSplitA}%)
+                      </div>
+                      <div
+                        style={{ width: `${contractSplitB}%` }}
+                        className="bg-[#D97706] flex items-center justify-end px-3 text-white font-mono font-bold text-xs transition-all duration-300 truncate"
+                        title={`${activePartnerBName}: ${contractSplitB}%`}
+                      >
+                        {activePartnerBName} ({contractSplitB}%)
+                      </div>
+                    </div>
+
+                    {/* Interactive Slider */}
+                    <div className="pt-2">
+                      <div className="flex justify-between text-xs font-semibold text-[#5c5349] mb-1">
+                        <span>{activePartnerAName}: {contractSplitA}%</span>
+                        <span>{activePartnerBName}: {contractSplitB}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="10"
+                        max="90"
+                        step="5"
+                        value={contractSplitA}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          setContractSplitA(val);
+                          setContractSplitB(100 - val);
+                        }}
+                        className="w-full accent-[#B4562A] cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Dynamic Calculation Helper */}
+                    <div className="p-3 rounded-xl bg-white/70 border border-[#eeddc8] text-xs text-[#686057] flex items-center gap-2">
+                      <SolarIcon name="receipt" size={16} className="text-[#B4562A] shrink-0" />
+                      <span>
+                        <strong className="text-[#2a2b2f]">Live Calculation:</strong> For a $1,000 monthly shared utility/rent expense: {activePartnerAName} contributes <strong>${((1000 * contractSplitA) / 100).toFixed(0)}</strong> and {activePartnerBName} contributes <strong>${((1000 * contractSplitB) / 100).toFixed(0)}</strong>.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Dual-Approval Threshold */}
+                <div className="bg-[#FEF9E9] border border-[#eeddc8] rounded-2xl p-6 sm:p-7 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <h3 className="font-serif text-base text-[#2a2b2f] font-semibold">
+                        2. Dual-Approval Spending Threshold
+                      </h3>
+                      <p className="text-xs text-[#78716c]">
+                        Any purchase or transfer from the shared vault above this limit requires mutual digital consent.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {[100, 250, 500, 1000, 2500].map((amt) => (
+                        <button
+                          key={amt}
+                          type="button"
+                          onClick={() => setContractThreshold(amt)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-serif transition-colors cursor-pointer ${
+                            contractThreshold === amt
+                              ? "bg-[#B4562A] text-white font-medium shadow-2xs"
+                              : "bg-white hover:bg-[#fbf4de] text-[#5c5349] border border-[#ded7ce]"
+                          }`}
+                        >
+                          ${amt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="relative flex-1 max-w-xs">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-[#8c827a]">
+                        USD $
+                      </span>
+                      <input
+                        type="number"
+                        min="50"
+                        step="50"
+                        value={contractThreshold}
+                        onChange={(e) => setContractThreshold(Math.max(0, parseInt(e.target.value) || 0))}
+                        className="w-full pl-16 pr-4 py-2.5 rounded-xl border border-[#ded7ce] bg-white font-mono font-bold text-sm text-[#2a2b2f] focus:outline-none focus:ring-2 focus:ring-[#B4562A]/20 focus:border-[#B4562A]"
+                      />
+                    </div>
+                    <span className="text-xs text-[#78716c]">
+                      Transactions below this amount can be spent autonomously from shared funds.
+                    </span>
+                  </div>
+                </div>
+
+                {/* 3. Shared Vault Architecture */}
+                <div className="bg-[#FEF9E9] border border-[#eeddc8] rounded-2xl p-6 sm:p-7 space-y-4">
+                  <div>
+                    <h3 className="font-serif text-base text-[#2a2b2f] font-semibold">
+                      3. Shared Vault Architecture
+                    </h3>
+                    <p className="text-xs text-[#78716c]">
+                      Determine the boundary between your private allowances and shared household funds.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {[
+                      {
+                        id: "hybrid" as const,
+                        title: "Hybrid Smart Vault",
+                        tag: "AI Recommended",
+                        desc: "Joint pool for shared bills and couple goals. Discretionary spending remains completely private in personal accounts.",
+                      },
+                      {
+                        id: "pooled" as const,
+                        title: "Fully Pooled Vault",
+                        tag: "Traditional Joint",
+                        desc: "100% of income flows into unified shared accounts with total mutual visibility over all transactions.",
+                      },
+                      {
+                        id: "goals-only" as const,
+                        title: "Goal-Only Pool",
+                        tag: "Milestones Only",
+                        desc: "Only joint savings milestones (home downpayment, wedding, vacation) are pooled. Living expenses remain separate.",
+                      },
+                    ].map((model) => {
+                      const active = contractWalletMode === model.id;
+                      return (
+                        <div
+                          key={model.id}
+                          onClick={() => setContractWalletMode(model.id)}
+                          className={`p-4 rounded-xl border cursor-pointer transition-all ${
+                            active
+                              ? "bg-white border-[#B4562A] ring-2 ring-[#B4562A]/20 shadow-xs"
+                              : "bg-white/60 hover:bg-white border-[#ded7ce]"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="font-serif font-semibold text-xs sm:text-sm text-[#2a2b2f]">
+                              {model.title}
+                            </span>
+                            {model.tag === "AI Recommended" ? (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[#B4562A]/10 text-[#B4562A] font-medium">
+                                {model.tag}
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className="text-[11px] text-[#6d6459] leading-relaxed">
+                            {model.desc}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 4. Smart Safeguards Setup */}
+                <div className="bg-[#FEF9E9] border border-[#eeddc8] rounded-2xl p-6 sm:p-7 space-y-4">
+                  <div>
+                    <h3 className="font-serif text-base text-[#2a2b2f] font-semibold">
+                      4. Smart Safeguards & Rule Triggers
+                    </h3>
+                    <p className="text-xs text-[#78716c]">
+                      Algorithmic guardrails to keep spending healthy and stress-free.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    {/* Safeguard 1: Late-night cooling off */}
+                    <div className="p-3.5 rounded-xl bg-white border border-[#eeddc8] flex items-center justify-between gap-4">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-serif font-medium text-xs sm:text-sm text-[#2a2b2f]">
+                            Late-Night Impulse Cooling-Off Rule
+                          </span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-sans">
+                            10 PM - 6 AM
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-[#78716c]">
+                          Non-essential online purchases above $100 hold for 6 hours unless explicitly approved by your partner.
+                        </p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={contractCoolingOff}
+                        onChange={(e) => setContractCoolingOff(e.target.checked)}
+                        className="w-5 h-5 accent-[#B4562A] cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Safeguard 2: Emergency reserve lock */}
+                    <div className="p-3.5 rounded-xl bg-white border border-[#eeddc8] flex items-center justify-between gap-4">
+                      <div className="space-y-0.5">
+                        <span className="font-serif font-medium text-xs sm:text-sm text-[#2a2b2f]">
+                          Emergency Reserve Vault Double-Lock
+                        </span>
+                        <p className="text-[11px] text-[#78716c]">
+                          Requires both partners&apos; cryptographic PINs or biometrics before any emergency reserve fund withdrawal.
+                        </p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={contractEmergencyLock}
+                        onChange={(e) => setContractEmergencyLock(e.target.checked)}
+                        className="w-5 h-5 accent-[#B4562A] cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Safeguard 3: Approve every shared purchase */}
+                    <div className="p-3.5 rounded-xl bg-white border border-[#eeddc8] flex items-center justify-between gap-4">
+                      <div className="space-y-0.5">
+                        <span className="font-serif font-medium text-xs sm:text-sm text-[#2a2b2f]">
+                          Require Approval for Every Shared Purchase
+                        </span>
+                        <p className="text-[11px] text-[#78716c]">
+                          Bypasses the threshold and requires two signatures for every single shared expense.
+                        </p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={contractApproveEveryShared}
+                        onChange={(e) => setContractApproveEveryShared(e.target.checked)}
+                        className="w-5 h-5 accent-[#B4562A] cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* MUTUAL CONSENT & DUAL SIGNATURES (Jika keduanya sudah setuju) */}
+              <div className="bg-[#FFF9EA] border-2 border-[#e8cba5] rounded-3xl p-6 sm:p-8 space-y-6">
+                <div className="text-center space-y-1.5">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#B4562A]/10 text-[#B4562A] text-xs font-serif font-bold">
+                    <SolarIcon name="lock-keyhole" size={14} />
+                    <span>Mutual Consent Protocol</span>
+                  </div>
+                  <h3 className="font-serif text-xl sm:text-2xl text-[#2a2b2f]">
+                    Dual Agreement & Digital Signatures
+                  </h3>
+                  <p className="text-xs text-[#78716c] max-w-lg mx-auto">
+                    Under Webank smart contract governance, changes or initial activations require the explicit cryptographic consent of <strong>both partners</strong>.
+                  </p>
+                </div>
+
+                {/* Two Partner Signatures Side-by-Side */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Signature 1: Partner A (You) */}
+                  <div className={`p-5 rounded-2xl border transition-all ${
+                    contractPartnerASigned
+                      ? "bg-emerald-50/80 border-emerald-300"
+                      : "bg-white border-[#eeddc8]"
+                  }`}>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 rounded-full bg-[#B4562A]/15 text-[#B4562A] flex items-center justify-center font-serif font-bold">
+                        {activePartnerAName.charAt(0) || "R"}
+                      </div>
+                      <div>
+                        <div className="font-serif font-semibold text-sm text-[#2a2b2f]">
+                          {activePartnerAName}
+                        </div>
+                        <div className="text-[11px] text-[#8c827a]">
+                          Space Creator (You)
+                        </div>
+                      </div>
+                    </div>
+
+                    {contractPartnerASigned ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-xs font-bold text-emerald-800 bg-emerald-100/70 px-3 py-2 rounded-xl">
+                          <SolarIcon name="check-circle" size={16} />
+                          <span>Signed by {activePartnerAName}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setContractPartnerASigned(false)}
+                          className="w-full text-center text-[11px] text-[#8c827a] hover:text-red-700 underline cursor-pointer"
+                        >
+                          Revoke signature to edit
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setContractPartnerASigned(true)}
+                        className="w-full py-2.5 px-4 rounded-xl bg-[#B4562A] hover:bg-[#9c4820] text-white font-serif text-xs font-medium flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer active:scale-95"
+                      >
+                        <SolarIcon name="shield-check" size={15} />
+                        <span>Sign as {activePartnerAName}</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Signature 2: Partner B (Partner) */}
+                  <div className={`p-5 rounded-2xl border transition-all ${
+                    contractPartnerBSigned
+                      ? "bg-emerald-50/80 border-emerald-300"
+                      : "bg-white border-[#eeddc8]"
+                  }`}>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 rounded-full bg-stone-200 text-stone-700 flex items-center justify-center font-serif font-bold">
+                        {activePartnerBName.charAt(0) || "D"}
+                      </div>
+                      <div>
+                        <div className="font-serif font-semibold text-sm text-[#2a2b2f]">
+                          {activePartnerBName}
+                        </div>
+                        <div className="text-[11px] text-[#8c827a]">
+                          Partner (Co-Owner)
+                        </div>
+                      </div>
+                    </div>
+
+                    {contractPartnerBSigned ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-xs font-bold text-emerald-800 bg-emerald-100/70 px-3 py-2 rounded-xl">
+                          <SolarIcon name="check-circle" size={16} />
+                          <span>Signed by {activePartnerBName}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setContractPartnerBSigned(false)}
+                          className="w-full text-center text-[11px] text-[#8c827a] hover:text-red-700 underline cursor-pointer"
+                        >
+                          Revoke signature to edit
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setContractPartnerBSigned(true)}
+                        className="w-full py-2.5 px-4 rounded-xl bg-stone-800 hover:bg-stone-900 text-white font-serif text-xs font-medium flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer active:scale-95"
+                      >
+                        <SolarIcon name="shield-check" size={15} />
+                        <span>Sign as {activePartnerBName} (Simulate)</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Ratification Status Banner */}
+                <div className={`p-4 rounded-2xl flex items-center justify-between gap-3 text-xs ${
+                  bothSigned
+                    ? "bg-emerald-100/70 text-emerald-900 border border-emerald-300"
+                    : "bg-amber-50 text-amber-900 border border-amber-200"
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <SolarIcon
+                      name={bothSigned ? "check-circle" : "danger-triangle"}
+                      size={18}
+                      className={bothSigned ? "text-emerald-700" : "text-amber-700"}
+                    />
+                    <span>
+                      {bothSigned
+                        ? "✨ Both partners have verified and signed this contract! Consensus reached."
+                        : `⚠️ Waiting for mutual signatures (${(contractPartnerASigned ? 1 : 0) + (contractPartnerBSigned ? 1 : 0)} of 2 signed). Both must sign to ratify.`}
+                    </span>
+                  </div>
+
+                  {!bothSigned && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setContractPartnerASigned(true);
+                        setContractPartnerBSigned(true);
+                      }}
+                      className="text-[11px] font-serif underline text-[#B4562A] hover:text-[#9c4820] shrink-0 cursor-pointer"
+                    >
+                      Sign Both (Fast Demo)
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Bottom Navigation & Ratify CTA */}
+              <div className="flex items-center justify-between pt-4">
+                <button
+                  type="button"
+                  onClick={() => setMode("connect-partner")}
+                  className="text-xs sm:text-sm font-serif text-[#78716c] hover:text-[#2a2b2f] flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <SolarIcon name="arrow-left" size={14} />
+                  <span>Back to Partner Connect</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={!bothSigned}
+                  onClick={handleRatifyContract}
+                  className={`px-8 py-3.5 rounded-full font-serif text-sm flex items-center gap-2 transition-all ${
+                    bothSigned
+                      ? "bg-[#B4562A] hover:bg-[#9c4820] text-white shadow-lg hover:shadow-xl cursor-pointer active:scale-95"
+                      : "bg-[#e5ddd3] text-[#8c827a] cursor-not-allowed opacity-60"
+                  }`}
+                >
+                  <span>Ratify & Activate Couple Contract</span>
+                  <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center">
+                    <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </span>
+                </button>
+              </div>
+            </main>
+
+            <footer className="px-6 py-4 text-center text-[11px] text-[#8c827a] border-t border-[#eeddc8]/50">
+              Webank Smart Contract Standard • Dual Key Cryptographic Ratification
+            </footer>
+          </div>
+        );
+      })()}
+
+      {/* =========================================================================
+          SCREEN 8: CELEBRATORY WELCOMING SCREEN (RATIFIED CONTRACT & ENTRY)
+          ========================================================================= */}
+      {mode === "welcoming" && (
+        <div className="flex-1 flex flex-col justify-between min-h-screen bg-[#FEFBF5]">
+          {/* Top Header */}
+          <header className="px-6 sm:px-12 py-5 border-b border-[#eeddc8]/70 flex items-center justify-between bg-white/70 backdrop-blur-md sticky top-0 z-30">
+            <div
+              onClick={() => onClose && onClose()}
+              className="cursor-pointer flex items-center gap-2"
+            >
+              <SeiyaLogo height={34} />
+            </div>
+
+            {/* Step Breadcrumbs */}
+            <div className="hidden md:flex items-center gap-3 text-xs font-serif">
+              <span className="flex items-center gap-1.5 text-emerald-700 font-medium">
+                <span className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center text-[11px]">✓</span>
+                Profiling
+              </span>
+              <span className="text-[#c7bcb0]">→</span>
+              <span className="flex items-center gap-1.5 text-emerald-700 font-medium">
+                <span className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center text-[11px]">✓</span>
+                Connected
+              </span>
+              <span className="text-[#c7bcb0]">→</span>
+              <span className="flex items-center gap-1.5 text-emerald-700 font-medium">
+                <span className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center text-[11px]">✓</span>
+                Contract Ratified
+              </span>
+              <span className="text-[#c7bcb0]">→</span>
+              <span className="flex items-center gap-1.5 text-[#B4562A] font-bold">
+                <span className="w-5 h-5 rounded-full bg-[#B4562A] text-white flex items-center justify-center text-[11px]">4</span>
+                Welcome
+              </span>
+            </div>
+
+            {onClose ? (
+              <button
+                onClick={onClose}
+                className="text-xs text-[#78716c] hover:text-[#2a2b2f] flex items-center gap-1.5 cursor-pointer"
+              >
+                <SolarIcon name="close-circle" size={16} />
+                <span>Exit</span>
+              </button>
+            ) : (
+              <div className="w-16" />
+            )}
+          </header>
+
+          {/* Celebratory Hero & Certificate */}
+          <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-8 sm:py-12 flex flex-col justify-center space-y-8 text-center">
+            {/* Header Celebration */}
+            <div className="space-y-3">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-serif font-bold border border-emerald-200 shadow-2xs animate-bounce">
+                <span>🎉</span>
+                <span>Smart Contract Ratified & Active</span>
+              </div>
+              <h1 className="font-serif text-3xl sm:text-5xl text-[#2a2b2f] font-normal tracking-tight">
+                Welcome to Seiya, {activePartnerAName} & {activePartnerBName}!
+              </h1>
+              <p className="text-xs sm:text-sm text-[#78716c] max-w-lg mx-auto leading-relaxed">
+                Your shared financial space is officially open. You have established a transparent, equitable foundation that protects personal autonomy and elevates couple goals.
+              </p>
+            </div>
+
+            {/* Official Ratified Contract Certificate Card */}
+            <div className="bg-[#FEF9E9] border-2 border-[#d4af37]/60 rounded-3xl p-6 sm:p-8 shadow-xl text-left space-y-6 relative overflow-hidden">
+              {/* Subtle Watermark Stamp */}
+              <div className="absolute right-4 bottom-4 opacity-5 pointer-events-none">
+                <SolarIcon name="shield-check" size={160} />
+              </div>
+
+              {/* Certificate Header */}
+              <div className="flex items-center justify-between border-b border-[#ebd7be] pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#d4af37]/20 text-[#a37f14] flex items-center justify-center">
+                    <SolarIcon name="shield-check" size={24} />
+                  </div>
+                  <div>
+                    <h3 className="font-serif text-base font-bold text-[#2a2b2f] tracking-wide">
+                      COUPLE FINANCIAL ACCORD CERTIFICATE
+                    </h3>
+                    <p className="text-[11px] font-mono text-[#8c827a]">
+                      CONTRACT #SEIYA-2026-MUTUAL-ACCORD • WEBANK BLOCKCHAIN
+                    </p>
+                  </div>
+                </div>
+
+                <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-300">
+                  STATUS: ACTIVE
+                </span>
+              </div>
+
+              {/* Certificate Key Terms Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div className="p-3.5 rounded-xl bg-white/80 border border-[#edd7be] space-y-1">
+                  <span className="text-[#8c827a] font-serif">Contribution & Split Ratio:</span>
+                  <div className="font-mono font-bold text-sm text-[#2a2b2f]">
+                    {contractSplitA}% {activePartnerAName} : {contractSplitB}% {activePartnerBName}
+                  </div>
+                  <p className="text-[11px] text-[#6d6459]">
+                    Shared expenses & goals allocated according to this mutual ratio.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-white/80 border border-[#edd7be] space-y-1">
+                  <span className="text-[#8c827a] font-serif">Dual-Approval Threshold:</span>
+                  <div className="font-mono font-bold text-sm text-[#2a2b2f]">
+                    ${contractThreshold} {contractCurrency}
+                  </div>
+                  <p className="text-[11px] text-[#6d6459]">
+                    Purchases exceeding this require both digital signatures.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-white/80 border border-[#edd7be] space-y-1">
+                  <span className="text-[#8c827a] font-serif">Vault Architecture:</span>
+                  <div className="font-serif font-bold text-sm text-[#2a2b2f]">
+                    {contractWalletMode === "hybrid"
+                      ? "Hybrid Smart Vault"
+                      : contractWalletMode === "pooled"
+                      ? "Fully Pooled Vault"
+                      : "Goal-Only Shared Pool"}
+                  </div>
+                  <p className="text-[11px] text-[#6d6459]">
+                    Personal accounts remain private; joint goals unified.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-white/80 border border-[#edd7be] space-y-1">
+                  <span className="text-[#8c827a] font-serif">Active Safeguards:</span>
+                  <div className="space-y-1 text-[11px] text-[#2a2b2f] pt-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-emerald-700">✓</span>
+                      <span>{contractCoolingOff ? "Late-Night Cooling Hold (Active)" : "Cooling Hold (Off)"}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-emerald-700">✓</span>
+                      <span>{contractEmergencyLock ? "Emergency Reserve Double-Lock (Active)" : "Standard Emergency"}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Verified Signatures Seal */}
+              <div className="pt-2 border-t border-[#ebd7be] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2 text-emerald-800">
+                  <SolarIcon name="check-circle" size={16} />
+                  <span>
+                    Ratified by <strong>{activePartnerAName}</strong> & <strong>{activePartnerBName}</strong>
+                  </span>
+                </div>
+                <div className="text-[11px] font-mono text-[#8c827a]">
+                  Cryptographic Hash: 0x7F3...9E2A (Consensus Verified)
+                </div>
+              </div>
+            </div>
+
+            {/* Mascot Greeting */}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 p-5 rounded-2xl bg-white/70 border border-[#eeddc8] text-left">
+              <div className="w-16 h-16 relative shrink-0">
+                <Image
+                  src="/images/auth/auth-mascot.png"
+                  alt="Seiya Financial Mediator"
+                  fill
+                  className="object-contain"
+                />
+              </div>
+              <div className="space-y-1 text-center sm:text-left">
+                <div className="font-serif font-bold text-sm text-[#2a2b2f]">
+                  Meet Seiya, your AI mediator:
+                </div>
+                <p className="text-xs text-[#686057] leading-relaxed">
+                  &ldquo;I&apos;m here to keep your joint finances frictionless! I will track your budget, flag milestone achievements, and mediate any spending questions with complete neutrality.&rdquo;
+                </p>
+              </div>
+            </div>
+
+            {/* Final CTA Button to Enter Home */}
+            <div className="pt-4 flex flex-col items-center gap-2">
+              <button
+                type="button"
+                onClick={handleEnterHome}
+                className="px-10 py-4 rounded-full bg-[#B4562A] hover:bg-[#9c4820] text-white font-serif text-base shadow-xl hover:shadow-2xl transition-all cursor-pointer active:scale-95 flex items-center gap-3"
+              >
+                <span>Enter Home Dashboard</span>
+                <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
+                  <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                  </svg>
+                </span>
+              </button>
+              <span className="text-[11px] text-[#8c827a]">
+                You will be signed in as {activePartnerAName} with instant switch to {activePartnerBName}.
+              </span>
+            </div>
+          </main>
+
+          <footer className="px-6 py-4 text-center text-[11px] text-[#8c827a] border-t border-[#eeddc8]/50">
+            Seiya Finance • Collaborative Wealth Management for Couples
+          </footer>
         </div>
       )}
 
