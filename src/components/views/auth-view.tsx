@@ -52,7 +52,16 @@ export function AuthView({
 
   // Join Space Invite Code Modal state
   const [showJoinModal, setShowJoinModal] = useState(false);
-  const [inviteCode, setInviteCode] = useState("SEIYA-7F3X");
+  const [generatedPairCode] = useState(() => {
+    const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    const numbers = "23456789";
+    let l = "";
+    let n = "";
+    for (let i = 0; i < 4; i++) l += letters.charAt(Math.floor(Math.random() * letters.length));
+    for (let i = 0; i < 4; i++) n += numbers.charAt(Math.floor(Math.random() * numbers.length));
+    return `${l}-${n}`;
+  });
+  const [inviteCode, setInviteCode] = useState("");
   const [joinError, setJoinError] = useState("");
 
   // Choose Your Path selection state ("create" | "join" | null)
@@ -1864,10 +1873,6 @@ export function AuthView({
           {/* Main Content */}
           <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-8 sm:py-12 flex flex-col justify-center">
             <div className="text-center space-y-3 mb-8">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#B4562A]/10 text-[#B4562A] text-xs font-serif font-semibold border border-[#B4562A]/20">
-                <SolarIcon name="users-group-rounded" size={15} />
-                <span>Step 2 of 4 • Couple Vault Synchronization</span>
-              </div>
               <h1 className="font-serif text-3xl sm:text-4xl text-[#2a2b2f] font-normal tracking-tight">
                 Connect with Your Partner
               </h1>
@@ -1879,34 +1884,51 @@ export function AuthView({
             {/* Central Invite & Pairing Card */}
             <div className="bg-[#FEF9E9] border border-[#eeddc8] rounded-[28px] p-6 sm:p-9 shadow-sm space-y-8">
               {/* Partner Code Box */}
-              <div>
-                <label className="block text-xs font-bold text-[#5c5349] uppercase tracking-wider mb-2 text-center">
+              <div className="space-y-4">
+                <label className="block text-xs font-bold text-[#5c5349] uppercase tracking-wider text-center">
                   Your Couple Invite Code
                 </label>
-                <div className="bg-white rounded-2xl border-2 border-dashed border-[#B4562A]/40 p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
-                  <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-xl bg-[#B4562A]/10 text-[#B4562A] flex items-center justify-center shrink-0">
-                      <SolarIcon name="lock-keyhole" size={22} />
-                    </div>
-                    <div className="text-left">
-                      <span className="font-mono text-2xl sm:text-3xl font-bold tracking-widest text-[#B4562A]">
-                        SEIYA-7F3X
-                      </span>
-                      <p className="text-[11px] text-[#8c827a]">
-                        Valid for 7 days • Webank secure pairing channel
-                      </p>
-                    </div>
+
+                {/* 4 letters + 4 numbers segmented boxes (OTP Style) */}
+                <div className="bg-white rounded-2xl border border-[#eeddc8] p-5 sm:p-6 shadow-xs flex flex-col items-center gap-5">
+                  <div className="flex items-center justify-center gap-1.5 sm:gap-2.5 flex-wrap">
+                    {/* First 4 Letters */}
+                    {generatedPairCode.split("-")[0].split("").map((char, idx) => (
+                      <div
+                        key={`letter-${idx}`}
+                        className="w-10 h-13 sm:w-12 sm:h-16 rounded-xl bg-[#FEFBF5] border-2 border-[#e8cba5] text-[#B4562A] font-mono font-bold text-xl sm:text-2xl flex items-center justify-center shadow-xs select-all"
+                      >
+                        {char}
+                      </div>
+                    ))}
+
+                    {/* Divider Dash */}
+                    <div className="w-2.5 sm:w-3 h-0.5 bg-[#c7bcb0] rounded-full mx-0.5 sm:mx-1 self-center" />
+
+                    {/* Next 4 Numbers */}
+                    {generatedPairCode.split("-")[1].split("").map((digit, idx) => (
+                      <div
+                        key={`num-${idx}`}
+                        className="w-10 h-13 sm:w-12 sm:h-16 rounded-xl bg-[#FEFBF5] border-2 border-[#e8cba5] text-[#2a2b2f] font-mono font-bold text-xl sm:text-2xl flex items-center justify-center shadow-xs select-all"
+                      >
+                        {digit}
+                      </div>
+                    ))}
                   </div>
 
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <p className="text-xs text-[#8c827a] text-center">
+                    Valid for 7 days
+                  </p>
+
+                  <div className="flex items-center gap-2.5 w-full sm:w-auto justify-center">
                     <button
                       type="button"
                       onClick={() => {
-                        navigator.clipboard?.writeText("SEIYA-7F3X");
+                        navigator.clipboard?.writeText(generatedPairCode);
                         setCopiedCode(true);
                         setTimeout(() => setCopiedCode(false), 2500);
                       }}
-                      className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-[#B4562A] hover:bg-[#9c4820] text-white text-xs font-serif font-medium flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
+                      className="px-5 py-2.5 rounded-xl bg-[#B4562A] hover:bg-[#9c4820] text-white text-xs font-serif font-medium flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
                     >
                       <SolarIcon name={copiedCode ? "check-circle" : "paperclip"} size={14} />
                       <span>{copiedCode ? "Code Copied!" : "Copy Code"}</span>
@@ -1914,15 +1936,15 @@ export function AuthView({
                     <button
                       type="button"
                       onClick={() => {
-                        navigator.clipboard?.writeText("https://seiya.finance/join/SEIYA-7F3X");
+                        navigator.clipboard?.writeText(`https://seiya.finance/join/${generatedPairCode}`);
                         setCopiedCode(true);
                         setTimeout(() => setCopiedCode(false), 2500);
                       }}
-                      className="px-3 py-2.5 rounded-xl bg-white hover:bg-[#fbf4de] text-[#5c5349] border border-[#ded7ce] text-xs font-serif font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      className="px-4 py-2.5 rounded-xl bg-white hover:bg-[#fbf4de] text-[#5c5349] border border-[#ded7ce] text-xs font-serif font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                       title="Copy invite URL"
                     >
                       <SolarIcon name="arrow-right" size={14} />
-                      <span className="hidden sm:inline">Invite Link</span>
+                      <span>Invite Link</span>
                     </button>
                   </div>
                 </div>
@@ -2917,7 +2939,7 @@ export function AuthView({
                     setInviteCode(e.target.value.toUpperCase());
                     setJoinError("");
                   }}
-                  placeholder="e.g. SEIYA-7F3X"
+                  placeholder="e.g. ABCD-4829"
                   className="w-full px-4 py-3 rounded-xl border border-[#ded7ce] bg-white text-center font-mono font-bold text-lg text-[#2a2b2f] tracking-widest placeholder-[#a69e96] focus:outline-none focus:ring-2 focus:ring-[#B4562A]/20 focus:border-[#B4562A]"
                 />
                 {joinError && (
