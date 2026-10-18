@@ -18,7 +18,6 @@ export interface ProfileViewProps {
 export function ProfileView({ onLogout, initialTab = "overview" }: ProfileViewProps) {
   const {
     currentUser,
-    setCurrentUser,
     partnerAName,
     partnerBName,
     setPartnerNames,
@@ -102,12 +101,6 @@ export function ProfileView({ onLogout, initialTab = "overview" }: ProfileViewPr
     showToast("Profile name updated successfully.");
   };
 
-  const handleSwitchPersona = (role: "partner_a" | "partner_b") => {
-    setCurrentUser(role);
-    setNameInput(role === "partner_a" ? partnerAName : partnerBName);
-    setIsEditingName(false);
-  };
-
   const handleProposeContract = (e: React.FormEvent) => {
     e.preventDefault();
     proposeContractChange(
@@ -133,42 +126,7 @@ export function ProfileView({ onLogout, initialTab = "overview" }: ProfileViewPr
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-24 md:pb-16 animate-in fade-in-0 duration-200">
-      {/* 1. ACTIVE PERSONA SWITCHER BAR */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:p-3.5 bg-[#f5eee1] rounded-[16px] border border-[#d1c9bf]/30">
-        <div className="flex items-center gap-2">
-          <SolarIcon name="users-group-rounded" size={17} className="text-[#B45529]" />
-          <span className="text-xs font-bold text-[#2a2b2f]">Active Signing Persona</span>
-          <span className="text-[11px] text-[#808988] hidden sm:inline">· Switch to preview dual-key view</span>
-        </div>
-        <div className="inline-flex items-center gap-1.5 bg-[#fef9ef] p-1 rounded-full border border-[#d1c9bf]/50 self-start sm:self-auto">
-          <button
-            type="button"
-            onClick={() => handleSwitchPersona("partner_a")}
-            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
-              currentUser === "partner_a"
-                ? "bg-[#B45529] text-[#fef9ef] shadow-xs"
-                : "text-[#515151] hover:text-[#2a2b2f]"
-            }`}
-          >
-            <div className="w-2 h-2 rounded-full bg-white/90" />
-            <span>{partnerAName} (Partner A)</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSwitchPersona("partner_b")}
-            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
-              currentUser === "partner_b"
-                ? "bg-[#3B1D17] text-[#fef9ef] shadow-xs"
-                : "text-[#515151] hover:text-[#2a2b2f]"
-            }`}
-          >
-            <div className="w-2 h-2 rounded-full bg-white/90" />
-            <span>{partnerBName} (Partner B)</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 2. PROFILE HERO CARD */}
+      {/* 1. PROFILE HERO CARD */}
       <div className="p-5 sm:p-6 rounded-[20px] bg-[#f5eee1] border border-[#d1c9bf]/35 flex flex-col sm:flex-row sm:items-center justify-between gap-5 shadow-2xs">
         <div className="flex items-start sm:items-center gap-4">
           <div

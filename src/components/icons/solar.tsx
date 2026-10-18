@@ -50,7 +50,13 @@ export type SolarIconName =
   | "book"
   | "bolt"
   | "trash"
-  | "layers";
+  | "layers"
+  | "microphone"
+  | "microphone-slash"
+  | "volume-loud"
+  | "volume-cross"
+  | "soundwave"
+  | "phone-hangup";
 
 interface SolarIconProps extends React.SVGProps<SVGSVGElement> {
   name: SolarIconName;
@@ -564,6 +570,60 @@ export function SolarIcon({
           <polygon points="12 2 2 7 12 12 22 7 12 2" />
           <polyline points="2 17 12 22 22 17" />
           <polyline points="2 12 12 17 22 12" />
+        </svg>
+      );
+    case "microphone":
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+          <path d="M12 2a3 3 0 00-3 3v7a3 3 0 006 0V5a3 3 0 00-3-3z" />
+          <path d="M19 10v2a7 7 0 01-14 0v-2" />
+          <line x1="12" y1="19" x2="12" y2="22" />
+          <line x1="8" y1="22" x2="16" y2="22" />
+        </svg>
+      );
+    case "microphone-slash":
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+          <line x1="2" y1="2" x2="22" y2="22" />
+          <path d="M18.89 13.23A7.12 7.12 0 0019 12v-2" />
+          <path d="M5 10v2a7 7 0 0012 5" />
+          <path d="M15 9.34V5a3 3 0 00-5.68-1.33" />
+          <path d="M9 9v3a3 3 0 005.12 2.12" />
+          <line x1="12" y1="19" x2="12" y2="22" />
+          <line x1="8" y1="22" x2="16" y2="22" />
+        </svg>
+      );
+    case "volume-loud":
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+          <path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07" />
+        </svg>
+      );
+    case "volume-cross":
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+          <line x1="22" y1="9" x2="16" y2="15" />
+          <line x1="16" y1="9" x2="22" y2="15" />
+        </svg>
+      );
+    case "soundwave":
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+          <path d="M2 10v4" />
+          <path d="M6 6v12" />
+          <path d="M10 3v18" />
+          <path d="M14 8v8" />
+          <path d="M18 5v14" />
+          <path d="M22 10v4" />
+        </svg>
+      );
+    case "phone-hangup":
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+          <path d="M16 10c.83 0 1.5-.67 1.5-1.5 0-3.31-2.69-6-6-6s-6 2.69-6 6c0 .83.67 1.5 1.5 1.5h1.2c.4 0 .76-.23.92-.6l.72-1.68c.17-.4.07-.86-.24-1.16l-.8-.8c.7-.72 1.6-1.16 2.7-1.16s2 .44 2.7 1.16l-.8.8c-.31.3-.41.76-.24 1.16l.72 1.68c.16.37.52.6.92.6H16z" />
+          <line x1="3" y1="21" x2="21" y2="21" />
         </svg>
       );
     default:

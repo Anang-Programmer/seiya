@@ -76,3 +76,188 @@ input[type="number"],
 ::-webkit-scrollbar-thumb:hover {
   background: #B45529;
 }
+
+/* Circular Water Avatar Pulse Keyframes */
+@keyframes waterPulse {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(1.68);
+    opacity: 0;
+  }
+}
+
+@keyframes waterPulseSlow {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.65;
+  }
+  60% {
+    opacity: 0.25;
+  }
+  100% {
+    transform: scale(2.05);
+    opacity: 0;
+  }
+}
+
+@keyframes floatMascotSmooth {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.animate-water-pulse-1 {
+  animation: waterPulse 2.4s cubic-bezier(0.2, 0.7, 0.4, 1) infinite;
+}
+
+.animate-water-pulse-2 {
+  animation: waterPulse 2.4s cubic-bezier(0.2, 0.7, 0.4, 1) infinite 0.8s;
+}
+
+.animate-water-pulse-3 {
+  animation: waterPulse 2.4s cubic-bezier(0.2, 0.7, 0.4, 1) infinite 1.6s;
+}
+
+.animate-water-pulse-slow {
+  animation: waterPulseSlow 3.2s cubic-bezier(0.2, 0.7, 0.4, 1) infinite 0.4s;
+}
+
+.animate-float-mascot-smooth {
+  animation: floatMascotSmooth 3.6s ease-in-out infinite;
+}
+
+/* ChatGPT Voice Orb Keyframes */
+@keyframes chatgptOrbBreathe {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 4px 16px rgba(180, 85, 41, 0.35));
+  }
+  50% {
+    transform: scale(1.06);
+    filter: drop-shadow(0 6px 26px rgba(180, 85, 41, 0.55));
+  }
+}
+
+@keyframes chatgptOrbSpeaking {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 4px 18px rgba(180, 85, 41, 0.4));
+  }
+  25% {
+    transform: scale(1.12);
+    filter: drop-shadow(0 8px 30px rgba(180, 85, 41, 0.65));
+  }
+  50% {
+    transform: scale(0.96);
+    filter: drop-shadow(0 4px 16px rgba(180, 85, 41, 0.35));
+  }
+  75% {
+    transform: scale(1.14);
+    filter: drop-shadow(0 8px 32px rgba(201, 138, 79, 0.7));
+  }
+}
+
+@keyframes chatgptOrbListening {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+.animate-chatgpt-orb {
+  animation: chatgptOrbBreathe 3s ease-in-out infinite;
+}
+
+.animate-chatgpt-orb-speaking {
+  animation: chatgptOrbSpeaking 1.6s ease-in-out infinite;
+}
+
+.animate-chatgpt-orb-listening {
+  animation: chatgptOrbListening 2s ease-in-out infinite;
+}
+
+/* ChatGPT Fluid Internal Liquid Swirl Animations */
+@keyframes fluidBlob1 {
+  0%, 100% {
+    transform: translate(0%, 0%) scale(1) rotate(0deg);
+  }
+  33% {
+    transform: translate(16%, -18%) scale(1.22) rotate(120deg);
+  }
+  66% {
+    transform: translate(-14%, 14%) scale(0.85) rotate(240deg);
+  }
+}
+
+@keyframes fluidBlob2 {
+  0%, 100% {
+    transform: translate(0%, 0%) scale(1) rotate(0deg);
+  }
+  33% {
+    transform: translate(-18%, 14%) scale(1.18) rotate(-120deg);
+  }
+  66% {
+    transform: translate(15%, -15%) scale(0.9) rotate(-240deg);
+  }
+}
+
+@keyframes fluidBlob3 {
+  0%, 100% {
+    transform: translate(0%, 0%) scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translate(12%, 10%) scale(1.3);
+    opacity: 0.95;
+  }
+}
+
+@keyframes fluidPulseCore {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.75;
+  }
+  50% {
+    transform: scale(1.28);
+    opacity: 1;
+  }
+}
+
+.animate-fluid-blob-1 {
+  animation: fluidBlob1 8s ease-in-out infinite;
+}
+
+.animate-fluid-blob-2 {
+  animation: fluidBlob2 6.5s ease-in-out infinite;
+}
+
+.animate-fluid-blob-3 {
+  animation: fluidBlob3 5s ease-in-out infinite;
+}
+
+.animate-fluid-speaking-1 {
+  animation: fluidBlob1 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.animate-fluid-speaking-2 {
+  animation: fluidBlob2 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.animate-fluid-speaking-3 {
+  animation: fluidBlob3 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.animate-fluid-speaking-pulse {
+  animation: fluidPulseCore 1.4s ease-in-out infinite;
+}

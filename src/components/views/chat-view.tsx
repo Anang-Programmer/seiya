@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import dynamic from "next/dynamic";
+import type { OrbSignal } from "orb-ui";
 import { SolarIcon } from "@/components/icons/solar";
 import { SeiyaIcon } from "@/components/icons/seiya-logo";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +11,23 @@ import { SeiyaVideoAvatar } from "@/components/ui/seiya-video-avatar";
 import { ActionCard, PlanCard, ClarificationCard } from "@/components/cards/domain-cards";
 import { formatMoneyConverted } from "@/lib/utils";
 import { useApp, ChatMessage } from "@/lib/store";
+
+const Orb = dynamic(() => import("orb-ui").then((mod) => mod.Orb), {
+  ssr: false,
+});
+
+const orangeCloudTheme = {
+  name: "cloud" as const,
+  appearance: {
+    deepColor: "#8c320a",      // Rich burnt orange / terracotta
+    upperColor: "#f26a1b",     // Radiant vibrant sunset orange
+    lowerColor: "#fb923c",     // Soft warm amber peach
+    highlightColor: "#fff7ed", // Luminous sunlight gold cream
+    launchColor: "#f26a1b",
+    spinnerColor: "#ea580c",
+  },
+};
+
 
 interface ChatSession {
   id: string;
@@ -216,9 +235,65 @@ export function ChatView() {
   const [editTitleText, setEditTitleText] = useState("");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [newChatMenuOpen, setNewChatMenuOpen] = useState(false);
+  const [isVoiceChatActive, setIsVoiceChatActive] = useState(false);
+  const [isVoiceMuted, setIsVoiceMuted] = useState(false);
+  const [isVoiceSpeaking, setIsVoiceSpeaking] = useState(false);
+  const [isVoiceListening, setIsVoiceListening] = useState(false);
+  const [liveVoiceTranscript, setLiveVoiceTranscript] = useState("");
+  const [hasVoiceTranscribed, setHasVoiceTranscribed] = useState(false);
+  const [orbVolume, setOrbVolume] = useState(0);
+  const recognitionRef = useRef<any>(null);
+  const mascotVideoRef = useRef<HTMLVideoElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Audio-reactive volume animation for Cloud Voice Orb
+  useEffect(() => {
+    if (!isVoiceChatActive || isVoiceMuted) {
+      setOrbVolume(0);
+      return;
+    }
+
+    if (isVoiceSpeaking) {
+      const interval = setInterval(() => {
+        setOrbVolume(0.55 + Math.sin(Date.now() / 150) * 0.25 + Math.random() * 0.15);
+      }, 80);
+      return () => clearInterval(interval);
+    }
+
+    if (isVoiceListening) {
+      const interval = setInterval(() => {
+        if (liveVoiceTranscript.trim().length > 0) {
+          setOrbVolume(0.45 + Math.sin(Date.now() / 180) * 0.2 + Math.random() * 0.2);
+        } else {
+          setOrbVolume(0.08 + Math.random() * 0.08);
+        }
+      }, 100);
+      return () => clearInterval(interval);
+    }
+
+    setOrbVolume(0);
+  }, [isVoiceChatActive, isVoiceMuted, isVoiceSpeaking, isVoiceListening, liveVoiceTranscript]);
+
+  const orbSignal: OrbSignal = {
+    state: !isVoiceChatActive
+      ? "idle"
+      : isVoiceSpeaking
+      ? "speaking"
+      : isProcessing
+      ? "thinking"
+      : "listening",
+    inputVolume: isVoiceListening && !isVoiceMuted ? orbVolume : 0,
+    outputVolume: isVoiceSpeaking ? orbVolume : 0,
+  };
+
   const activeSession = activeSessionId ? sessions.find((s) => s.id === activeSessionId) || null : null;
+  const shouldHideLandingHero = Boolean(
+    activeSession ||
+    isVoiceChatActive ||
+    liveVoiceTranscript.trim().length > 0 ||
+    hasVoiceTranscribed ||
+    isProcessing
+  );
 
   const sharedCount = sessions.filter((s) => s.isShared).length;
   const privateCount = sessions.filter((s) => !s.isShared).length;
@@ -318,6 +393,8 @@ export function ChatView() {
     setActiveSessionId(null);
     setNewChatMode(mode);
     setInputText("");
+    setHasVoiceTranscribed(false);
+    setLiveVoiceTranscript("");
     if (typeof window !== "undefined" && window.innerWidth < 768) {
       setShowHistory(false);
     }
@@ -449,6 +526,148 @@ export function ChatView() {
       setIsProcessing(false);
     }, 900);
   };
+
+  // Speech Synthesis Helper for Voice Chat
+  const speakVoiceText = (text: string) => {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+      const clean = text.replace(/[*_#`~[\]]/g, "").replace(/https?:\/\/\S+/g, "").trim();
+      const utterance = new SpeechSynthesisUtterance(clean);
+      utterance.rate = 1.02;
+      utterance.pitch = 1.05;
+      utterance.lang = "en-US";
+
+      const voices = window.speechSynthesis.getVoices();
+      const preferred = voices.find(
+        (v) =>
+          v.lang.startsWith("en") &&
+          (v.name.includes("Samantha") || v.name.includes("Google") || v.name.includes("Natural"))
+      );
+      if (preferred) utterance.voice = preferred;
+
+      utterance.onstart = () => {
+        setIsVoiceSpeaking(true);
+      };
+      utterance.onend = () => {
+        setIsVoiceSpeaking(false);
+        if (isVoiceChatActive && !isVoiceMuted) {
+          startVoiceListening();
+        }
+      };
+      utterance.onerror = () => {
+        setIsVoiceSpeaking(false);
+      };
+      window.speechSynthesis.speak(utterance);
+    } else {
+      setIsVoiceSpeaking(true);
+      setTimeout(() => setIsVoiceSpeaking(false), 2400);
+    }
+  };
+
+  // Start Speech Recognition
+  const startVoiceListening = () => {
+    if (typeof window === "undefined" || isVoiceMuted) return;
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+
+    try {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch (e) {}
+      }
+      const rec = new SpeechRecognition();
+      rec.continuous = false;
+      rec.interimResults = true;
+      rec.lang = "en-US";
+
+      rec.onstart = () => {
+        setIsVoiceListening(true);
+      };
+      rec.onresult = (event: any) => {
+        let interim = "";
+        let final = "";
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) final += event.results[i][0].transcript;
+          else interim += event.results[i][0].transcript;
+        }
+        const spoken = final || interim;
+        setLiveVoiceTranscript(spoken);
+        if (spoken.trim()) {
+          setHasVoiceTranscribed(true);
+        }
+
+        if (final.trim()) {
+          rec.stop();
+          setLiveVoiceTranscript("");
+          handleVoiceSubmit(final.trim());
+        }
+      };
+      rec.onerror = () => {
+        setIsVoiceListening(false);
+      };
+      rec.onend = () => {
+        setIsVoiceListening(false);
+      };
+      recognitionRef.current = rec;
+      rec.start();
+    } catch (e) {
+      setIsVoiceListening(false);
+    }
+  };
+
+  // Stop Speech Recognition
+  const stopVoiceListening = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {}
+    }
+    setIsVoiceListening(false);
+  };
+
+  // Handle Voice Message Submission
+  const handleVoiceSubmit = async (queryText: string) => {
+    if (!queryText.trim()) return;
+    setHasVoiceTranscribed(true);
+    setLiveVoiceTranscript("");
+    await handleSend(queryText);
+
+    // Speak intelligent tailored reply matching couple financials
+    const lower = queryText.toLowerCase();
+    let reply = "";
+    if (lower.includes("bill") || lower.includes("afford")) {
+      reply = `All regular bills this month are within agreed limits. You have sufficient liquidity in your shared pool.`;
+    } else if (lower.includes("lunch") || lower.includes("dinner") || lower.includes("food") || lower.includes("paid")) {
+      reply = `Logged your meal expense with standard 60 to 40 ratio! Both wallets have been adjusted.`;
+    } else if (lower.includes("kyoto") || lower.includes("trip") || lower.includes("savings")) {
+      reply = `Your Kyoto trip goal is progressing nicely! Target is 15,000 dollars in 10 months.`;
+    } else {
+      reply = `Under your Couple Contract, all rules and balances have been checked and approved!`;
+    }
+    speakVoiceText(reply);
+  };
+
+  // Manage voice mode lifecycle
+  useEffect(() => {
+    if (!isVoiceChatActive) {
+      stopVoiceListening();
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+      setIsVoiceSpeaking(false);
+      setIsVoiceListening(false);
+      setLiveVoiceTranscript("");
+    } else {
+      if (!isVoiceMuted) {
+        startVoiceListening();
+      }
+      if (mascotVideoRef.current) {
+        mascotVideoRef.current.play().catch(() => {});
+      }
+    }
+  }, [isVoiceChatActive, isVoiceMuted]);
 
   const quickPrompts = [
     {
@@ -889,14 +1108,14 @@ export function ChatView() {
       )}
 
       {/* 2. MAIN CHAT CONTAINER */}
-      <div className="flex-1 flex flex-col min-w-0 h-full">
+      <div className="flex-1 flex flex-col min-w-0 h-full bg-[#f5eee1] text-[#2a2b2f] relative overflow-hidden">
         {/* Chat Header */}
-        <div className="px-4 sm:px-5 py-3 bg-[#f5eee1] border-b border-[#d1c9bf]/30 flex items-center justify-between gap-3">
+        <div className="px-4 sm:px-5 py-3 border-b border-[#d1c9bf]/30 bg-[#f5eee1] flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
             {!showHistory && (
               <button
                 onClick={() => setShowHistory(true)}
-                className="p-1.5 rounded-lg bg-[#fef9ef] text-[#515151] hover:text-[#B45529] transition-colors cursor-pointer shadow-2xs shrink-0"
+                className="p-1.5 rounded-lg bg-[#fef9ef] border border-[#d1c9bf]/40 text-[#515151] hover:text-[#B45529] transition-colors cursor-pointer shadow-2xs shrink-0"
                 title="Open chat history"
               >
                 <SolarIcon name="chat-round-dots" size={16} />
@@ -905,19 +1124,24 @@ export function ChatView() {
 
             {/* Mascot Emblem with thinking eye animation */}
             <div className="w-9 h-9 rounded-full bg-[#fef9ef] border border-[#e5dcd0] flex items-center justify-center shrink-0 shadow-2xs">
-              <SeiyaIcon size={24} isThinking={isProcessing} />
+              <SeiyaIcon size={24} isThinking={isProcessing || isVoiceSpeaking} />
             </div>
 
             <div className="min-w-0">
               <h3 className="text-sm font-serif font-normal text-[#2a2b2f] leading-tight truncate">
                 {activeSession?.title || "New Consultation"}
               </h3>
-              {isProcessing && (
+              {isVoiceChatActive ? (
+                <div className="flex items-center gap-1.5 text-[11px] text-[#B45529] font-medium mt-0.5 animate-in fade-in-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#B45529] animate-ping" />
+                  <span>{isVoiceSpeaking ? "Seiya is speaking..." : isVoiceListening ? `Listening to ${activeName}...` : "Voice Assistant Active"}</span>
+                </div>
+              ) : isProcessing ? (
                 <div className="flex items-center gap-1.5 text-[11px] text-[#B45529] font-medium mt-0.5 animate-in fade-in-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#B45529] animate-ping" />
                   <span>Analyzing rules & balances...</span>
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -928,7 +1152,7 @@ export function ChatView() {
                 variant="outline"
                 size="sm"
                 onClick={() => handleToggleShare(activeSession.id)}
-                className="h-7 px-2.5 rounded-full text-[11px] font-semibold text-[#B45529] border-[#B45529]/30 hover:bg-[#B45529] hover:text-[#fef9ef] gap-1 shadow-2xs"
+                className={`h-7 px-2.5 rounded-full text-[11px] font-semibold gap-1 shadow-2xs ${isVoiceChatActive ? "text-[#B45529] border-[#B45529]/40 bg-[#1c1b1a] hover:bg-[#2a170f]" : "text-[#B45529] border-[#B45529]/30 hover:bg-[#B45529] hover:text-[#fef9ef]"}`}
                 title={`Share this conversation with ${currentUser === "partner_a" ? partnerBName : partnerAName}`}
               >
                 <SolarIcon name="users-group-rounded" size={13} />
@@ -938,7 +1162,7 @@ export function ChatView() {
             )}
 
             {activeSession && activeSession.isShared && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#2d5232] bg-[#edf3ec] px-2.5 py-1 rounded-full border border-[#2d5232]/20">
+              <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border ${isVoiceChatActive ? "text-[#78c282] bg-[#162519] border-[#2d5232]/50" : "text-[#2d5232] bg-[#edf3ec] border-[#2d5232]/20"}`}>
                 <SolarIcon name="users-group-rounded" size={12} />
                 <span className="hidden sm:inline">Shared with {currentUser === "partner_a" ? partnerBName : partnerAName}</span>
                 <span className="sm:hidden">Shared</span>
@@ -949,24 +1173,32 @@ export function ChatView() {
           </div>
         </div>
 
-        {/* Quick Prompts Bar */}
-        <div className="px-4 py-2 bg-[#f5eee1] border-b border-[#d1c9bf]/20 overflow-x-auto whitespace-nowrap flex gap-2 scrollbar-none">
-          {quickPrompts.map((p, idx) => (
-            <button
-              key={idx}
-              onClick={() => handleSend(p.text)}
-              className="px-3 py-1 rounded-full bg-[#fef9ef] hover:text-[#B45529] hover:bg-[#ece3d3] text-[11px] font-semibold text-[#333333] transition-all cursor-pointer shrink-0 shadow-2xs"
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
+        {/* Quick Prompts Bar (Hidden in voice mode for minimal clean focus) */}
+        {!isVoiceChatActive && (
+          <div className="px-4 py-2 bg-[#f5eee1] border-b border-[#d1c9bf]/20 overflow-x-auto whitespace-nowrap flex gap-2 scrollbar-none">
+            {quickPrompts.map((p, idx) => (
+              <button
+                key={idx}
+                onClick={() => handleSend(p.text)}
+                className="px-3 py-1 rounded-full bg-[#fef9ef] hover:text-[#B45529] hover:bg-[#ece3d3] text-[11px] font-semibold text-[#333333] transition-all cursor-pointer shrink-0 shadow-2xs"
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Messages Scroll Area */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+        <div className={`flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 ${isVoiceChatActive ? "pb-24 sm:pb-28" : ""}`}>
           {/* Neutral Condition (No active session selected yet): AI landing screen with suggestions */}
           {!activeSession && (
-            <div className="h-full flex flex-col items-center justify-center text-center max-w-lg mx-auto py-8 sm:py-12 animate-in fade-in-0 duration-300">
+            <div
+              className={`flex flex-col items-center justify-center text-center max-w-lg mx-auto transition-all duration-700 ease-in-out ${
+                shouldHideLandingHero
+                  ? "opacity-0 -translate-y-8 scale-95 max-h-0 overflow-hidden pointer-events-none py-0 mb-0"
+                  : "opacity-100 translate-y-0 scale-100 max-h-[1400px] pointer-events-auto py-8 sm:py-12"
+              }`}
+            >
               <SeiyaVideoAvatar size={210} className="mb-2" />
               <h2 className="text-2xl font-serif font-normal text-[#2a2b2f] mb-2">
                 How can I help you today, {activeName}?
@@ -1065,10 +1297,10 @@ export function ChatView() {
               <div className={`max-w-[85%] sm:max-w-xl ${msg.sender === "user" ? "items-end" : "items-start"}`}>
                 {/* Message bubble */}
                 <div
-                  className={`p-3.5 rounded-[20px] text-xs sm:text-sm leading-relaxed ${
+                  className={`p-3.5 rounded-[22px] text-xs sm:text-sm leading-relaxed transition-all ${
                     msg.sender === "user"
                       ? "bg-[#B45529] text-[#fef9ef] rounded-tr-xs shadow-xs"
-                      : "bg-[#fef9ef] text-[#2a2b2f] rounded-tl-xs shadow-2xs"
+                      : "bg-[#fef9ef] text-[#2a2b2f] rounded-tl-xs shadow-2xs border border-[#e5dcd0]/70"
                   }`}
                 >
                   <p className="whitespace-pre-line">{msg.text}</p>
@@ -1168,57 +1400,233 @@ export function ChatView() {
             </div>
           )}
 
+          {/* Live Voice Speech Interim Bubble */}
+          {liveVoiceTranscript && (
+            <div className="flex gap-3 justify-end animate-in fade-in-0 duration-150">
+              <div className="max-w-[85%] sm:max-w-xl items-end">
+                <div className="p-3.5 rounded-[22px] text-xs sm:text-sm leading-relaxed bg-[#B45529] text-[#fef9ef] rounded-tr-xs shadow-xs flex items-center gap-2">
+                  <span>{liveVoiceTranscript}</span>
+                  <span className="w-2 h-2 rounded-full bg-[#fef9ef] animate-ping shrink-0" />
+                </div>
+              </div>
+            </div>
+          )}
+
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Form */}
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleSend();
-          }}
-          className="p-2.5 sm:p-4 bg-[#f5eee1] border-t border-[#d1c9bf]/30 flex items-center gap-1.5 sm:gap-2"
-        >
-          {/* Action buttons: Attach File & Image */}
-          <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+        {/* Voice AI Orb with orb-ui Cloud Theme */}
+        {isVoiceChatActive && (
+          <div className="absolute bottom-[66px] sm:bottom-[78px] left-1/2 -translate-x-1/2 z-20 flex flex-col items-center justify-center pointer-events-auto select-none animate-in fade-in-0 zoom-in-95 duration-300">
             <button
               type="button"
-              onClick={() => handleSend("Here is my invoice document. Please analyze and log it.")}
-              className="p-1.5 sm:p-2 rounded-full text-[#808988] hover:text-[#B45529] hover:bg-[#ece3d3] transition-colors cursor-pointer"
-              title="Attach document or PDF"
-              aria-label="Attach file"
+              onClick={() => setIsVoiceMuted(!isVoiceMuted)}
+              className="relative flex items-center justify-center rounded-full transition-transform duration-300 active:scale-95 cursor-pointer focus:outline-none border-0 border-none outline-none ring-0 shadow-none appearance-none bg-transparent"
+              style={{ border: "none", outline: "none", boxShadow: "none" }}
+              title={
+                isVoiceSpeaking
+                  ? "Seiya is speaking..."
+                  : isVoiceListening
+                  ? isVoiceMuted
+                    ? "Muted (tap to unmute)"
+                    : `Listening to ${activeName}... (tap to mute)`
+                  : isVoiceMuted
+                  ? "Muted (tap to unmute)"
+                  : "Voice active (tap to mute)"
+              }
+              aria-label="Cloud Voice Orb"
             >
-              <SolarIcon name="paperclip" size={17} />
+              <Orb
+                theme={orangeCloudTheme}
+                signal={orbSignal}
+                size={160}
+                interactive={false}
+                slotProps={{
+                  root: {
+                    className: "border-0 border-none outline-none ring-0 shadow-none",
+                    style: { border: "none", outline: "none", boxShadow: "none" },
+                  },
+                  content: {
+                    className: "overflow-hidden rounded-full border-0 border-none outline-none ring-0 shadow-none",
+                    style: {
+                      border: "none",
+                      outline: "none",
+                      boxShadow: "none",
+                      overflow: "hidden",
+                      borderRadius: "50%",
+                      WebkitMaskImage: "-webkit-radial-gradient(white, black)",
+                    },
+                  },
+                  surface: {
+                    className: "border-0 border-none outline-none ring-0 shadow-none",
+                    style: {
+                      border: "none",
+                      outline: "none",
+                      boxShadow: "none",
+                      clipPath: "circle(49% at 50% 50%)",
+                      WebkitClipPath: "circle(49% at 50% 50%)",
+                    },
+                  },
+                }}
+                className="border-0 border-none outline-none ring-0 shadow-none"
+              />
+              {isVoiceMuted && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <span className="px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase bg-[#1c1b1a]/85 text-white rounded-full backdrop-blur-xs border border-white/20 shadow-sm">
+                    Muted
+                  </span>
+                </div>
+              )}
             </button>
+          </div>
+        )}
+
+        {/* Bottom Dock: Smooth Morphing Between Standard Chat Input and Voice Controls */}
+        <div className="p-2.5 sm:p-4 bg-[#f5eee1] border-t border-[#d1c9bf]/30 flex items-center justify-between gap-2 sm:gap-3 z-30 transition-all duration-500 ease-in-out relative min-h-[58px] sm:min-h-[64px]">
+          {/* 1. Standard Chat Input (Smoothly transitions out and hides when Voice Chat is active) */}
+          <div
+            className={`w-full flex items-center gap-1.5 sm:gap-2 transition-all duration-500 ease-in-out ${
+              isVoiceChatActive
+                ? "opacity-0 -translate-y-2 pointer-events-none absolute inset-x-2.5 sm:inset-x-4 invisible"
+                : "opacity-100 translate-y-0 relative visible"
+            }`}
+          >
+            {/* Action buttons: Attach File & Image */}
+            <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={() => handleSend("Here is my invoice document. Please analyze and log it.")}
+                className="p-1.5 sm:p-2 rounded-full text-[#808988] hover:text-[#B45529] hover:bg-[#ece3d3] transition-colors cursor-pointer"
+                title="Attach document or PDF"
+                aria-label="Attach file"
+              >
+                <SolarIcon name="paperclip" size={17} />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSend("Here is our receipt photo. Can you split this expense?")}
+                className="p-1.5 sm:p-2 rounded-full text-[#808988] hover:text-[#B45529] hover:bg-[#ece3d3] transition-colors cursor-pointer"
+                title="Upload receipt photo or image"
+                aria-label="Attach image"
+              >
+                <SolarIcon name="image" size={17} />
+              </button>
+            </div>
+
+            {/* Chat Textformfield */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSend();
+              }}
+              className="flex-1 min-w-0"
+            >
+              <input
+                type="text"
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                placeholder={`Ask Seiya as ${activeName}...`}
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 rounded-full bg-[#fef9ef] border border-[#d1c9bf] text-xs sm:text-sm text-[#2a2b2f] placeholder-[#808988] focus:outline-none focus:ring-2 focus:ring-[#B45529]/20 transition-all shadow-2xs"
+              />
+            </form>
+
+            {/* Unified Dynamic Voice Chat & Send Action Button */}
             <button
               type="button"
-              onClick={() => handleSend("Here is our receipt photo. Can you split this expense?")}
-              className="p-1.5 sm:p-2 rounded-full text-[#808988] hover:text-[#B45529] hover:bg-[#ece3d3] transition-colors cursor-pointer"
-              title="Upload receipt photo or image"
-              aria-label="Attach image"
+              disabled={isProcessing}
+              onClick={() => {
+                if (inputText.trim()) {
+                  handleSend();
+                } else {
+                  setIsVoiceChatActive(true);
+                }
+              }}
+              className={`h-9 sm:h-10 shrink-0 flex items-center justify-center transition-all duration-300 ease-in-out cursor-pointer group select-none ${
+                inputText.trim()
+                  ? "px-3.5 sm:px-5 rounded-[40px] bg-[#B45529] hover:bg-[#9a451e] border border-transparent text-[#fef9ef] shadow-xs active:scale-95"
+                  : "w-9 sm:w-10 px-0 rounded-full bg-[#fbf0eb] hover:bg-[#f6e1d7] border border-[#B45529]/35 text-[#B45529] shadow-2xs hover:shadow-xs active:scale-95"
+              }`}
+              title={inputText.trim() ? "Send message" : "Start Voice Chat with Seiya"}
+              aria-label={inputText.trim() ? "Send message" : "Start Voice Chat with Seiya"}
             >
-              <SolarIcon name="image" size={17} />
+              <div className="relative flex items-center justify-center">
+                <span
+                  className={`flex items-center justify-center transition-all duration-300 ease-in-out ${
+                    inputText.trim()
+                      ? "opacity-0 scale-50 max-w-0 overflow-hidden pointer-events-none"
+                      : "opacity-100 scale-100 max-w-[40px]"
+                  }`}
+                >
+                  <SolarIcon
+                    name="soundwave"
+                    size={18}
+                    className="text-[#B45529] group-hover:scale-110 transition-transform"
+                  />
+                </span>
+                <span
+                  className={`flex items-center gap-1.5 transition-all duration-300 ease-in-out overflow-hidden ${
+                    inputText.trim()
+                      ? "opacity-100 scale-100 max-w-[100px]"
+                      : "opacity-0 scale-50 max-w-0 pointer-events-none"
+                  }`}
+                >
+                  <SolarIcon name="paper-plane" size={15} className="text-[#fef9ef] shrink-0" />
+                  <span className="hidden sm:inline font-bold text-xs sm:text-sm text-[#fef9ef] whitespace-nowrap">
+                    Send
+                  </span>
+                </span>
+              </div>
             </button>
           </div>
 
-          <input
-            type="text"
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            placeholder={`Ask Seiya as ${activeName}...`}
-            className="flex-1 min-w-0 px-3 sm:px-4 py-2 sm:py-2.5 rounded-full bg-[#fef9ef] border border-[#d1c9bf] text-xs sm:text-sm text-[#2a2b2f] placeholder-[#808988] focus:outline-none focus:ring-2 focus:ring-[#B45529]/20 transition-all shadow-2xs"
-          />
-          <Button
-            type="submit"
-            variant="primary"
-            size="md"
-            disabled={!inputText.trim() || isProcessing}
-            className="rounded-[40px] px-3.5 sm:px-5 h-9 sm:h-10 shrink-0 font-bold flex items-center gap-1.5"
+          {/* 2. Voice Chat Controls (Centered Mute & End Voice buttons with smooth transitions) */}
+          <div
+            className={`w-full flex items-center justify-center gap-4 sm:gap-6 transition-all duration-500 ease-in-out ${
+              isVoiceChatActive
+                ? "opacity-100 translate-y-0 relative visible"
+                : "opacity-0 translate-y-2 pointer-events-none absolute inset-x-2.5 sm:inset-x-4 invisible"
+            }`}
           >
-            <SolarIcon name="paper-plane" size={15} className="text-[#fef9ef]" />
-            <span className="hidden sm:inline">Send</span>
-          </Button>
-        </form>
+            {/* Mic Mute / Unmute Button (Slightly larger with smooth transitions) */}
+            <button
+              type="button"
+              onClick={() => setIsVoiceMuted(!isVoiceMuted)}
+              className={`w-12 h-12 sm:w-13 sm:h-13 rounded-full flex items-center justify-center transition-all duration-300 ease-out cursor-pointer active:scale-90 hover:scale-105 shadow-xs hover:shadow-md shrink-0 ${
+                isVoiceMuted
+                  ? "bg-[#fbf0eb] text-[#ba3c2a] border border-[#ba3c2a]/40 hover:bg-[#f6e1d7] ring-2 ring-[#ba3c2a]/20"
+                  : "bg-[#fef9ef] text-[#2a2b2f] border border-[#d1c9bf] hover:border-[#B45529]/40 hover:bg-[#f7efe3] hover:text-[#B45529]"
+              }`}
+              title={isVoiceMuted ? "Unmute microphone" : "Mute microphone"}
+              aria-label={isVoiceMuted ? "Unmute microphone" : "Mute microphone"}
+            >
+              <SolarIcon
+                name={isVoiceMuted ? "microphone-slash" : "microphone"}
+                size={22}
+                className="transition-transform duration-200"
+              />
+            </button>
+
+            {/* End / Exit Voice Mode Button (Slightly larger with smooth transitions) */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsVoiceChatActive(false);
+                if (typeof window !== "undefined" && "speechSynthesis" in window) {
+                  window.speechSynthesis.cancel();
+                }
+              }}
+              className="w-12 h-12 sm:w-13 sm:h-13 rounded-full bg-[#fef9ef] hover:bg-[#fdf2f0] border border-[#d1c9bf] hover:border-[#ba3c2a]/40 text-[#71717a] hover:text-[#ba3c2a] flex items-center justify-center transition-all duration-300 ease-out shadow-xs hover:shadow-md cursor-pointer active:scale-90 hover:scale-105 group shrink-0"
+              title="End Voice Chat"
+              aria-label="End Voice Chat"
+            >
+              <SolarIcon
+                name="close-circle"
+                size={22}
+                className="group-hover:rotate-90 transition-transform duration-300"
+              />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

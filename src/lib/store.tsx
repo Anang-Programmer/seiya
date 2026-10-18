@@ -217,6 +217,14 @@ interface AppContextType {
     approveEveryShared: boolean
   ) => void;
   approveContractChange: () => void;
+  activateInitialContract: (params: {
+    splitPartnerA: number;
+    splitPartnerB: number;
+    approvalThreshold: number;
+    thresholdCurrency: string;
+    coolingOffEnabled?: boolean;
+    approveEverySharedPurchase?: boolean;
+  }) => void;
   sendChatMessage: (text: string) => Promise<void>;
   payBill: (billId: string) => void;
   settleUp: () => void;
@@ -1037,6 +1045,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         actor: currentUser,
         status: "ALLOW",
         reason: "Both partners have signed the updated contract terms.",
+        timestamp: "Just now",
+        timeAgo: "Just now",
+      },
+      ...prev,
+    ]);
+  };
+
+  const activateInitialContract = (params: {
+    splitPartnerA: number;
+    splitPartnerB: number;
+    approvalThreshold: number;
+    thresholdCurrency: string;
+    coolingOffEnabled?: boolean;
+    approveEverySharedPurchase?: boolean;
+  }) => {
+    setContract((prev) => ({
+      ...prev,
+      status: "active",
+      splitPartnerA: params.splitPartnerA,
+      splitPartnerB: params.splitPartnerB,
+      approvalThreshold: params.approvalThreshold,
+      thresholdCurrency: params.thresholdCurrency,
+      coolingOffEnabled: params.coolingOffEnabled ?? prev.coolingOffEnabled,
+      approveEverySharedPurchase: params.approveEverySharedPurchase ?? false,
+      proposedChange: null,
+    }));
+
+    setActivities((prev) => [
+      {
+        id: `act-${Date.now()}`,
+        title: "Mutual Couple Contract Activated",
+        category: "Contract",
+        actor: currentUser,
+        status: "ALLOW",
+        reason: `Contract ratified: ${params.splitPartnerB}% ${partnerBName} : ${params.splitPartnerA}% ${partnerAName}, Approval limit ${params.thresholdCurrency} ${params.approvalThreshold}. Dual signatures verified.`,
         timestamp: "Just now",
         timeAgo: "Just now",
       },
@@ -1924,6 +1967,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         undoTransaction,
         proposeContractChange,
         approveContractChange,
+        activateInitialContract,
         sendChatMessage,
         payBill,
         settleUp,

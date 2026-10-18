@@ -6,6 +6,7 @@ import { SeiyaLogo } from "@/components/icons/seiya-logo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { OnboardingView } from "./onboarding-view";
+import { AuthView, AuthMode } from "./auth-view";
 import { useApp, UserRole } from "@/lib/store";
 
 interface LandingViewProps {
@@ -14,7 +15,21 @@ interface LandingViewProps {
 
 export function LandingView({ onEnterApp }: LandingViewProps) {
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [authMode, setAuthMode] = useState<AuthMode | null>(null);
   const { partnerAName, partnerBName } = useApp();
+
+  if (authMode) {
+    return (
+      <AuthView
+        initialMode={authMode}
+        onSuccess={(persona) => {
+          setAuthMode(null);
+          onEnterApp(persona || "partner_a");
+        }}
+        onClose={() => setAuthMode(null)}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#fef9ef] to-[#fefcf6] text-[#2a2b2f] flex flex-col justify-between selection:bg-[#B45529]/20 selection:text-[#B45529]">
@@ -27,10 +42,18 @@ export function LandingView({ onEnterApp }: LandingViewProps) {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => onEnterApp("partner_a")}
+            onClick={() => setAuthMode("login")}
             className="text-xs hidden sm:inline-flex rounded-full"
           >
             Sign In
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setAuthMode("register")}
+            className="text-xs rounded-full"
+          >
+            Create Account
           </Button>
         </div>
       </header>
@@ -58,19 +81,27 @@ export function LandingView({ onEnterApp }: LandingViewProps) {
           <Button
             variant="primary"
             size="lg"
-            onClick={() => setShowOnboarding(true)}
+            onClick={() => setAuthMode("register")}
             className="text-sm shadow-xs rounded-[40px]"
           >
             <SolarIcon name="sparkles" size={18} />
-            Set Up Couple Contract (5 Steps)
+            Set Up Couple Contract (Figma Flow)
           </Button>
           <Button
             variant="outline"
             size="lg"
+            onClick={() => setAuthMode("login")}
+            className="text-sm rounded-[40px]"
+          >
+            Sign In to Account
+          </Button>
+          <Button
+            variant="secondary"
+            size="lg"
             onClick={() => onEnterApp("partner_a")}
             className="text-sm rounded-[40px]"
           >
-            Sign in as {partnerAName}
+            Direct Demo: {partnerAName}
           </Button>
           <Button
             variant="secondary"
@@ -78,7 +109,7 @@ export function LandingView({ onEnterApp }: LandingViewProps) {
             onClick={() => onEnterApp("partner_b")}
             className="text-sm rounded-[40px]"
           >
-            Sign in as {partnerBName}
+            Direct Demo: {partnerBName}
           </Button>
         </div>
 
