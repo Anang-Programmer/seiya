@@ -1176,7 +1176,7 @@ export function AuthView({
 
               <div className="lg:col-span-6 flex justify-center lg:justify-end">
                 <div className="bg-white rounded-[24px] shadow-xl overflow-hidden border border-[#eedecb]/80 max-w-[440px] w-full">
-                  <div className="relative w-full h-[230px] sm:h-[250px] bg-[#f9eee0] overflow-hidden">
+                  <div className="relative w-full h-[100px] sm:h-[110px] bg-[#f9eee0] overflow-hidden">
                     <Image
                       src="/images/auth/onboarding-banner.png"
                       alt="Seiya Onboarding Journey"
