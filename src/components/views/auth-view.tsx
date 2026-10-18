@@ -3367,9 +3367,6 @@ export function AuthView({
                 <span>
                   {showCertificateDetail ? "Hide Accord Details" : "View Accord Certificate Details"}
                 </span>
-                <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                  Active
-                </span>
                 <SolarIcon
                   name={showCertificateDetail ? "arrow-up" : "arrow-down"}
                   size={14}
