@@ -69,6 +69,7 @@ export function AuthView({
   const [newTxCategory, setNewTxCategory] = useState("Groceries");
   const [showAddTxForm, setShowAddTxForm] = useState(false);
   const [copiedInviteLink, setCopiedInviteLink] = useState(false);
+  const [showCertificateDetail, setShowCertificateDetail] = useState(false);
 
   // Join Space Invite Code Modal state
   const [showJoinModal, setShowJoinModal] = useState(false);
@@ -3249,97 +3250,123 @@ export function AuthView({
               </p>
             </div>
 
-            {/* Official Ratified Contract Certificate Card */}
-            <div className="bg-[#FEF9E9] rounded-3xl p-6 sm:p-8 text-left space-y-6 relative overflow-hidden">
-              {/* Subtle Watermark Stamp */}
-              <div className="absolute right-4 bottom-4 opacity-5 pointer-events-none">
-                <SolarIcon name="shield-check" size={160} />
-              </div>
-
-              {/* Certificate Header */}
-              <div className="flex items-center justify-between border-b border-[#ebd7be] pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-[#d4af37]/20 text-[#a37f14] flex items-center justify-center">
-                    <SolarIcon name="shield-check" size={24} />
-                  </div>
-                  <div>
-                    <h3 className="font-serif text-base font-bold text-[#2a2b2f] tracking-wide">
-                      COUPLE FINANCIAL ACCORD CERTIFICATE
-                    </h3>
-                    <p className="text-[11px] font-mono text-[#8c827a]">
-                      CONTRACT #SEIYA-2026-MUTUAL-ACCORD • WEBANK BLOCKCHAIN
-                    </p>
-                  </div>
+            {/* Clean Accord Certificate Quick-Access Button & Collapsible Detail */}
+            <div className="flex flex-col items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setShowCertificateDetail(!showCertificateDetail)}
+                className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-[#fdfbf7] hover:bg-[#f6eee2] border border-[#ebd8c1] text-[#4d4439] text-xs font-medium tracking-wide transition-all shadow-2xs group cursor-pointer"
+              >
+                <div className="w-5 h-5 rounded-full bg-[#d4af37]/15 text-[#a37f14] flex items-center justify-center">
+                  <SolarIcon name="shield-check" size={13} />
                 </div>
-
-                <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-300">
-                  STATUS: ACTIVE
+                <span>
+                  {showCertificateDetail ? "Hide Accord Details" : "View Accord Certificate Details"}
                 </span>
-              </div>
+                <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  Active
+                </span>
+                <SolarIcon
+                  name={showCertificateDetail ? "arrow-up" : "arrow-down"}
+                  size={14}
+                  className="text-[#8c827a] transition-transform duration-200 group-hover:translate-y-0.5"
+                />
+              </button>
 
-              {/* Certificate Key Terms Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                <div className="p-3.5 rounded-xl bg-white/80 border border-[#edd7be] space-y-1">
-                  <span className="text-[#8c827a] font-serif">Contribution & Split Ratio:</span>
-                  <div className="font-mono font-bold text-sm text-[#2a2b2f]">
-                    {contractSplitA}% {activePartnerAName} : {contractSplitB}% {activePartnerBName}
+              {/* Collapsible Certificate Card */}
+              {showCertificateDetail && (
+                <div className="w-full bg-[#FEF9E9] rounded-2xl p-5 sm:p-7 text-left space-y-5 relative overflow-hidden border border-[#eeddc8] shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
+                  {/* Subtle Watermark Stamp */}
+                  <div className="absolute right-3 bottom-3 opacity-5 pointer-events-none">
+                    <SolarIcon name="shield-check" size={140} />
                   </div>
-                  <p className="text-[11px] text-[#6d6459]">
-                    Shared expenses & goals allocated according to this mutual ratio.
-                  </p>
-                </div>
 
-                <div className="p-3.5 rounded-xl bg-white/80 border border-[#edd7be] space-y-1">
-                  <span className="text-[#8c827a] font-serif">Dual-Approval Threshold:</span>
-                  <div className="font-mono font-bold text-sm text-[#2a2b2f]">
-                    ${contractThreshold} {contractCurrency}
-                  </div>
-                  <p className="text-[11px] text-[#6d6459]">
-                    Purchases exceeding this require both digital signatures.
-                  </p>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-white/80 border border-[#edd7be] space-y-1">
-                  <span className="text-[#8c827a] font-serif">Vault Architecture:</span>
-                  <div className="font-serif font-bold text-sm text-[#2a2b2f]">
-                    {contractWalletMode === "hybrid"
-                      ? "Hybrid Smart Vault"
-                      : contractWalletMode === "pooled"
-                      ? "Fully Pooled Vault"
-                      : "Goal-Only Shared Pool"}
-                  </div>
-                  <p className="text-[11px] text-[#6d6459]">
-                    Personal accounts remain private; joint goals unified.
-                  </p>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-white/80 border border-[#edd7be] space-y-1">
-                  <span className="text-[#8c827a] font-serif">Active Safeguards:</span>
-                  <div className="space-y-1 text-[11px] text-[#2a2b2f] pt-0.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-emerald-700">✓</span>
-                      <span>{contractCoolingOff ? "Late-Night Cooling Hold (Active)" : "Cooling Hold (Off)"}</span>
+                  {/* Certificate Header */}
+                  <div className="flex items-center justify-between border-b border-[#ebd7be] pb-3.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-[#d4af37]/20 text-[#a37f14] flex items-center justify-center">
+                        <SolarIcon name="shield-check" size={20} />
+                      </div>
+                      <div>
+                        <h3 className="font-serif text-sm font-bold text-[#2a2b2f] tracking-wide">
+                          COUPLE FINANCIAL ACCORD CERTIFICATE
+                        </h3>
+                        <p className="text-[10px] font-mono text-[#8c827a]">
+                          CONTRACT #SEIYA-2026-MUTUAL-ACCORD • WEBANK BLOCKCHAIN
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-emerald-700">✓</span>
-                      <span>{contractEmergencyLock ? "Emergency Reserve Double-Lock (Active)" : "Standard Emergency"}</span>
+
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold border border-emerald-300">
+                      STATUS: ACTIVE
+                    </span>
+                  </div>
+
+                  {/* Certificate Key Terms Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div className="p-3 rounded-xl bg-white/80 border border-[#edd7be] space-y-1">
+                      <span className="text-[#8c827a] font-serif">Contribution & Split Ratio:</span>
+                      <div className="font-mono font-bold text-sm text-[#2a2b2f]">
+                        {contractSplitA}% {activePartnerAName} : {contractSplitB}% {activePartnerBName}
+                      </div>
+                      <p className="text-[11px] text-[#6d6459]">
+                        Shared expenses & goals allocated according to this mutual ratio.
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-white/80 border border-[#edd7be] space-y-1">
+                      <span className="text-[#8c827a] font-serif">Dual-Approval Threshold:</span>
+                      <div className="font-mono font-bold text-sm text-[#2a2b2f]">
+                        ${contractThreshold} {contractCurrency}
+                      </div>
+                      <p className="text-[11px] text-[#6d6459]">
+                        Purchases exceeding this require both digital signatures.
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-white/80 border border-[#edd7be] space-y-1">
+                      <span className="text-[#8c827a] font-serif">Vault Architecture:</span>
+                      <div className="font-serif font-bold text-sm text-[#2a2b2f]">
+                        {contractWalletMode === "hybrid"
+                          ? "Hybrid Smart Vault"
+                          : contractWalletMode === "pooled"
+                          ? "Fully Pooled Vault"
+                          : "Goal-Only Shared Pool"}
+                      </div>
+                      <p className="text-[11px] text-[#6d6459]">
+                        Personal accounts remain private; joint goals unified.
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-white/80 border border-[#edd7be] space-y-1">
+                      <span className="text-[#8c827a] font-serif">Active Safeguards:</span>
+                      <div className="space-y-1 text-[11px] text-[#2a2b2f] pt-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-emerald-700">✓</span>
+                          <span>{contractCoolingOff ? "Late-Night Cooling Hold (Active)" : "Cooling Hold (Off)"}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-emerald-700">✓</span>
+                          <span>{contractEmergencyLock ? "Emergency Reserve Double-Lock (Active)" : "Standard Emergency"}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Verified Signatures Seal */}
+                  <div className="pt-2 border-t border-[#ebd7be] flex flex-col sm:flex-row items-center justify-between gap-2.5 text-xs">
+                    <div className="flex items-center gap-2 text-emerald-800">
+                      <SolarIcon name="check-circle" size={15} />
+                      <span>
+                        Ratified by <strong>{activePartnerAName}</strong> & <strong>{activePartnerBName}</strong>
+                      </span>
+                    </div>
+                    <div className="text-[10px] font-mono text-[#8c827a]">
+                      Cryptographic Hash: 0x7F3...9E2A (Consensus Verified)
                     </div>
                   </div>
                 </div>
-              </div>
-
-              {/* Verified Signatures Seal */}
-              <div className="pt-2 border-t border-[#ebd7be] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-                <div className="flex items-center gap-2 text-emerald-800">
-                  <SolarIcon name="check-circle" size={16} />
-                  <span>
-                    Ratified by <strong>{activePartnerAName}</strong> & <strong>{activePartnerBName}</strong>
-                  </span>
-                </div>
-                <div className="text-[11px] font-mono text-[#8c827a]">
-                  Cryptographic Hash: 0x7F3...9E2A (Consensus Verified)
-                </div>
-              </div>
+              )}
             </div>
 
             {/* Mascot Greeting */}
