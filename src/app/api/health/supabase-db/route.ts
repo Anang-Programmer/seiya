@@ -1,12 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-// export const dynamic = "force-dynamic";
-
 export async function GET() {
   const supabase = await createClient();
 
-  // Memvalidasi sesi ke Supabase Auth; jangan percaya user ID dari request.
   const {
     data: { user },
     error: authError,
@@ -26,7 +23,6 @@ export async function GET() {
     .maybeSingle();
 
   if (profileError) {
-    // Hindari mengirim detail internal database ke browser.
     console.error("Supabase profile health check failed:", profileError);
     return NextResponse.json(
       {

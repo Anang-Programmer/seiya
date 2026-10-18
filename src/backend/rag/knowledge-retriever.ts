@@ -46,23 +46,22 @@ export function shouldRetrieveSeiyaKnowledge(message: string): boolean {
   const text = message.trim().slice(0, MAX_QUERY_CHARS);
   if (!text) return false;
 
-  const generalIntent = /\b(apa itu|apa maksud|maksud dari|arti dari|definisi|jelaskan|bagaimana (cara|kerja|mengatur|menyusun|membuat|memulai)|cara kerja|cara mengatur|cara membangun|cara menyiapkan|tips|konsep|kenapa|mengapa|bedanya|apa bedanya|contoh|what is|explain|how does|how to)\b/i.test(text);
+  const generalIntent = /\b(what is|what does|meaning of|definition of|explain|how does|how to|how do|how should|why|tips|concepts?|examples?|difference between|apa itu|apa maksud|maksud dari|arti dari|definisi|jelaskan|cara kerja|konsep|kenapa|mengapa|bedanya|contoh)\b/i.test(text);
   if (!generalIntent) return false;
 
-  const personalContext = /\b(aku|saya|kami|kita|milik saya|milik kami|punya saya|punya kami|rumah tangga kami|akun saya|wallet saya|saldo saya|budget saya|anggaran saya|tagihan saya|tagihan kami|data kami|tercatat|di akun saya|penghasilan|pendapatan|gaji|pinjaman saya|utang saya|keluarga saya|pasangan saya|kondisi saya|our|we|i|me|my|our household|my wallet|my balance|my budget|my bills|my income|my salary)\b/i.test(text);
+  const personalContext = /\b(our|we|i|me|my|mine|our household|my wallet|my balance|my budget|my bills|my income|my salary|my debt|my partner|my condition|aku|saya|kami|kita|milik saya|milik kami|punya saya|punya kami|rumah tangga kami|akun saya|wallet saya|saldo saya|budget saya|anggaran saya|tagihan saya|tagihan kami|data kami|penghasilan|pendapatan|gaji|pinjaman saya|utang saya|keluarga saya|pasangan saya)\b/i.test(text);
   if (personalContext) return false;
-  // Do not send currency amounts, dates, or household-specific numbers to the embedding API.
-  // The one supported numeric framework is the generic 50/30/20 budgeting rule.
+
   const withoutGenericRatio = text.replace(/50\s*[\/-]\s*30\s*[\/-]\s*20/gi, "budgeting ratio");
   if (/\d|\b(Rp|IDR|USD|EUR)\b/i.test(withoutGenericRatio)) return false;
 
-  const supportedTopic = /\b(seiya|wallet|dompet|shared wallet|personal wallet|dual[ -]?key|cooling[ -]?off|approval|persetujuan pasangan|approval threshold|batas persetujuan|budget|anggaran|tagihan|bill|financial agreement|kesepakatan keuangan|dana darurat|emergency fund|utang|debt|kartu kredit|paylater|50\s*[\/-]\s*30\s*[\/-]\s*20|anggaran bulanan|diskusi uang|ngobrol soal uang|keuangan pasangan)\b/i.test(text);
+  const supportedTopic = /\b(seiya|wallet|shared wallet|personal wallet|dual[ -]?key|cooling[ -]?off|approval|partner approval|approval threshold|budget|bills?|financial agreement|emergency fund|debt|credit card|paylater|50\s*[\/-]\s*30\s*[\/-]\s*20|monthly budget|money talk|couple finances|dompet|persetujuan pasangan|batas persetujuan|anggaran|tagihan|kesepakatan keuangan|dana darurat|utang|kartu kredit|diskusi uang|keuangan pasangan)\b/i.test(text);
   return supportedTopic;
 }
 
 function normalizedCacheKey(query: string): string {
   return createHash("sha256")
-    .update(query.toLocaleLowerCase("id-ID").replace(/\s+/g, " ").trim())
+    .update(query.toLowerCase().replace(/\s+/g, " ").trim())
     .digest("hex");
 }
 

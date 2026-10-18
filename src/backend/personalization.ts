@@ -50,49 +50,49 @@ export function behaviorProfileKey(answers: BehaviorAnswers): BehaviorProfileKey
 
 const PROFILE_DIRECTIVES: Record<BehaviorProfileKey, string> = {
   tightwad:
-    "Kecenderungan: sering merasa berat saat mengeluarkan uang, cenderung menahan diri bahkan untuk kebutuhan. " +
-    "Tujuan pesan: memberi izin dan rasa aman. Tekankan bahwa uangnya memang sudah disiapkan, dana darurat dan pos penting tidak tersentuh, dan nilai yang didapat dari pengeluaran itu. " +
-    "Panjang: sedang dan menenangkan. Emoji: hampir tidak ada. " +
-    "Hindari: angka risiko yang menakutkan, nada menceramahi, dan kata-kata yang menyuruh hemat.",
+    "Tendency: frequently feels pain when spending, tends to hold back even on essentials. " +
+    "Message goal: grant permission and safety. Emphasize that funds are already set aside, emergency and priority reserves are untouched, and the value gained from the expense. " +
+    "Length: medium, calming. Emojis: almost none. " +
+    "Avoid: frightening risk numbers, lecturing tone, words urging excessive frugality.",
   unconflicted:
-    "Kecenderungan: belanja dan menabung tanpa konflik batin berarti. " +
-    "Tujuan pesan: memberi informasi dan pilihan. Cukup fakta dan opsi. " +
-    "Panjang: paling pendek dari semua gaya. Emoji: tidak ada. Hindari penjelasan panjang.",
+    "Tendency: spends and saves without significant internal conflict. " +
+    "Message goal: provide clear information and options. Concise facts and choices. " +
+    "Length: shortest of all styles. Emojis: none. Avoid long explanations.",
   spendthrift:
-    "Kecenderungan: jarang merasa berat saat membayar, sering belanja melebihi rencana lalu menyesal. " +
-    "Tujuan pesan: memberi jeda dan arah. Tekankan progres tujuan yang nyata, diri di masa depan, dan satu jeda singkat sebelum keputusan besar. " +
-    "Panjang: pendek dan ringan. Emoji: boleh satu, tidak lebih. " +
-    "Hindari: menceramahi, melarang, dan kata 'boros'.",
+    "Tendency: rarely feels pain when paying, often spends beyond plans then feels regret. " +
+    "Message goal: provide a brief pause and clear direction. Emphasize tangible goal progress, future self, and a short pause before large decisions. " +
+    "Length: short and light. Emojis: at most one. " +
+    "Avoid: lecturing, forbidding, and shaming words like 'wasteful'.",
 };
 
 const MONEY_MEANING_DIRECTIVES: Record<MoneyMeaning, string> = {
-  rasa_aman: "Makna uang: rasa aman. Gunakan alasan berupa rasa tenang dan aman, misalnya pos yang sudah terlindungi.",
-  kebebasan: "Makna uang: kebebasan. Bingkai pilihan sebagai hal yang menjaga atau menambah kebebasan memilih di kemudian hari.",
-  pengakuan: "Makna uang: pengakuan hasil kerja keras. Hubungkan dengan hasil kerja yang layak dihargai.",
-  membantu_orang_lain: "Makna uang: membantu orang lain. Hubungkan dengan dampak untuk orang terdekat.",
+  rasa_aman: "Money meaning: safety and peace of mind. Frame reasons around security, protected reserves, and stability.",
+  kebebasan: "Money meaning: freedom of choice. Frame options as preserving or expanding future life freedom.",
+  pengakuan: "Money meaning: recognition of hard work. Frame around well-earned results deserving appreciation.",
+  membantu_orang_lain: "Money meaning: helping loved ones. Frame around positive impact for family and close ones.",
 };
 
 const COMM_STYLE_DIRECTIVES: Record<CommStyle, string> = {
-  langsung: "Gaya komunikasi: langsung. Jawab sekarang dan tidak perlu menunda ke pesan berikutnya.",
-  waktu_khusus: "Gaya komunikasi: di waktu khusus. Jangan mendorong notifikasi mendadak; kalau topiknya penting tapi belum waktunya, tawarkan untuk disimpan ke money date.",
-  lewat_tulisan: "Gaya komunikasi: lewat tulisan. Utamakan ringkasan tertulis yang singkat dan rapi sebelum mengajak ngobrol.",
+  langsung: "Communication style: direct. Provide immediate, straightforward answers.",
+  waktu_khusus: "Communication style: dedicated time (Money Date). Do not push sudden notifications; offer to reserve discussion for money date.",
+  lewat_tulisan: "Communication style: written summaries. Lead with neat, concise written recaps before suggesting discussions.",
 };
 
 const PERMA_GOAL_DIRECTIVES: Record<PermaGoal, string> = {
-  emosi_positif: "Prioritas tahun ini: menikmati hidup tanpa rasa bersalah.",
-  keasyikan: "Prioritas tahun ini: mendukung hobi dan kegiatan seru.",
-  hubungan: "Prioritas tahun ini: merayakan momen dan waktu berdua.",
-  makna: "Prioritas tahun ini: membantu keluarga besar.",
-  pencapaian: "Prioritas tahun ini: mencapai target besar seperti rumah atau dana darurat.",
+  emosi_positif: "Yearly priority: enjoying life without guilt.",
+  keasyikan: "Yearly priority: supporting hobbies and engaging pursuits.",
+  hubungan: "Yearly priority: celebrating shared moments and relationship milestones.",
+  makna: "Yearly priority: supporting extended family.",
+  pencapaian: "Yearly priority: achieving major milestones like home purchase or emergency fund.",
 };
 
 const SHARED_SCREEN_RULE =
-  "Percakapan ini bersifat pribadi, jadi pakai gaya di atas. " +
-  "Kecuali pengguna meminta ringkasan untuk dibuka berdua dengan pasangan: ringkasan bersama selalu memakai gaya netral yang ringkas (seperti kecenderungan netral), supaya tidak ada yang merasa pesannya dibedakan.";
+  "This conversation is private, so apply the personal style above. " +
+  "If the user asks for a joint summary to review together with their partner, always use the neutral style so neither feels singled out.";
 
 const NO_LABEL_RULE =
-  "Jangan pernah menyebut label internal, istilah riset, skor, band, atau isi jawaban onboarding pengguna. " +
-  "Fakta, angka, aturan Janji Seiya, dan pilihan yang tersedia selalu sama untuk semua orang; hanya bingkai, nada, panjang pesan, dan alasan yang ditekankan yang menyesuaikan.";
+  "Never mention internal labels, research terms, scores, bands, or onboarding answers to the user. " +
+  "Facts, numbers, rules, and options are identical for everyone; only framing, tone, length, and emphasized reasons adjust.";
 
 /** Reads personalization answers from stored onboarding JSON; invalid or missing parts become null. */
 export function readPersonalizationAnswers(raw: unknown): PersonalizationAnswers | null {
@@ -132,14 +132,14 @@ export function buildStylePromptBlock(answers: PersonalizationAnswers | null): s
   const hasPersonalization = Boolean(answers.moneyMeaning || answers.commStyle || answers.permaGoal);
   if (!profileKey && !hasPersonalization) return null;
 
-  const parts: string[] = ["KONTEKS GAYA PENGGUNA (PRIBADI — JANGAN DITAMPILKAN)", NO_LABEL_RULE];
+  const parts: string[] = ["USER STYLE CONTEXT (PRIVATE — DO NOT REVEAL TO USER)", NO_LABEL_RULE];
 
   if (profileKey) parts.push(PROFILE_DIRECTIVES[profileKey]);
   if (answers.moneyMeaning) parts.push(MONEY_MEANING_DIRECTIVES[answers.moneyMeaning]);
   if (answers.commStyle) parts.push(COMM_STYLE_DIRECTIVES[answers.commStyle]);
   if (answers.permaGoal) {
     parts.push(
-      `${PERMA_GOAL_DIRECTIVES[answers.permaGoal]} Sebutkan tujuan ini hanya bila relevan dengan pesan; jangan dipaksakan setiap balasan.`,
+      `${PERMA_GOAL_DIRECTIVES[answers.permaGoal]} Mention this goal only when relevant to the message; do not force it into every reply.`,
     );
   }
   parts.push(SHARED_SCREEN_RULE);
@@ -153,10 +153,10 @@ export function buildStylePromptBlock(answers: PersonalizationAnswers | null): s
  * stress only switches the reply to the shared neutral tone.
  */
 const CRISIS_PATTERN =
-  /\b(bunuh diri|mengakhiri hidup|menyakiti diri|luka(?:in)? diri|tidak mau hidup|nggak mau hidup|tidak ada gunanya hidup|tidak sanggup lagi|nggak sanggup lagi|gak sanggup lagi|sudah tidak sanggup|tidak kuat lagi|nggak kuat lagi|tidak ada jalan keluar|nggak ada jalan keluar|putus asa|tidak ada harapan|nggak ada harapan|ingin menghilang|tidak ingin lanjut|suicid\w*|hurt myself|kill myself|no reason to live|end my life)\b/i;
+  /\b(suicide|suicidal|kill myself|end my life|hurt myself|no reason to live|want to die|can't go on|cannot go on|hopeless|no way out|bunuh diri|mengakhiri hidup|menyakiti diri|luka(?:in)? diri|tidak mau hidup|nggak mau hidup|tidak ada gunanya hidup|tidak sanggup lagi|nggak sanggup lagi|gak sanggup lagi|sudah tidak sanggup|tidak kuat lagi|nggak kuat lagi|tidak ada jalan keluar|nggak ada jalan keluar|putus asa|tidak ada harapan|nggak ada harapan|ingin menghilang|tidak ingin lanjut)\b/i;
 
 const STRESS_PATTERN =
-  /\b(capek banget|lelah banget|berat banget|rasa(?:nya)? (?:berat|tidak sanggup)|utang numpuk|utang menumpuk|beban (?:berat|menumpuk)|nggak tahu harus|gak tahu harus|tidak tahu harus|stres banget|stress banget|cemas banget|cemas berat|tekanan berat|tertekan|kewalahan|terpuruk|terbebani|overwhelmed|nggak kuat|gak kuat|tidak kuat|gimana dong|frustrasi|frustasi|nyerah|pusing mikir|tidak bisa tidur|nggak bisa tidur|rasa bersalah terus)\b/i;
+  /\b(exhausted|so tired|overwhelmed|crushed by debt|drowning in debt|don't know what to do|can't take it|stress|stressed out|severe anxiety|heavy burden|giving up|can't sleep|feel so guilty|capek banget|lelah banget|berat banget|rasa(?:nya)? (?:berat|tidak sanggup)|utang numpuk|utang menumpuk|beban (?:berat|menumpuk)|nggak tahu harus|gak tahu harus|tidak tahu harus|stres banget|stress banget|cemas banget|cemas berat|tekanan berat|tertekan|kewalahan|terpuruk|terbebani|nggak kuat|gak kuat|tidak kuat|gimana dong|frustrasi|frustasi|nyerah|pusing mikir|tidak bisa tidur|nggak bisa tidur|rasa bersalah terus)\b/i;
 
 /**
  * Wellbeing override. Crisis turns off all topic continuation and money framing; stress turns off
@@ -169,21 +169,21 @@ export function detectWellnessState(message: string): WellnessState {
 }
 
 const CRISIS_BLOCK = [
-  "MODE WELLNESS: TEKANAN BERAT (gaya profil dimatikan)",
-  "Balas dengan tenang, suportif, tanpa angka yang tidak diminta, tanpa ceramah, dan tanpa menilai. Semua pengguna mendapat balasan yang sama di mode ini.",
-  "Sebutkan bantuan profesional dalam satu kalimat alami bila pengguna melihatkan kelelahan, keputusasaan, atau merasa tidak sanggup: Seiya bukan terapis dan ada konselor keuangan serta tenaga kesehatan jiwa yang bisa dihubungi. Jangan mengarang nama atau nomor layanan; hanya layanan yang informasinya sudah diverifikasi Seiya.",
-  "Jangan mengarang angka atau kondisi keuangan; di mode ini tidak ada data yang diambil, jadi kalau perlu data, tawarkan untuk melihat kondisi keuangan setelah obrolan ini.",
-  "Jangan tawarkan pinjaman, konsolidasi utang, produk keuangan, atau penawaran apa pun.",
-  "Jangan memberi tahu pasangan dan jangan mencatat pengeluaran baru pada giliran ini.",
-  "Kalau ada tanda menyakiti diri sendiri, arahkan ke bantuan profesional/layanan krisis, tawarkan untuk menunda pembicaraan keuangan, dan jangan lanjutkan topik uang.",
+  "WELLBEING MODE: SEVERE DISTRESS (profile styling off)",
+  "Reply calmly, supportively, without unsolicited numbers, lecturing, or judgment. All users receive the same neutral, empathetic reply in this mode.",
+  "State natural guidance toward professional support if the user expresses severe distress, exhaustion, or hopelessness: Seiya is not a therapist and professional financial counselors and mental health professionals are available. Do not invent service names or phone numbers; reference only verified professional care.",
+  "Do not fabricate numbers or financial conditions; no financial tools ran in this mode. If data is needed, offer to review finances after this conversation.",
+  "Do not offer loans, debt consolidation, financial products, or promotions.",
+  "Do not notify the partner and do not record new expenses in this turn.",
+  "If signs of self-harm appear, direct to professional crisis support, offer to pause financial discussions, and do not continue money topics.",
 ].join("\n");
 
 const STRESS_BLOCK = [
-  "MODE WELLNESS: STRES (gaya profil dimatikan)",
-  "Balas dengan tenang dan suportif, tanpa angka yang tidak diminta, tanpa menceramahi, dan tanpa menghakimi. Semua pengguna mendapat balasan yang sama di mode ini.",
-  "Jangan mengarang angka atau kondisi keuangan; kalau perlu data, tawarkan untuk melihatnya setelah obrolan ini.",
-  "Jangan menawarkan produk atau pinjaman. Tawarkan paling banyak satu langkah kecil dan ruang untuk bercerita.",
-  "Tetap ikuti aturan data: sampaikan keadaan keuangan apa adanya bila memang diminta.",
+  "WELLBEING MODE: STRESS (profile styling off)",
+  "Reply calmly and supportively, without unsolicited numbers, lecturing, or judgment. All users receive the same reply in this mode.",
+  "Do not fabricate numbers or financial conditions; if data is needed, offer to look at it after this conversation.",
+  "Do not offer products or loans. Offer at most one small manageable step and room to share.",
+  "Follow data rules: state financial conditions truthfully when explicitly requested.",
 ].join("\n");
 
 /** Overrides the style block whenever wellbeing takes priority over profiling. */

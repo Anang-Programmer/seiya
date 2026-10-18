@@ -59,7 +59,7 @@ async function ensureBalance(householdId, cookies, wallets) {
 
 /** A reply must never say money moved when the database holds no matching row. */
 function claimsMoneyMoved(text) {
-  return /(sudah keluar|uangnya sudah|sudah tercatat|sudah dicatat|berhasil dicatat|sudah dibelanjakan|sudah dipindahkan)/i.test(text);
+  return /(sudah keluar|uangnya sudah|sudah tercatat|sudah dicatat|berhasil dicatat|sudah dibelanjakan|sudah dipindahkan|already recorded|already paid|already spent|money has left|funds have left|debited successfully)/i.test(text);
 }
 
 async function main() {
@@ -114,7 +114,7 @@ async function main() {
       { soft: true },
     );
     checks.check(
-      new RegExp(expense.status === "pending_approval" ? "persetujuan" : "tercatat", "i").test(answer.reply),
+      new RegExp(expense.status === "pending_approval" ? "(persetujuan|approval|pending)" : "(tercatat|recorded|processed)", "i").test(answer.reply),
       "balasan menyebut status apa adanya (bukan klaim 'sudah disetujui')",
       { soft: true },
     );

@@ -107,22 +107,51 @@ Some APIs may map database errors differently. Frontend code should show a safe 
 |---|---|---|---|
 | `POST` | `/api/auth/signup` | Create account | Public entry point |
 | `POST` | `/api/auth/signin` | Sign in and establish session cookie | Public entry point |
-| `GET` | `/api/auth/me` | Get current authenticated profile | Required |
+| `GET` | `/api/auth/me` | Get current authenticated profile, active household, partner, and PIN status | Required |
 | `POST` | `/api/auth/signout` | End local session | Required |
-| `GET`, `POST` | `/api/onboarding` | Read/save onboarding responses | Required |
-| `POST` | `/api/households` | Create household via RPC | Required |
+| `POST` | `/api/auth/pin/setup` | Configure user's 6-digit cryptographic PIN | Required |
+| `POST` | `/api/auth/pin/verify` | Verify 6-digit PIN for sensitive dual-key actions | Required |
+| `GET` | `/api/auth/pin/status` | Check if user has configured a security PIN | Required |
+| `GET`, `POST` | `/api/onboarding` | Read/save onboarding responses and personalization | Required |
+| `GET`, `POST` | `/api/households` | List user's active households / create household via RPC | Required |
 | `POST` | `/api/households/invitations` | Create partner invitation | Required owner/member per server policy; active owner required in RPC |
 | `POST` | `/api/households/invitations/accept` | Accept invitation for the signed-in email | Required; invited email must match |
-| `GET`, `POST` | `/api/households/[householdId]/finance-rules` | List/propose finance rules | Required active household member |
+| `GET`, `POST` | `/api/households/[householdId]/finance-rules` | List/propose finance rules (supports both nested & contract fields) | Required active household member |
 | `POST` | `/api/households/[householdId]/finance-rules/[ruleId]/decision` | Approve/reject a finance-rule proposal | Required eligible household member |
 | `GET`, `POST` | `/api/households/[householdId]/wallets` | Read/initialize household wallets | Required active household member and active agreement for initialization |
-| `POST` | `/api/households/[householdId]/transactions` | Request a simulated transaction | Required; business rules apply |
+| `GET`, `POST` | `/api/households/[householdId]/plans` | List/create couple goals & plans | Required active household member |
+| `GET`, `PATCH`, `DELETE` | `/api/households/[householdId]/plans/[planId]` | Get, update, or delete a couple goal | Required active household member |
+| `POST` | `/api/households/[householdId]/plans/[planId]/request-delete` | Request dual-key goal deletion (immediate with dual PIN or partner approval) | Required active household member |
+| `GET`, `POST` | `/api/plans` | Convenience route for listing/creating couple goals | Required active household member |
+| `GET`, `POST` | `/api/approvals` | List/create approval requests in unified queue | Required active household member |
+| `POST` | `/api/approvals/[approvalId]/decision` | Approve/decline request (supports PIN, executes underlying action) | Required eligible approver |
+| `GET`, `POST` | `/api/households/[householdId]/approvals` | Household-scoped approval queue | Required active household member |
+| `GET`, `POST` | `/api/waiting-list` | List/create held purchases under cooling-off safeguard | Required active household member |
+| `POST` | `/api/waiting-list/[heldId]/continue` | Release/continue held purchase (routes to approval if over threshold) | Required active household member |
+| `POST` | `/api/waiting-list/[heldId]/cancel` | Cancel a held purchase | Required active household member |
+| `GET`, `POST` | `/api/households/[householdId]/waiting-list` | Household-scoped held purchases list & creation | Required active household member |
+| `GET`, `POST` | `/api/transactions` | List/record household transactions with auto-split & ledger settlement | Required active household member |
+| `POST` | `/api/transactions/[transactionId]/undo` | Undo an eligible transaction within 10-minute window | Required active household member |
+| `POST` | `/api/households/[householdId]/transactions` | Request a simulated transaction via RPC | Required; business rules apply |
 | `POST` | `/api/transactions/[transactionId]/decision` | Approve/reject a transaction | Required eligible approver |
 | `POST` | `/api/transactions/[transactionId]/execute` | Execute an eligible simulated transaction | Required and state/rules checked server-side |
 | `GET`, `POST` | `/api/households/[householdId]/bills` | List/create bills | Required active household member |
+| `PATCH`, `DELETE` | `/api/households/[householdId]/bills/[billId]` | Edit or delete a recurring bill | Required active household member |
 | `POST` | `/api/households/[householdId]/bills/[billId]/pay` | Initiate bill payment from a simulated wallet | Required; transaction rules apply |
+| `POST` | `/api/households/[householdId]/bills/[billId]/request-pay` | Mark bill as paid & request partner confirmation via approval queue | Required active household member |
+| `GET` | `/api/households/[householdId]/bills/analyze` | Detect anomalies (duplicate streaming plans, price increases) | Required active household member |
 | `GET`, `POST` | `/api/households/[householdId]/budgets` | List/create or upsert budgets | Required active household member |
-| `POST` | `/api/ai/chat` | Run AI agent for a household | Required active household member |
+| `GET`, `POST` | `/api/activities` | List activity/audit event history across gateway decisions and actions | Required active household member |
+| `GET` | `/api/households/[householdId]/activities` | Household-scoped activity/audit event history | Required active household member |
+| `GET` | `/api/settlement` | Get debt settlement balance (who owes whom) | Required active household member |
+| `POST` | `/api/settlement/settle-up` | Settle up shared expense debt balance | Required active household member |
+| `GET` | `/api/households/[householdId]/settlement` | Household-scoped debt settlement | Required active household member |
+| `POST` | `/api/households/[householdId]/settlement/settle-up` | Household-scoped settle-up action | Required active household member |
+| `POST` | `/api/gateway/decision` | Deterministic 8-step Rule Engine evaluation (ALLOW / NEED_APPROVAL / HOLD / DENY) | Required active household member |
+| `POST` | `/api/households/[householdId]/gateway/decision` | Household-scoped gateway rule evaluation | Required active household member |
+| `POST` | `/api/statement-import` | Upload bank statement (PDF, Excel, CSV) with preview & batch import | Required active household member |
+| `POST` | `/api/households/[householdId]/statement-import` | Household-scoped bank statement parsing, categorization, and commit | Required active household member |
+| `POST` | `/api/ai/chat` | Run AI agent with conversational cards (ACTION_ALLOW, NEED_APPROVAL, HOLD) | Required active household member |
 
 > **Important:** This inventory reflects endpoints implemented in the project during the build. For signup, onboarding, transactions, and budgets, verify exact body/property names against `src/backend/validators/*.ts` and the relevant route before wiring the UI; the UI must not infer missing fields.
 
@@ -381,7 +410,83 @@ Creates or updates a budget through the backend/database function. The business 
 
 Exact request fields and full response body: confirm in `src/backend/validators/bill-budget.ts` and `src/app/api/households/[householdId]/budgets/route.ts` before wiring a form.
 
-## 10. AI Agent and RAG
+## 10. Couple Goals & Plans (`/api/plans` & `/api/households/[householdId]/plans`)
+
+Provides collaborative long-term goal planning and dual-key dissolution matching FINTECHATHON.pdf specifications:
+
+- `GET /api/plans` or `GET /api/households/[householdId]/plans`: returns all household plans with `targetAmount`, `currentAmount`, `currency`, `recommendedMonthly`, `splitRecommendation`, `walletFunding`, `status`, `assumptions`.
+- `POST /api/plans` or `POST /api/households/[householdId]/plans`: creates a financial plan (`CreatePlanInput`).
+- `GET /api/households/[householdId]/plans/[planId]`: inspects a single plan.
+- `PATCH /api/households/[householdId]/plans/[planId]`: adjusts target amount, target date, monthly recommendation, or status (`UpdatePlanInput`).
+- `DELETE /api/households/[householdId]/plans/[planId]`: deletes a goal.
+- `POST /api/households/[householdId]/plans/[planId]/request-delete`: Dual-Key deletion request. If both `partnerAPin` and `partnerBPin` (6-digit PINs) are provided in-person, immediately dissolves the goal. If initiated by one partner, creates an approval request in the unified approvals queue of type `PLAN_DELETE`.
+
+## 11. Dual-Key Approvals Queue (`/api/approvals` & `/api/households/[householdId]/approvals`)
+
+The unified action queue for all collaborative decisions requiring partner consent (Bills, Plans, Expenses, Contracts):
+
+- `GET /api/approvals`: returns all pending and historical approval requests for the caller's household.
+- `POST /api/approvals`: creates an approval request (`title`, `amount`, `currency`, `wallet`, `requesterRole`, `approverRole`, `category`, `type`, `targetId`, `reason`).
+- `POST /api/approvals/[approvalId]/decision`: approve or decline an approval request:
+  - **Self-approval defense (S09):** A requester is cryptographically prevented from approving their own request (`SELF_APPROVAL` rejected with HTTP 403).
+  - **PIN verification (S13):** If a 6-digit PIN is supplied, verifies against the approver's stored PIN hash.
+  - **Atomic execution:** Approving a `BILL` marks the bill as paid and debits the shared wallet; approving `PLAN_DELETE` dissolves the goal; approving `EXPENSE` debits the shared wallet; approving `CONTRACT` activates the proposed contract terms.
+  - Declining resets the underlying target status (e.g. bill returns to `upcoming`).
+
+## 12. Waiting List & Held Purchases (`/api/waiting-list`)
+
+Supports the emotional cooling-off safeguard for late-night impulse purchases:
+
+- `GET /api/waiting-list`: lists all active held purchases with `holdUntil`, `amount`, `currency`, `wallet`, and `reason`.
+- `POST /api/waiting-list/[heldId]/continue`: user confirms intent after cooling-off period. If amount exceeds the shared approval threshold, automatically routes to partner approval (`NEED_APPROVAL`); otherwise executes directly (`ALLOW`) and debits the wallet.
+- `POST /api/waiting-list/[heldId]/cancel`: cancels the held purchase and writes an audit event.
+
+## 13. Activities & Decision Log (`/api/activities`)
+
+Real-time decision and activity stream tracking all agent decisions, safeguard interventions, and partner approvals:
+
+- `GET /api/activities`: returns recent activity entries with `id`, `title`, `category`, `actor` (`partner_a` | `partner_b` | `seiya`), `status` (`ALLOW` | `NEED_APPROVAL` | `HOLD` | `DENY` | `INFO`), `amount`, `currency`, `reason`, and timestamp.
+
+## 14. Shared Expense Settlement (`/api/settlement`)
+
+Maintains the mutual ledger balance (who owes whom) based on transaction split ratios:
+
+- `GET /api/settlement`: returns `partnerBOwesA`, `partnerAOwesB`, and `currency`.
+- `POST /api/settlement/settle-up`: resets mutual debt balances to zero and logs an audit activity.
+
+## 15. Dual-Key Security PIN (`/api/auth/pin`)
+
+Cryptographic 6-digit PIN protection for sensitive financial decisions (dissolving shared goals, approving high-value transactions):
+
+- `POST /api/auth/pin/setup`: hashes and sets the caller's 6-digit PIN (`pin`).
+- `POST /api/auth/pin/verify`: verifies the caller's or partner's PIN.
+- `GET /api/auth/pin/status`: returns `{ hasPin: boolean }`.
+
+## 16. Deterministic Gateway Decision API (`/api/gateway/decision`)
+
+Direct HTTP endpoint for the 8-step Rule Engine specified in FINTECHATHON.pdf (pages 26-27):
+
+- `POST /api/gateway/decision`: evaluates `actionType` (`EXPENSE` | `BILL_PAY` | `PURCHASE` | `EXTERNAL_TRANSFER` | `PRIVACY_REQUEST`), `title`, `amount`, `currency`, `wallet`, `timeOfDay`, and `category`.
+- Returns `{ success: true, decision: { outcome, reason_code, reason, details } }`:
+  - `EXTERNAL_TRANSFER` -> `DENY` (`DEST_NOT_ALLOWED`)
+  - `PRIVACY_REQUEST` -> `DENY` (`PRIVACY_BLOCK`)
+  - Late-night impulse threshold -> `HOLD` (`EMOTION_HOLD`)
+  - Exceeds shared threshold -> `NEED_APPROVAL` (`SHARED_OVER_THRESHOLD`)
+  - Compliant -> `ALLOW` (`WITHIN_RULES` / `LEDGER_ONLY`)
+
+## 17. Statement Import & Historical Extraction (`/api/statement-import` & `/api/households/[householdId]/statement-import`)
+
+Allows couples to bootstrap their initial spending history and starting balances right after onboarding by uploading bank or e-wallet statements (PDF, Excel, CSV):
+
+- **Architecture:** Two-stage hybrid pipeline:
+  1. *Deterministic Local Extraction (0 LLM Tokens):* Raw text and tabular transactions are parsed in-memory using `unpdf` (PDFs) and `xlsx` (Excel/CSV) with 100% numerical accuracy and zero token costs.
+  2. *Categorization & Title Cleaning:* Heuristic pattern-matching runs first for instant mapping (< 1ms). For ambiguous merchants, an optional small-batch AI task cleans the title and maps it to standard categories (`Food & Drinks`, `Shopping`, `Bills`, `Transportation`, `Health`, `Social`, `Others`, `Income`).
+- `POST /api/households/[householdId]/statement-import` or `POST /api/statement-import`:
+  - **Multipart form upload:** accepts `file` (PDF, XLSX, CSV), `dryRun` (`true` | `false`), `walletType` (`shared` | `personal`), `paidBy` (`partner_a` | `partner_b`), and `useAi` (`true` | `false`).
+  - **Preview mode (`dryRun=true`):** returns extracted transactions without inserting rows into the database so the couple can review on screen first.
+  - **Commit mode (`dryRun=false` or JSON batch payload):** calls transactional RPC `import_statement_batch` to atomically insert transactions with `status = 'executed'`, updates wallet balance with the net delta, and logs an audit activity event.
+
+## 18. AI Agent and RAG
 
 ### `POST /api/ai/chat`
 
@@ -497,7 +602,7 @@ Knowledge source of truth is in `knowledge/seiya/*.md`. Each `##` section is a c
 
 The current RAG knowledge base uses `gemini-embedding-001` with 768-dimensional vectors and Supabase `pgvector`. Document and query embeddings must use the same model/dimension. RAG is for static Seiya explanations/financial education; actual balances, transactions, budgets, bills, and active rules must come from database tools.
 
-## 11. Security and privacy requirements for frontend
+## 19. Security and privacy requirements for frontend
 
 1. Treat `householdId`, `conversationId`, `ruleId`, `billId`, `transactionId`, and `walletId` from the browser as untrusted input. The server must authenticate and authorize each operation.
 2. Never assume possession of a UUID proves access. APIs should verify active household membership and rely on database RLS/RPC checks as defense in depth.
@@ -510,7 +615,7 @@ The current RAG knowledge base uses `gemini-embedding-001` with 768-dimensional 
 9. After an operation times out, consult its status/idempotency result before retrying with a new key.
 10. Onboarding answers (behavior scale, money meaning, communication style, priorities) are private to their owner: never return another partner's answers, never expose the derived behavior band or label in chat, API responses, logs, or onboarding results, and never use them to decide different facts or options for different users.
 
-## 12. Current verification status and known gaps
+## 20. Current verification status and known gaps
 
 ### Verified in the development project
 
@@ -537,7 +642,7 @@ The current RAG knowledge base uses `gemini-embedding-001` with 768-dimensional 
 - Recurring bills are metadata only; the next recurrence is not automatically generated.
 - The full frontend has not yet been integrated end-to-end.
 
-## 13. Recommended frontend implementation order
+## 21. Recommended frontend implementation order
 
 1. Auth screens: signup, signin, signout, session/profile check.
 2. Onboarding: GET/POST onboarding.
@@ -550,9 +655,9 @@ The current RAG knowledge base uses `gemini-embedding-001` with 768-dimensional 
 
 Before release, the frontend and backend developers should cross-check the exact request/response fields for endpoints marked **confirm in source**, then run the 12-case cross-household matrix and an HTTP 429 fallback test in a controlled environment.
 
-## 14. Manual terminal tests
+## 22. Manual terminal tests
 
-Four scripts in `scripts/` drive the real API (signup cookies + RLS-scoped Supabase reads) and print PASS/WARN/FAIL per assertion. They run against the dev server, not a mock, and they create real rows in the development Supabase project.
+Five scripts in `scripts/` drive the real API (signup cookies + RLS-scoped Supabase reads) and print PASS/WARN/FAIL per assertion. They run against the dev server, not a mock, and they create real rows in the development Supabase project.
 
 **Prerequisite:** the dev server must be running first.
 
@@ -567,6 +672,7 @@ npm run test:setup   # terminal 2 — one-shot account/household/agreement check
 | `npm run test:personalization` | Same message → three onboarding profiles. Asserts: internal band labels never appear, emoji per profile limits, unconflicted stays shortest, `record_expense` never offered for discussion messages. |
 | `npm run test:wellness` | Stress + crisis messages with the strongest profile applied. Asserts: no currency numbers, no tools, no emoji, no loan/product offer, professional-help pointer, no internal labels. |
 | `npm run test:expense` | `"hari ini aku habis Rp20 juta untuk liburan ke Jepang"` → `record_expense` → row in `transactions` with category `travel` and status from the active agreement (`pending_approval` above the Rp5 juta test threshold); identical resend stays a single row; a personal wallet with zero balance is never faked. |
+| `npm run test:statement` | Bank statement parsing (CSV, Excel `.xlsx`) with 0-token extraction, automatic merchant title cleaning, category mapping (`Food & Drinks`, `Shopping`, `Bills`, `Transportation`, `Income`), preview mode (`dryRun`), and atomic batch commit to Supabase. |
 | `npm run test:chat` | Runs the three scenario scripts back to back. |
 
 All of them accept the same overrides when you do not want the defaults:

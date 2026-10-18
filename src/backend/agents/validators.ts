@@ -44,13 +44,13 @@ export function normalizeCategorySlug(value: unknown): string | null {
 
 export function validateRecordExpenseInput(value: unknown): RecordExpenseValidation {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return { ok: false, message: "Argumen record_expense tidak valid." };
+    return { ok: false, message: "Invalid record_expense arguments." };
   }
 
   const args = value as Record<string, unknown>;
 
   if (args.wallet !== "shared" && args.wallet !== "personal") {
-    return { ok: false, message: 'wallet harus "shared" atau "personal".' };
+    return { ok: false, message: 'wallet must be "shared" or "personal".' };
   }
 
   const amount = args.amount;
@@ -63,7 +63,7 @@ export function validateRecordExpenseInput(value: unknown): RecordExpenseValidat
   ) {
     return {
       ok: false,
-      message: "amount harus berupa angka positif dengan paling banyak dua angka desimal, dalam satuan penuh (20 juta = 20000000).",
+      message: "amount must be a positive number with at most two decimal places in full units (e.g. 20000000).",
     };
   }
 
@@ -71,21 +71,21 @@ export function validateRecordExpenseInput(value: unknown): RecordExpenseValidat
     ? args.description.trim().replace(/\s+/g, " ")
     : "";
   if (!description || description.length > 250) {
-    return { ok: false, message: "description wajib diisi dan maksimal 250 karakter." };
+    return { ok: false, message: "description is required and must be at most 250 characters." };
   }
 
   const category = normalizeCategorySlug(args.category);
   if (!category) {
     return {
       ok: false,
-      message: `category harus slug huruf kecil tanpa spasi. Pilihan yang paling tepat: ${CATEGORY_SUGGESTIONS}.`,
+      message: `category must be a lowercase slug without spaces. Recommended: ${CATEGORY_SUGGESTIONS}.`,
     };
   }
 
   let currency: string | null = null;
   if (args.currency !== undefined && args.currency !== null) {
     if (typeof args.currency !== "string" || !CURRENCY_PATTERN.test(args.currency.trim().toUpperCase())) {
-      return { ok: false, message: "currency harus berupa kode mata uang tiga huruf, mis. IDR." };
+      return { ok: false, message: "currency must be a three-letter uppercase code, e.g. IDR, USD." };
     }
     currency = args.currency.trim().toUpperCase();
   }

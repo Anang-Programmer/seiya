@@ -62,38 +62,38 @@ export const SEIYA_READ_TOOLS: AIToolDefinition[] = [
 export const RECORD_EXPENSE_TOOL: AIToolDefinition = {
   name: "record_expense",
   description:
-    "Catat SATU pengeluaran yang sudah benar-benar terjadi dan dinyatakan pengguna di pesan ini (mis. \"hari ini aku liburan ke Jepang habis 20 juta\"). " +
-    "Backend yang mencatat lewat transaction engine; status hasil (dieksekusi, menunggu persetujuan pasangan, atau ditahan cooling-off) ditentukan kesepakatan keuangan aktif, bukan olehmu. " +
-    "Jangan dipakai untuk rencana, keinginan, pertanyaan, hipotesis, kutipan cerita orang lain, atau nominal yang tidak disebutkan pengguna. " +
-    "Ubah satuan ke angka penuh dalam mata uang wallet: 20 juta = 20000000, 50 ribu = 50000. " +
-    "wallet: 'shared' adalah DEFAULT untuk semua pengeluaran rumah tangga; pakai 'personal' hanya bila pengguna menyebut milik pribadi (mis. 'dari uang pribadiku'). " +
-    "Saldo belum terlihat di giliran ini, jadi jangan menebak wallet dari isi pesan. " +
-    `category berupa slug huruf kecil tanpa spasi; pilihan yang paling tepat: travel, food, groceries, transport, shopping, entertainment, health, utilities, education, subscriptions, gifts, bills, other. ` +
-    "Panggil hanya sekali per pengeluaran.",
+    "Record ONE expense that actually occurred and was stated by the user in this message (e.g. \"today I spent 20 million on a trip to Japan\"). " +
+    "The backend records it via the simulated transaction engine; the resulting status (executed, pending partner approval, or on cooling-off hold) is governed by the active financial agreement, not by you. " +
+    "Do not use for plans, desires, questions, hypotheticals, stories of other people, or amounts not explicitly stated. " +
+    "Convert units to full numbers in the wallet currency: 20 million = 20000000, 50 thousand = 50000. " +
+    "wallet: 'shared' is the DEFAULT for all household expenses; use 'personal' only if the user explicitly specifies their personal wallet (e.g. 'from my personal money'). " +
+    "Balances are not visible in this turn, so do not guess the wallet from message contents. " +
+    `category must be a lowercase slug without spaces; best choices: travel, food, groceries, transport, shopping, entertainment, health, utilities, education, subscriptions, gifts, bills, other. ` +
+    "Call only once per expense.",
   parameters: {
     type: "object",
     properties: {
       amount: {
         type: "number",
-        description: "Nominal penuh dalam mata uang wallet, mis. 20000000 untuk 20 juta.",
+        description: "Full amount in the wallet currency, e.g. 20000000 for 20 million.",
       },
       description: {
         type: "string",
-        description: "Ringkasan pengeluaran dalam bahasa pengguna, maksimal 250 karakter, mis. 'Liburan ke Jepang'.",
+        description: "Summary of the expense in user language, max 250 characters, e.g. 'Trip to Japan'.",
       },
       category: {
         type: "string",
-        description: "Slug kategori huruf kecil, mis. travel.",
+        description: "Lowercase category slug, e.g. travel.",
       },
       wallet: {
         type: "string",
         enum: ["shared", "personal"],
         description:
-          "shared untuk semua pengeluaran rumah tangga (DEFAULT); personal hanya bila pengguna menyebut milik pribadi.",
+          "shared for all household expenses (DEFAULT); personal only if user specifies personal money.",
       },
       currency: {
         type: "string",
-        description: "Kode mata uang yang disebut pengguna, mis. IDR. Wajib sama dengan mata uang wallet; jangan mengonversi sendiri.",
+        description: "Currency code mentioned by user, e.g. IDR, USD. Must match wallet currency; do not convert.",
       },
     },
     required: ["amount", "description", "category", "wallet"],
@@ -303,9 +303,9 @@ type WalletRow = {
 };
 
 function formatAmount(value: number | null, currency: string | null): string {
-  if (value === null) return "jumlah tidak diketahui";
+  if (value === null) return "unknown amount";
   try {
-    return new Intl.NumberFormat("id-ID", {
+    return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: currency ?? "IDR",
       maximumFractionDigits: 2,
@@ -342,18 +342,17 @@ function toTransactionSummary(raw: unknown, walletName: string): TransactionSumm
   };
 }
 
-/** Human-readable outcome in Indonesian; the model must repeat this instead of inventing a status. */
 function expenseStatusNote(status: string | null, holdUntil: string | null): string {
   if (status === "executed") {
-    return "Tercatat dan langsung dieksekusi: kesepakatan aktif tidak mensyaratkan persetujuan maupun cooling-off untuk nominal ini.";
+    return "Recorded and directly executed: active agreement does not require approval or cooling-off for this amount.";
   }
   if (status === "pending_approval") {
-    return "Tercatat dan sedang menunggu persetujuan pasangan sesuai batas persetujuan yang kalian sepakati. Jangan dianggap disetujui sebelum pasangan benar-benar memutuskan.";
+    return "Recorded and awaiting partner approval in accordance with your agreed threshold. Do not consider approved until your partner decides.";
   }
   if (status === "on_hold") {
-    return `Tercatat dan ditahan cooling-off${holdUntil ? ` sampai ${holdUntil}` : ""} sebelum dieksekusi sesuai kesepakatan aktif.`;
+    return `Recorded and held under cooling-off${holdUntil ? ` until ${holdUntil}` : ""} before execution in accordance with active agreement.`;
   }
-  return `Tercatat dengan status ${status ?? "tidak diketahui"}. Sampaikan status apa adanya; jangan mengarang hasil.`;
+  return `Recorded with status ${status ?? "unknown"}. Report status as returned; do not fabricate outcomes.`;
 }
 
 const RECORDED_STATUSES = new Set(["executed", "pending_approval", "on_hold", "approved", "rejected"]);
@@ -361,19 +360,19 @@ const RECORDED_STATUSES = new Set(["executed", "pending_approval", "on_hold", "a
 function recordExpenseErrorMessage(code?: string): string {
   switch (code) {
     case "42501":
-      return "Kamu tidak punya izin untuk mencatat transaksi ini.";
+      return "You do not have permission to record this transaction.";
     case "P0002":
-      return "Wallet atau household tidak ditemukan.";
+      return "Wallet or household not found.";
     case "22023":
-      return "Wallet ini tidak diizinkan kesepakatan keuangan yang aktif, atau kesepakatan belum aktif. Minta pengguna memeriksa halaman kesepakatan sebelum mencatat ulang.";
+      return "This wallet is not permitted by the active financial agreement, or no agreement is active. Review the agreement page before retrying.";
     case "P1001":
-      return "Saldo simulasi wallet tidak cukup untuk nominal ini. Jangan mencatat; sampaikan kekurangannya apa adanya.";
+      return "Insufficient simulated wallet balance for this amount. Do not record; report the shortfall as-is.";
     case "P1002":
-      return "Pengaturan kesepakatan keuangan aktif tidak valid sehingga transaksi tidak bisa dicatat. Minta pengguna memperbaikinya di halaman kesepakatan.";
+      return "Active financial agreement settings are invalid, so the transaction cannot be recorded. Ask user to review agreement settings.";
     case "23505":
-      return "Sudah ada permintaan transaksi serupa yang sedang diproses.";
+      return "A similar transaction request is already being processed.";
     default:
-      return "Pengeluaran gagal dicatat karena gangguan sistem. Minta pengguna mengulang sebentar lagi; jangan mengarang hasil.";
+      return "Failed to record expense due to a system error. Please retry shortly; do not fabricate outcomes.";
   }
 }
 
@@ -395,7 +394,7 @@ async function recordExpense(
 
   if (walletError) {
     console.warn("[Seiya Agent] record_expense wallet lookup failed", { code: walletError.code ?? "unknown" });
-    return { ok: false, recorded: false, message: "Daftar wallet tidak tersedia sementara. Minta pengguna mengulang sebentar lagi; jangan mengarang hasil." };
+    return { ok: false, recorded: false, message: "Wallet list is temporarily unavailable. Please retry shortly; do not fabricate results." };
   }
 
   const wallets = (walletRows ?? []) as WalletRow[];
@@ -408,8 +407,8 @@ async function recordExpense(
       ok: false,
       recorded: false,
       message: input.wallet === "shared"
-        ? "Dompet bersama tidak aktif untuk household ini. Jangan mencatat ke wallet lain."
-        : "Kamu tidak memiliki dompet pribadi yang aktif. Bila pengguna ingin mencatat ke dompet bersama, gunakan wallet 'shared'.",
+        ? "Shared wallet is not active for this household. Do not record to another wallet."
+        : "You do not have an active personal wallet. If the user wants to record to the shared wallet, use wallet 'shared'.",
     };
   }
 
@@ -417,7 +416,7 @@ async function recordExpense(
     return {
       ok: false,
       recorded: false,
-      message: `Pengguna menyebut ${input.currency} tetapi wallet ini memakai ${wallet.currency}. Jangan mengonversi mata uang sendiri; minta nominal dalam ${wallet.currency} terlebih dahulu.`,
+      message: `User mentioned ${input.currency} but this wallet uses ${wallet.currency}. Do not convert currencies yourself; request amount in ${wallet.currency} first.`,
     };
   }
 
@@ -425,7 +424,7 @@ async function recordExpense(
     return {
       ok: false,
       recorded: false,
-      message: `Nominal ${input.amount} terlalu kecil untuk wallet ${wallet.currency}; kemungkinan satuan salah. Ubah ke angka penuh (20 juta = 20000000, 50 ribu = 50000) lalu panggil lagi.`,
+      message: `Amount ${input.amount} is too small for wallet ${wallet.currency}; units may be incorrect. Convert to full numbers (20 million = 20000000, 50 thousand = 50000) then call again.`,
     };
   }
 
@@ -455,8 +454,8 @@ async function recordExpense(
         (item) => item.wallet_type === "personal" && item.owner_user_id === context.userId,
       );
       const alternatives = [
-        sharedWallet ? `wallet 'shared' (${sharedWallet.name}) berisi ${formatAmount(sharedWallet.simulated_balance, sharedWallet.currency)}` : null,
-        personalWallet ? `wallet 'personal' (${personalWallet.name}) berisi ${formatAmount(personalWallet.simulated_balance, personalWallet.currency)}` : null,
+        sharedWallet ? `wallet 'shared' (${sharedWallet.name}) has ${formatAmount(sharedWallet.simulated_balance, sharedWallet.currency)}` : null,
+        personalWallet ? `wallet 'personal' (${personalWallet.name}) has ${formatAmount(personalWallet.simulated_balance, personalWallet.currency)}` : null,
       ].filter(Boolean).join("; ");
 
       console.warn("[Seiya Agent] record_expense insufficient balance", { wallet: input.wallet, code: error.code });
@@ -464,10 +463,10 @@ async function recordExpense(
         ok: false,
         recorded: false,
         message:
-          `Tidak dicatat: saldo ${wallet.name} (${input.wallet}) ${formatAmount(wallet.simulated_balance, wallet.currency)} ` +
-          `kurang untuk ${formatAmount(input.amount, wallet.currency)}. Saat ini ${alternatives}. ` +
-          "Jangan mengklaim uang sudah keluar atau transaksi sudah tercatat. " +
-          "Pengeluaran rumah tangga beralasan ke dompet bersama; jelaskan kondisinya ke pengguna dan minta ia memastikan dompet yang dipakai.",
+          `Not recorded: ${wallet.name} (${input.wallet}) balance ${formatAmount(wallet.simulated_balance, wallet.currency)} ` +
+          `is insufficient for ${formatAmount(input.amount, wallet.currency)}. Currently ${alternatives}. ` +
+          "Do not claim money has left or transaction has been recorded. " +
+          "Household expenses are generally billed to the shared wallet; explain the condition to user and ask them to confirm the intended wallet.",
       };
     }
     if (error.code !== "P1003") {
@@ -491,7 +490,7 @@ async function recordExpense(
       recorded: false,
       duplicate: true,
       transaction: toTransactionSummary(duplicateRow, wallet.name),
-      status_note: "Pengeluaran ini sudah pernah dicatat dari pesan yang sama, jadi tidak dicatat dua kali. Sampaikan status yang sudah ada.",
+      status_note: "This expense was already recorded from the same message and will not be booked twice. Report the existing status.",
     };
   }
 
@@ -500,7 +499,7 @@ async function recordExpense(
   const status = safeText(isPlainRecord(rawTransaction) ? rawTransaction.status : null, 20);
   if (!status || !RECORDED_STATUSES.has(status)) {
     console.warn("[Seiya Agent] record_expense returned unexpected status", { status: status ?? "missing" });
-    return { ok: false, recorded: false, message: "Hasil pencatatan tidak dapat dipastikan. Jangan mengklaim transaksi tercatat; minta pengguna memeriksa daftar transaksi." };
+    return { ok: false, recorded: false, message: "Recording outcome could not be determined. Do not claim transaction was recorded; ask user to inspect transactions list." };
   }
 
   return {

@@ -42,61 +42,76 @@ export function validateFinanceRules(
     return { ok: false, message: "Rules must be an object." };
   }
 
-  const { walletMode, expenseSplit, approval, coolingOff } = value;
+  const raw = value as Record<string, unknown>;
 
-  if (
-    !["shared_only", "shared_and_personal", "separate_only"].includes(
-      String(walletMode)
-    )
-  ) {
+  const hasNested = isObject(raw.approval) || isObject(raw.expenseSplit);
+
+  const walletMode = raw.walletMode || "shared_and_personal";
+  if (!["shared_only", "shared_and_personal", "separate_only"].includes(String(walletMode))) {
     return { ok: false, message: "Invalid wallet mode." };
   }
 
-  if (
-    !isObject(expenseSplit) ||
-    !["equal", "custom"].includes(String(expenseSplit.mode)) ||
-    typeof expenseSplit.ownerPercent !== "number" ||
-    typeof expenseSplit.partnerPercent !== "number" ||
-    !Number.isInteger(expenseSplit.ownerPercent) ||
-    !Number.isInteger(expenseSplit.partnerPercent) ||
-    expenseSplit.ownerPercent < 0 ||
-    expenseSplit.partnerPercent < 0 ||
-    expenseSplit.ownerPercent > 100 ||
-    expenseSplit.partnerPercent > 100 ||
-    expenseSplit.ownerPercent + expenseSplit.partnerPercent !== 100
-  ) {
-    return { ok: false, message: "Invalid expense split." };
+  let ownerPercent = 50;
+  let partnerPercent = 50;
+  let splitMode: "equal" | "custom" = "equal";
+
+  if (hasNested && isObject(raw.expenseSplit)) {
+    const es = raw.expenseSplit as Record<string, unknown>;
+    if (!["equal", "custom"].includes(String(es.mode))) return { ok: false, message: "Invalid expense split mode." };
+    if (typeof es.ownerPercent !== "number" || typeof es.partnerPercent !== "number") return { ok: false, message: "Invalid expense split numbers." };
+    if (es.ownerPercent + es.partnerPercent !== 100) return { ok: false, message: "Expense split must sum to 100." };
+    ownerPercent = es.ownerPercent;
+    partnerPercent = es.partnerPercent;
+    splitMode = es.mode as "equal" | "custom";
+  } else if (typeof raw.newSplitA === "number" || typeof raw.splitPartnerA === "number") {
+    ownerPercent = typeof raw.newSplitA === "number" ? raw.newSplitA : Number(raw.splitPartnerA);
+    partnerPercent = typeof raw.newSplitB === "number" ? raw.newSplitB : Number(raw.splitPartnerB);
+    if (ownerPercent + partnerPercent !== 100) return { ok: false, message: "Expense split must sum to 100." };
+    splitMode = ownerPercent === 50 && partnerPercent === 50 ? "equal" : "custom";
   }
 
-  if (
-    expenseSplit.mode === "equal" &&
-    (expenseSplit.ownerPercent !== 50 ||
-      expenseSplit.partnerPercent !== 50)
-  ) {
-    return {
-      ok: false,
-      message: "Equal expense split must be 50:50.",
-    };
+  let requirePartnerApprovalAboveThreshold = true;
+  let sharedWalletThreshold = 500000;
+
+  if (hasNested && isObject(raw.approval)) {
+    const app = raw.approval as Record<string, unknown>;
+    if (typeof app.requirePartnerApprovalAboveThreshold !== "boolean") {
+      return { ok: false, message: "Invalid requirePartnerApprovalAboveThreshold." };
+    }
+    if (!isAmount(app.sharedWalletThreshold)) {
+      return { ok: false, message: "Invalid sharedWalletThreshold." };
+    }
+    requirePartnerApprovalAboveThreshold = app.requirePartnerApprovalAboveThreshold;
+    sharedWalletThreshold = app.sharedWalletThreshold;
+  } else if (raw.newThreshold !== undefined || raw.approvalThreshold !== undefined) {
+    const t = raw.newThreshold !== undefined ? raw.newThreshold : raw.approvalThreshold;
+    if (!isAmount(t)) return { ok: false, message: "Invalid approval threshold." };
+    sharedWalletThreshold = t;
+    if (typeof raw.approveEveryShared === "boolean") {
+      requirePartnerApprovalAboveThreshold = true;
+    }
   }
 
-  if (
-    !isObject(approval) ||
-    typeof approval.requirePartnerApprovalAboveThreshold !== "boolean" ||
-    !isAmount(approval.sharedWalletThreshold)
-  ) {
-    return { ok: false, message: "Invalid approval settings." };
-  }
+  let coolingOffEnabled = true;
+  let cooldownThreshold = 1000000;
+  let durationHours = 24;
 
-  if (
-    !isObject(coolingOff) ||
-    typeof coolingOff.enabled !== "boolean" ||
-    !isAmount(coolingOff.threshold) ||
-    typeof coolingOff.durationHours !== "number" ||
-    !Number.isInteger(coolingOff.durationHours) ||
-    coolingOff.durationHours < 1 ||
-    coolingOff.durationHours > 72
-  ) {
-    return { ok: false, message: "Invalid cooling-off settings." };
+  if (hasNested && isObject(raw.coolingOff)) {
+    const co = raw.coolingOff as Record<string, unknown>;
+    if (typeof co.enabled !== "boolean") return { ok: false, message: "Invalid coolingOff.enabled." };
+    if (!isAmount(co.threshold)) return { ok: false, message: "Invalid coolingOff.threshold." };
+    if (typeof co.durationHours !== "number" || co.durationHours < 1 || co.durationHours > 72) {
+      return { ok: false, message: "Invalid coolingOff.durationHours." };
+    }
+    coolingOffEnabled = co.enabled;
+    cooldownThreshold = co.threshold;
+    durationHours = co.durationHours;
+  } else if (raw.coolingOffEnabled !== undefined || raw.cooldownThreshold !== undefined) {
+    if (typeof raw.coolingOffEnabled === "boolean") coolingOffEnabled = raw.coolingOffEnabled;
+    if (raw.cooldownThreshold !== undefined) {
+      if (!isAmount(raw.cooldownThreshold)) return { ok: false, message: "Invalid cooldownThreshold." };
+      cooldownThreshold = raw.cooldownThreshold;
+    }
   }
 
   return {
@@ -104,19 +119,18 @@ export function validateFinanceRules(
     data: {
       walletMode: walletMode as FinanceRules["walletMode"],
       expenseSplit: {
-        mode: expenseSplit.mode as "equal" | "custom",
-        ownerPercent: expenseSplit.ownerPercent,
-        partnerPercent: expenseSplit.partnerPercent,
+        mode: splitMode,
+        ownerPercent,
+        partnerPercent,
       },
       approval: {
-        requirePartnerApprovalAboveThreshold:
-          approval.requirePartnerApprovalAboveThreshold,
-        sharedWalletThreshold: approval.sharedWalletThreshold,
+        requirePartnerApprovalAboveThreshold,
+        sharedWalletThreshold,
       },
       coolingOff: {
-        enabled: coolingOff.enabled,
-        threshold: coolingOff.threshold,
-        durationHours: coolingOff.durationHours,
+        enabled: coolingOffEnabled,
+        threshold: cooldownThreshold,
+        durationHours,
       },
     },
   };
