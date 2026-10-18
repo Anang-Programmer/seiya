@@ -2143,10 +2143,6 @@ export function AuthView({
             <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-8 sm:py-12 space-y-8">
               {/* Header Title */}
               <div className="text-center space-y-3">
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#B4562A]/10 text-[#B4562A] text-xs font-serif font-semibold border border-[#B4562A]/20">
-                  <SolarIcon name="shield-check" size={15} />
-                  <span>Step 3 of 4 • Smart Contract Formulation</span>
-                </div>
                 <h1 className="font-serif text-3xl sm:text-4xl text-[#2a2b2f] font-normal tracking-tight">
                   Couple Financial Agreement
                 </h1>
