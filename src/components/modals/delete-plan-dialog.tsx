@@ -5,7 +5,8 @@ import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogContent, Di
 import { Button } from "@/components/ui/button";
 import { SolarIcon } from "@/components/icons/solar";
 import { useApp, PlanItem } from "@/lib/store";
-import { formatMoney } from "@/lib/utils";
+// Amounts here are decided on, so they stay visible in privacy mode.
+import { formatMoneyAlways as formatMoney } from "@/lib/utils";
 
 interface DeletePlanDialogProps {
   plan: PlanItem | null;

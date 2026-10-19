@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SolarIcon } from "@/components/icons/solar";
 import { useApp, ApprovalRequest } from "@/lib/store";
-import { formatMoney, formatMoneyConverted } from "@/lib/utils";
+// Amounts here are decided on, so they stay visible in privacy mode.
+import { formatMoneyAlways as formatMoney, formatMoneyConvertedAlways as formatMoneyConverted } from "@/lib/utils";
 
 interface AllApprovalsModalProps {
   open: boolean;

@@ -180,6 +180,7 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
     budgetSummary,
     walletsReady,
     partnerProfile,
+    hideAmounts,
   } = useApp();
 
   const activeName = currentUser === "partner_a" ? partnerAName : partnerBName;
@@ -282,6 +283,7 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
   const hasMonthData = stats.income > 0 || stats.expenses > 0 || stats.savings > 0;
   const yLabels = useMemo(() => {
     if (!hasMonthData) return { top: "", midTop: "", midBottom: "", zero: "0" };
+    if (hideAmounts) return { top: "•••", midTop: "•••", midBottom: "•••", zero: "0" };
     const k6 = stats.scaleMax;
     const k4 = (stats.scaleMax * 2) / 3;
     const k2 = stats.scaleMax / 3;
@@ -297,7 +299,7 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
       midBottom: formatCompact(k2),
       zero: "0",
     };
-  }, [stats.scaleMax, hasMonthData]);
+  }, [stats.scaleMax, hasMonthData, hideAmounts]);
 
   const isPartnerA = currentUser === "partner_a";
 

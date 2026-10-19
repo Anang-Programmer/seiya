@@ -2,7 +2,8 @@
 
 import React, { useState } from "react";
 import { SolarIcon } from "@/components/icons/solar";
-import { formatMoney } from "@/lib/utils";
+// Amounts here are decided on, so they stay visible in privacy mode.
+import { formatMoneyAlways as formatMoney } from "@/lib/utils";
 import type { ScannedReceipt, StatementTransaction } from "@/lib/api";
 
 // Cards Seiya shows in the chat after the user attaches a bank statement (📎)

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { convertAmount, convertMoney } from "./currency";
+import { convertAmount, convertMoney, setAmountsHidden } from "./currency";
 import * as api from "./api";
 import { ApiError } from "./api";
 import {
@@ -253,6 +253,9 @@ interface AppContextType {
   // Currency Management
   reportingCurrency: string;
   setReportingCurrency: (currency: string) => void;
+  /** Privacy mode: money amounts render as "IDR ••••••" (remembered on this device). */
+  hideAmounts: boolean;
+  toggleHideAmounts: () => void;
   // Wallets Native Balances
   wallets: WalletState;
   walletsReady: boolean;
@@ -370,6 +373,7 @@ export interface ProposeExpenseParams {
 const AppContext = createContext<AppContextType | null>(null);
 
 const HELD_TX_PREFIX = "tx:";
+const HIDE_AMOUNTS_KEY = "seiya.hideAmounts";
 const POLL_INTERVAL_MS = 20_000;
 
 const EMPTY_WALLETS: WalletState = {
@@ -419,6 +423,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [timeZone, setTimeZone] = useState<string>("Asia/Jakarta");
 
   const [reportingCurrency, setReportingCurrency] = useState<string>("IDR");
+  // Read once on the client; the formatter flag is set before the first render.
+  const [hideAmounts, setHideAmounts] = useState<boolean>(() => {
+    let hidden = false;
+    try {
+      hidden = typeof window !== "undefined" && window.localStorage.getItem(HIDE_AMOUNTS_KEY) === "1";
+    } catch {
+      hidden = false;
+    }
+    setAmountsHidden(hidden);
+    return hidden;
+  });
+  const toggleHideAmounts = useCallback(() => {
+    setHideAmounts((prev) => {
+      const next = !prev;
+      setAmountsHidden(next);
+      try {
+        window.localStorage.setItem(HIDE_AMOUNTS_KEY, next ? "1" : "0");
+      } catch {
+        // Storage can be unavailable (private mode); the toggle still works for this visit.
+      }
+      return next;
+    });
+  }, []);
   const reportingCurrencyTouched = useRef(false);
   const [pendingDirectChat, setPendingDirectChat] = useState<PendingDirectChat | null>(null);
 
@@ -518,12 +545,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const partner = me.household.partner;
       setPartnerProfile(partner ? { userId: partner.userId, fullName: partner.fullName || "Partner" } : null);
 
+      // Before the partner joins, show "your partner" instead of the "Partner A/B"
+      // placeholder, but keep a name the user typed when inviting.
+      const partnerLabel = (prev: string, placeholder: string) =>
+        partner?.fullName || (prev === placeholder ? "your partner" : prev);
       if (role === "partner_a") {
         setPartnerAName(fullName);
-        if (partner?.fullName) setPartnerBName(partner.fullName);
+        setPartnerBName((prev) => partnerLabel(prev, "Partner B"));
       } else {
         setPartnerBName(fullName);
-        if (partner?.fullName) setPartnerAName(partner.fullName);
+        setPartnerAName((prev) => partnerLabel(prev, "Partner A"));
       }
     } else {
       setHousehold(null);
@@ -1528,6 +1559,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         timeZone,
         setTimeZone,
         reportingCurrency,
+        hideAmounts,
+        toggleHideAmounts,
         setReportingCurrency: (currency) => {
           reportingCurrencyTouched.current = true;
           setReportingCurrency(currency);

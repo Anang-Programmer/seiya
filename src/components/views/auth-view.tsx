@@ -6,7 +6,8 @@ import { SeiyaLogo, SeiyaIcon } from "@/components/icons/seiya-logo";
 import { SolarIcon } from "@/components/icons/solar";
 import { Button } from "@/components/ui/button";
 import { useApp, UserRole } from "@/lib/store";
-import { convertAmount, formatMoney, formatMoneyConverted } from "@/lib/utils";
+// Amounts here are decided on, so they stay visible in privacy mode.
+import { convertAmount, formatMoneyAlways as formatMoney, formatMoneyConvertedAlways as formatMoneyConverted } from "@/lib/utils";
 import {
   apiAcceptInvitation,
   apiCreateHousehold,

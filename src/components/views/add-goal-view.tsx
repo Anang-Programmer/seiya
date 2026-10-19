@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useApp, PlanItem } from "@/lib/store";
 import { SUPPORTED_CURRENCIES } from "@/lib/currency";
-import { formatMoney, formatMoneyConverted } from "@/lib/utils";
+// Amounts here are decided on, so they stay visible in privacy mode.
+import { formatMoneyAlways as formatMoney, formatMoneyConvertedAlways as formatMoneyConverted } from "@/lib/utils";
 
 interface AddGoalViewProps {
   onBack: () => void;

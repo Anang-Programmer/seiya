@@ -37,10 +37,37 @@ export const MOCK_FX_METADATA = {
   timestamp: "2026-10-14 00:00 UTC",
 };
 
+// ---------------------------------------------------------------------------
+// Privacy mode ("eye" toggle in the header): amounts render as "IDR ••••••".
+// The store owns the setting; this flag lets every formatter follow it.
+// ---------------------------------------------------------------------------
+let amountsHidden = false;
+
+export function setAmountsHidden(hidden: boolean) {
+  amountsHidden = hidden;
+}
+
+export function areAmountsHidden() {
+  return amountsHidden;
+}
+
+/** Replaces the number in a formatted amount, keeping the currency label. */
+export function maskAmountText(text: string): string {
+  return text.replace(/[-−]?\d[\d.,\s  ]*\d|[-−]?\d/, "••••••");
+}
+
+/** Formats money unless privacy mode is on. Use for balances, lists and charts. */
+export function formatMoney(amount: number, currencyCode: string = "USD", locale: string = "en-US"): string {
+  const text = formatMoneyAlways(amount, currencyCode, locale);
+  return amountsHidden ? maskAmountText(text) : text;
+}
+
 /**
- * Format money with locale awareness and proper minor-unit decimals.
+ * Format money with locale awareness and proper minor-unit decimals. Always
+ * shows the number: use where the user acts on an amount (approve, propose,
+ * confirm), since deciding on a hidden number would be unsafe.
  */
-export function formatMoney(
+export function formatMoneyAlways(
   amount: number,
   currencyCode: string = "USD",
   locale: string = "en-US"
@@ -144,6 +171,17 @@ export function formatMoneyConverted(
   const conv = convertMoney(amount, fromCurrency, toCurrency);
   const finalAmount = conv.available ? conv.convertedAmount : amount;
   return formatMoney(finalAmount, toCurrency, locale);
+}
+
+/** formatMoneyConverted that ignores privacy mode (see formatMoneyAlways). */
+export function formatMoneyConvertedAlways(
+  amount: number,
+  fromCurrency: string = "USD",
+  toCurrency: string = "USD",
+  locale: string = "en-US"
+): string {
+  const conv = convertMoney(amount, fromCurrency, toCurrency);
+  return formatMoneyAlways(conv.available ? conv.convertedAmount : amount, toCurrency, locale);
 }
 
 /**

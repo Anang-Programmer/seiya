@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { SolarIcon, SolarIconName } from "@/components/icons/solar";
 import { useApp, PlanItem } from "@/lib/store";
 import { SUPPORTED_CURRENCIES } from "@/lib/currency";
-import { formatMoney } from "@/lib/utils";
+// Amounts here are decided on, so they stay visible in privacy mode.
+import { formatMoneyAlways as formatMoney } from "@/lib/utils";
 
 interface CreateGoalDialogProps {
   open: boolean;
