@@ -412,7 +412,7 @@ export function ApprovalDialog({ request, open, onOpenChange }: ApprovalDialogPr
               <div>
                 <span className="font-semibold block">You created this request</span>
                 <span className="text-[11px] text-amber-800">
-                  Dual-Key protocol prevents self-approval. Switch persona to <strong>{approverName}</strong> to sign and approve.
+                  Dual-Key protocol prevents self-approval. <strong>{approverName}</strong> signs this from their own account.
                 </span>
               </div>
             </div>

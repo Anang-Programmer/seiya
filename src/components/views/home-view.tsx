@@ -14,6 +14,7 @@ import { AllApprovalsModal } from "@/components/modals/all-approvals-modal";
 import { BillDialog } from "@/components/modals/bill-dialog";
 import { ProposeExpenseDialog } from "@/components/modals/propose-expense-dialog";
 import { MOCK_FX_METADATA } from "@/lib/currency";
+import { computeDashboardStats } from "@/lib/dashboard-stats";
 
 function TrendSparkline({
   id,
@@ -197,6 +198,8 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
     partnerBName,
     sendChatMessage,
     setPendingDirectChat,
+    settlement,
+    budgetSummary,
   } = useApp();
 
   const activeName = currentUser === "partner_a" ? partnerAName : partnerBName;
@@ -245,63 +248,15 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
   }, [showQuickActions]);
 
   const pendingApprovalsCount = approvals.filter((a) => a.status === "pending").length;
-  const urgentBillsCount = bills ? bills.filter((b) => b.daysRemaining <= 3).length : 0;
+  const urgentBillsCount = bills ? bills.filter((b) => b.status !== "paid" && b.daysRemaining <= 3).length : 0;
   const heldPurchasesCount = heldPurchases ? heldPurchases.length : 0;
 
-  const weeklyOverviewData = [
-    {
-      id: "week1",
-      label: "Sep 1–7",
-      period: "Sep 1 – 7, 2026",
-      income: 1350,
-      expenses: 780,
-      savings: 320,
-      xCenter: 88,
-      b1X: 68,
-      b2X: 90,
-      bar1: { yBottom: 118, hBottom: 52, yMid: 96, hMid: 22, yTop: 62, hTop: 34 },
-      bar2: { yBottom: 140, hBottom: 30, yMid: 110, hMid: 30, yTop: 82, hTop: 28 },
-    },
-    {
-      id: "week2",
-      label: "Sep 8–14",
-      period: "Sep 8 – 14, 2026",
-      income: 1280,
-      expenses: 810,
-      savings: 290,
-      xCenter: 188,
-      b1X: 168,
-      b2X: 190,
-      bar1: { yBottom: 120, hBottom: 50, yMid: 102, hMid: 18, yTop: 68, hTop: 34 },
-      bar2: { yBottom: 140, hBottom: 30, yMid: 112, hMid: 28, yTop: 84, hTop: 28 },
-    },
-    {
-      id: "week3",
-      label: "Sep 15–21",
-      period: "Sep 15 – 21, 2026",
-      income: 1420,
-      expenses: 840,
-      savings: 340,
-      xCenter: 288,
-      b1X: 268,
-      b2X: 290,
-      bar1: { yBottom: 116, hBottom: 54, yMid: 94, hMid: 22, yTop: 56, hTop: 38 },
-      bar2: { yBottom: 138, hBottom: 32, yMid: 108, hMid: 30, yTop: 80, hTop: 28 },
-    },
-    {
-      id: "week4",
-      label: "Sep 22–28",
-      period: "Sep 22 – 28, 2026",
-      income: 1520,
-      expenses: 920,
-      savings: 390,
-      xCenter: 388,
-      b1X: 368,
-      b2X: 390,
-      bar1: { yBottom: 110, hBottom: 60, yMid: 88, hMid: 22, yTop: 48, hTop: 40 },
-      bar2: { yBottom: 130, hBottom: 40, yMid: 96, hMid: 34, yTop: 65, hTop: 31 },
-    },
-  ];
+  // All dashboard figures are derived from the household's real transactions.
+  const stats = useMemo(
+    () => computeDashboardStats(transactions, reportingCurrency, locale),
+    [transactions, reportingCurrency, locale]
+  );
+  const weeklyOverviewData = stats.weeks;
 
   const activeWeek = activeWeekIndex !== null ? weeklyOverviewData[activeWeekIndex] : null;
   const tooltipLeftPercent = activeWeek
@@ -315,6 +270,9 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
     : 0;
 
   const pendingApproval = approvals.find((a) => a.status === "pending");
+  const upcomingBills = bills
+    .filter((b) => b.status !== "paid" && b.daysRemaining >= 0 && b.daysRemaining <= 7)
+    .sort((a, b) => a.daysRemaining - b.daysRemaining);
 
   const filteredTransactions = transactions.filter((t) => {
     if (txFilter === "shared") return t.wallet === "shared";
@@ -323,25 +281,28 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
     return true;
   });
 
-  const rawCategories = useMemo(() => [
-    { name: "Shopping", count: "14 Transactions", percent: "58.4%", usdAmount: -2866, color: "#B45529" },
-    { name: "Food & Drinks", count: "12 Transactions", percent: "28.18%", usdAmount: -1385, color: "#C98A4F" },
-    { name: "Bills", count: "3 Transactions", percent: "8.92%", usdAmount: -437, color: "#3B1D17" },
-    { name: "Health", count: "1 Transaction", percent: "2.78%", usdAmount: -136, color: "#3d5a40" },
-    { name: "Transportation", count: "2 Transactions", percent: "1.72%", usdAmount: -84, color: "#808988" },
-  ], []);
+  const categories = useMemo(
+    () => stats.categories.map((c) => ({ ...c, amount: formatMoney(c.value, reportingCurrency, locale) })),
+    [stats.categories, reportingCurrency, locale]
+  );
 
-  const categories = useMemo(() => {
-    return rawCategories.map((c) => ({
-      ...c,
-      amount: formatMoneyConverted(c.usdAmount, "USD", reportingCurrency, locale),
-    }));
-  }, [rawCategories, reportingCurrency, locale]);
+  // Donut segments on a circle with r=38 (circumference ~238.76).
+  const donutSegments = useMemo(() => {
+    const circumference = 2 * Math.PI * 38;
+    const lengths = stats.categories.map((c) => c.share * circumference);
+    return stats.categories.map((c, i) => {
+      const offset = lengths.slice(0, i).reduce((sum, len) => sum + len, 0);
+      return { name: c.name, color: c.color, dash: `${lengths[i].toFixed(1)} ${circumference.toFixed(1)}`, offset: -offset };
+    });
+  }, [stats.categories]);
+
+  const formatChange = (change: number | null) =>
+    change === null ? null : `${Math.abs(change).toFixed(change !== 0 && Math.abs(change) < 10 ? 1 : 0)}%`;
 
   const yLabels = useMemo(() => {
-    const k6 = convertAmount(6000, "USD", reportingCurrency);
-    const k4 = convertAmount(4000, "USD", reportingCurrency);
-    const k2 = convertAmount(2000, "USD", reportingCurrency);
+    const k6 = stats.scaleMax;
+    const k4 = (stats.scaleMax * 2) / 3;
+    const k2 = stats.scaleMax / 3;
     const formatCompact = (val: number) => {
       if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(0)}M`;
       if (val >= 1_000) return `${(val / 1_000).toFixed(0)}k`;
@@ -353,7 +314,7 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
       midBottom: formatCompact(k2),
       zero: "0",
     };
-  }, [reportingCurrency]);
+  }, [stats.scaleMax]);
 
   const isPartnerA = currentUser === "partner_a";
 
@@ -362,7 +323,7 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
     {
       id: "your-wallet",
       avatar: isPartnerA ? "/dashboard/Profile-Card-Man.png" : "/dashboard/Profile-Card-Women.png",
-      alt: isPartnerA ? "Alex avatar" : "Taylor avatar",
+      alt: `${isPartnerA ? partnerAName : partnerBName} avatar`,
       shouldFlip: !isPartnerA, // When cewe is on the left, reverse horizontal so she faces right towards partner
       label: "Your balance",
       currency: isPartnerA ? wallets.personalA.currency : wallets.personalB.currency,
@@ -385,7 +346,7 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
     {
       id: "partner-wallet",
       avatar: isPartnerA ? "/dashboard/Profile-Card-Women.png" : "/dashboard/Profile-Card-Man.png",
-      alt: isPartnerA ? "Taylor avatar" : "Alex avatar",
+      alt: `${isPartnerA ? partnerBName : partnerAName} avatar`,
       shouldFlip: !isPartnerA, // When partner is cowo, reverse horizontal so he faces left towards partner
       label: "Partner balance",
       currency: isPartnerA ? wallets.personalB.currency : wallets.personalA.currency,
@@ -824,7 +785,7 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
                 Monthly Overview
               </h3>
               <p className="text-xs text-[#808988] mt-0.5">
-                September 2026
+                {stats.monthLabel}
               </p>
             </div>
             <button
@@ -888,7 +849,7 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
                           <span>Income:</span>
                         </span>
                         <span className="font-serif font-bold text-xs text-[#86efac]">
-                          +{formatMoneyConverted(activeWeek.income, "USD", reportingCurrency, locale)}
+                          +{formatMoney(activeWeek.income, reportingCurrency, locale)}
                         </span>
                       </div>
 
@@ -898,7 +859,7 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
                           <span>Expenses:</span>
                         </span>
                         <span className="font-serif font-bold text-xs text-[#fca5a5]">
-                          -{formatMoneyConverted(activeWeek.expenses, "USD", reportingCurrency, locale)}
+                          -{formatMoney(activeWeek.expenses, reportingCurrency, locale)}
                         </span>
                       </div>
 
@@ -908,7 +869,7 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
                           <span>Savings:</span>
                         </span>
                         <span className="font-serif font-bold text-xs text-[#fde047]">
-                          {formatMoneyConverted(activeWeek.savings, "USD", reportingCurrency, locale)}
+                          {formatMoney(activeWeek.savings, reportingCurrency, locale)}
                         </span>
                       </div>
                     </div>
@@ -1028,12 +989,14 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
                 </span>
                 <div className="flex items-center justify-between">
                   <div className="text-2xl sm:text-[28px] font-serif font-bold text-[#2a2b2f] tracking-tight">
-                    {formatMoneyConverted(5320, "USD", reportingCurrency, locale)}
+                    {formatMoney(stats.income, reportingCurrency, locale)}
                   </div>
-                  <div className="flex items-center gap-0.5 text-xs font-bold text-[#2d5232]">
-                    <span className="text-[11px]">↑</span>
-                    <span>16%</span>
-                  </div>
+                  {formatChange(stats.incomeChange) && (
+                    <div className={`flex items-center gap-0.5 text-xs font-bold ${(stats.incomeChange ?? 0) >= 0 ? "text-[#2d5232]" : "text-[#a34426]"}`}>
+                      <span className="text-[11px]">{(stats.incomeChange ?? 0) >= 0 ? "↑" : "↓"}</span>
+                      <span>{formatChange(stats.incomeChange)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1046,12 +1009,14 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
                 </span>
                 <div className="flex items-center justify-between">
                   <div className="text-2xl sm:text-[28px] font-serif font-bold text-[#B45529] tracking-tight">
-                    {formatMoneyConverted(3180, "USD", reportingCurrency, locale)}
+                    {formatMoney(stats.expenses, reportingCurrency, locale)}
                   </div>
-                  <div className="flex items-center gap-0.5 text-xs font-bold text-[#a34426]">
-                    <span className="text-[11px]">↓</span>
-                    <span>8%</span>
-                  </div>
+                  {formatChange(stats.expensesChange) && (
+                    <div className={`flex items-center gap-0.5 text-xs font-bold ${(stats.expensesChange ?? 0) >= 0 ? "text-[#a34426]" : "text-[#2d5232]"}`}>
+                      <span className="text-[11px]">{(stats.expensesChange ?? 0) >= 0 ? "↑" : "↓"}</span>
+                      <span>{formatChange(stats.expensesChange)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1064,12 +1029,14 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
                 </span>
                 <div className="flex items-center justify-between">
                   <div className="text-2xl sm:text-[28px] font-serif font-bold text-[#2a2b2f] tracking-tight">
-                    {formatMoneyConverted(1240, "USD", reportingCurrency, locale)}
+                    {formatMoney(stats.savings, reportingCurrency, locale)}
                   </div>
-                  <div className="flex items-center gap-0.5 text-xs font-bold text-[#2d5232]">
-                    <span className="text-[11px]">↑</span>
-                    <span>24%</span>
-                  </div>
+                  {formatChange(stats.savingsChange) && (
+                    <div className={`flex items-center gap-0.5 text-xs font-bold ${(stats.savingsChange ?? 0) >= 0 ? "text-[#2d5232]" : "text-[#a34426]"}`}>
+                      <span className="text-[11px]">{(stats.savingsChange ?? 0) >= 0 ? "↑" : "↓"}</span>
+                      <span>{formatChange(stats.savingsChange)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1182,9 +1149,13 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
             <SolarIcon name="danger-triangle" size={20} />
           </div>
           <div>
-            <h4 className="text-xs font-bold text-[#C98A4F]">Monthly Budget Alert: 90.7% Spent</h4>
+            <h4 className="text-xs font-bold text-[#C98A4F]">
+              {budgetSummary ? `Monthly Budget: ${budgetSummary.usagePercent}% Spent` : "No Budget Set Yet"}
+            </h4>
             <p className="text-[11px] text-[#515151] mt-0.5">
-              You’ve used {formatMoneyConverted(6350, "USD", reportingCurrency, locale)} out of your {formatMoneyConverted(7000, "USD", reportingCurrency, locale)} budget with 8 days remaining.
+              {budgetSummary
+                ? `You’ve used ${formatMoneyConverted(budgetSummary.spent, budgetSummary.currency, reportingCurrency, locale)} out of your ${formatMoneyConverted(budgetSummary.amount, budgetSummary.currency, reportingCurrency, locale)} budget with ${budgetSummary.daysRemaining} day${budgetSummary.daysRemaining === 1 ? "" : "s"} remaining.`
+                : "Set a shared spending budget with Seiya so you both get an early warning before overspending."}
             </p>
           </div>
         </div>
@@ -1238,6 +1209,11 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
 
           {/* Transaction List Items Card (12px, borderless, category-specific icons) */}
           <div className="bg-[#f5eee1] rounded-[12px] shadow-xs overflow-hidden">
+            {filteredTransactions.length === 0 && (
+              <p className="p-5 text-xs text-[#808988] text-center">
+                No transactions yet. Record an expense or ask Seiya to log one for you.
+              </p>
+            )}
             {filteredTransactions.slice(0, 5).map((tx) => {
               const visual = getTransactionCategoryVisual(tx.category, tx.title);
               return (
@@ -1296,7 +1272,7 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
             <h3 className="text-base sm:text-lg font-serif font-normal text-[#2a2b2f]">
               Spending Analysis
             </h3>
-            <span className="text-xs font-semibold text-[#B45529] font-mono">September 2026</span>
+            <span className="text-xs font-semibold text-[#B45529] font-mono">{stats.monthLabel}</span>
           </div>
 
           <div className="bg-[#f5eee1] rounded-[12px] shadow-xs p-5 sm:p-6 space-y-4">
@@ -1304,65 +1280,46 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
             <div className="relative w-52 h-52 sm:w-64 sm:h-64 mx-auto flex items-center justify-center my-2">
               <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                 <circle cx="50" cy="50" r="38" fill="transparent" stroke="#e6ded3" strokeWidth="10" />
-                {/* Shopping: 58.4% of 238.76 = 139.4 */}
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="38"
-                  fill="transparent"
-                  stroke="#B45529"
-                  strokeWidth="10"
-                  strokeDasharray="139.4 238.8"
-                  strokeDashoffset="0"
-                />
-                {/* Food & Drinks: 28.2% of 238.76 = 67.3 */}
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="38"
-                  fill="transparent"
-                  stroke="#C98A4F"
-                  strokeWidth="10"
-                  strokeDasharray="67.3 238.8"
-                  strokeDashoffset="-139.4"
-                />
-                {/* Bills: 8.9% of 238.76 = 21.3 */}
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="38"
-                  fill="transparent"
-                  stroke="#3B1D17"
-                  strokeWidth="10"
-                  strokeDasharray="21.3 238.8"
-                  strokeDashoffset="-206.7"
-                />
-                {/* Health & Others: 4.5% of 238.76 = 10.8 */}
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="38"
-                  fill="transparent"
-                  stroke="#808988"
-                  strokeWidth="10"
-                  strokeDasharray="10.8 238.8"
-                  strokeDashoffset="-228.0"
-                />
+                {donutSegments.map((seg) => (
+                  <circle
+                    key={seg.name}
+                    cx="50"
+                    cy="50"
+                    r="38"
+                    fill="transparent"
+                    stroke={seg.color}
+                    strokeWidth="10"
+                    strokeDasharray={seg.dash}
+                    strokeDashoffset={seg.offset}
+                  />
+                ))}
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-3">
                 <span className="text-xs sm:text-sm text-[#515151] font-medium tracking-wide">Total Spent</span>
                 <span className="text-xl sm:text-3xl font-extrabold font-serif text-[#2a2b2f] tracking-tight my-1">
-                  {formatMoneyConverted(4908, "USD", reportingCurrency, locale)}
+                  {formatMoney(stats.totalSpent, reportingCurrency, locale)}
                 </span>
-                <span className="text-xs font-bold text-[#2d5232] flex items-center gap-1 bg-[#2d5232]/10 px-2 py-0.5 rounded-full mt-0.5">
-                  <SolarIcon name="trend-down" size={12} />
-                  -34.14%
-                </span>
+                {stats.spentChange !== null && (
+                  <span
+                    className={`text-xs font-bold flex items-center gap-1 px-2 py-0.5 rounded-full mt-0.5 ${
+                      stats.spentChange <= 0 ? "text-[#2d5232] bg-[#2d5232]/10" : "text-[#a34426] bg-[#a34426]/10"
+                    }`}
+                  >
+                    <SolarIcon name={stats.spentChange <= 0 ? "trend-down" : "trend-up"} size={12} />
+                    {stats.spentChange > 0 ? "+" : "-"}
+                    {formatChange(stats.spentChange)}
+                  </span>
+                )}
               </div>
             </div>
 
             {/* Category breakdown list */}
             <div className="space-y-2 pt-2">
+              {categories.length === 0 && (
+                <p className="text-xs text-[#808988] text-center py-2">
+                  No spending recorded this month yet.
+                </p>
+              )}
               {categories.map((cat) => (
                 <div key={cat.name} className="flex items-center justify-between text-xs py-1">
                   <div className="flex items-center gap-2">
@@ -1388,9 +1345,17 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
             <SeiyaIcon size={18} color="#B45529" />
           </div>
           <div>
-            <h4 className="text-xs font-bold text-[#2a2b2f]">Seiya Insight: Duplicate Subscription</h4>
+            <h4 className="text-xs font-bold text-[#2a2b2f]">
+              Seiya Insight: {upcomingBills.length > 0 ? "Bills Due This Week" : "No Bills Due Soon"}
+            </h4>
             <p className="text-xs text-[#515151] mt-0.5 leading-relaxed">
-              Netflix Premium is active on shared card while another streaming service was charged to your partner’s card. Consolidating could save {formatMoneyConverted(15, "USD", reportingCurrency, locale)}/month.
+              {upcomingBills.length > 0
+                ? `${upcomingBills.length} bill${upcomingBills.length === 1 ? "" : "s"} due in the next 7 days, totalling ${formatMoney(
+                    upcomingBills.reduce((sum, b) => sum + convertAmount(b.amount, b.currency, reportingCurrency), 0),
+                    reportingCurrency,
+                    locale
+                  )}. Next up: ${upcomingBills[0].title} (${upcomingBills[0].dueDate}).`
+                : "Nothing is due in the next 7 days. Add recurring bills so Seiya can remind you both in time."}
             </p>
           </div>
         </div>
@@ -1401,9 +1366,17 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
             <SolarIcon name="info-circle" size={18} />
           </div>
           <div>
-            <h4 className="text-xs font-bold text-[#2a2b2f]">Seiya Insight: Internet Fiber +15%</h4>
+            <h4 className="text-xs font-bold text-[#2a2b2f]">
+              Seiya Insight: {settlement.partnerBOwesA > 0 || settlement.partnerAOwesB > 0 ? "Shared Balance" : "Couple Check-in"}
+            </h4>
             <p className="text-xs text-[#515151] mt-0.5 leading-relaxed">
-              Upcoming bill on 25 Sep detected price increase of +15% due to promotional discount expiration.
+              {settlement.partnerBOwesA > 0
+                ? `${partnerBName} owes ${partnerAName} ${formatMoney(settlement.partnerBOwesA, settlement.currency, locale)} from shared expenses.`
+                : settlement.partnerAOwesB > 0
+                ? `${partnerAName} owes ${partnerBName} ${formatMoney(settlement.partnerAOwesB, settlement.currency, locale)} from shared expenses.`
+                : pendingApprovalsCount > 0
+                ? `${pendingApprovalsCount} request${pendingApprovalsCount === 1 ? " is" : "s are"} waiting for a Dual-Key decision.`
+                : "You're all settled up and no requests are waiting. A good moment for a quick money check-in together."}
             </p>
           </div>
         </div>

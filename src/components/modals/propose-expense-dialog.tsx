@@ -66,6 +66,7 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
   const [customSplitA, setCustomSplitA] = useState(contract.splitPartnerA);
   const [customSplitB, setCustomSplitB] = useState(contract.splitPartnerB);
   const [notes, setNotes] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [urgency, setUrgency] = useState<"routine" | "planned" | "urgent" | "emergency">("routine");
   const [receiptAttached, setReceiptAttached] = useState(false);
   const [receiptFileName, setReceiptFileName] = useState("vendor_quote_estimate.pdf");
@@ -145,8 +146,9 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
     };
   }, [wallet, numAmount, contract.approvalThreshold, contract.thresholdCurrency, contract.approveEverySharedPurchase, activeProposer, partnerApprover, locale]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setError("");
 
     if (!title.trim()) {
@@ -159,22 +161,28 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
       return;
     }
 
-    const result = proposeExpense({
-      title: title.trim(),
-      amount: numAmount,
-      currency,
-      category,
-      wallet,
-      splitRatio: {
-        partnerA: splitBreakdown.ratioA,
-        partnerB: splitBreakdown.ratioB,
-      },
-      notes: notes.trim(),
-      urgency,
-      receiptName: receiptAttached ? receiptFileName : undefined,
-    });
-
-    setSuccessResult(result);
+    setIsSubmitting(true);
+    try {
+      const result = await proposeExpense({
+        title: title.trim(),
+        amount: numAmount,
+        currency,
+        category,
+        wallet,
+        splitRatio: {
+          partnerA: splitBreakdown.ratioA,
+          partnerB: splitBreakdown.ratioB,
+        },
+        notes: notes.trim(),
+        urgency,
+        receiptName: receiptAttached ? receiptFileName : undefined,
+      });
+      setSuccessResult(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to submit this expense. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleApplyPreset = (preset: typeof PRESET_EXPENSES[0]) => {
@@ -633,11 +641,16 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
                 type="submit"
                 variant="primary"
                 size="md"
+                disabled={isSubmitting}
                 className="rounded-full px-6 min-w-[150px]"
               >
                 <SolarIcon name="shield-check" size={16} />
                 <span>
-                  {policyPreview.requiresApproval ? "Propose to Partner" : "Record Expense"}
+                  {isSubmitting
+                    ? "Checking rules..."
+                    : policyPreview.requiresApproval
+                    ? "Propose to Partner"
+                    : "Record Expense"}
                 </span>
               </Button>
             </div>

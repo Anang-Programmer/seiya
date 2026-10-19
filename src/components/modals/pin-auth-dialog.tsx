@@ -12,6 +12,8 @@ interface PinAuthDialogProps {
   description?: string;
   actionLabel?: string;
   onSuccess: () => void;
+  // Server-side check for the entered PIN. Resolves to an error message, or null when accepted.
+  onVerify?: (pin: string) => Promise<string | null>;
 }
 
 export function PinAuthDialog({
@@ -21,6 +23,7 @@ export function PinAuthDialog({
   description = "Please enter your 6-digit security PIN to confirm this action.",
   actionLabel = "Confirm & Approve",
   onSuccess,
+  onVerify,
 }: PinAuthDialogProps) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
@@ -44,27 +47,30 @@ export function PinAuthDialog({
     setError("");
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (pin.length !== 6) {
       setError("PIN must be exactly 6 digits.");
       return;
     }
 
-    // Default correct PIN is 123456 (or accept any 6 digits for user convenience if needed, but validate 123456 / non-empty)
     setIsVerifying(true);
     setError("");
 
-    setTimeout(() => {
-      setIsVerifying(false);
-      setIsSuccess(true);
+    const verifyError = onVerify ? await onVerify(pin) : null;
+    setIsVerifying(false);
+    if (verifyError) {
+      setError(verifyError);
+      setPin("");
+      return;
+    }
 
-      setTimeout(() => {
-        setIsSuccess(false);
-        setPin("");
-        onOpenChange(false);
-        onSuccess();
-      }, 900);
-    }, 1000);
+    setIsSuccess(true);
+    setTimeout(() => {
+      setIsSuccess(false);
+      setPin("");
+      onOpenChange(false);
+      onSuccess();
+    }, 900);
   };
 
   return (

@@ -1,7 +1,8 @@
 
 export type CreateInvitationInput = {
   householdId: string;
-  invitedEmail: string;
+  // Optional: accounts sign in by name, so the invitation link is the credential.
+  invitedEmail: string | null;
   invitedName: string | null;
 };
 
@@ -54,8 +55,9 @@ export function validateCreateInvitation(
   }
 
   if (
-    invitedEmail.length > 254 ||
-    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(invitedEmail)
+    invitedEmail &&
+    (invitedEmail.length > 254 ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(invitedEmail))
   ) {
     return { ok: false, message: "Invalid invitation email." };
   }
@@ -70,7 +72,7 @@ export function validateCreateInvitation(
 
   return {
     ok: true,
-    data: { householdId, invitedEmail, invitedName },
+    data: { householdId, invitedEmail: invitedEmail || null, invitedName },
   };
 }
 

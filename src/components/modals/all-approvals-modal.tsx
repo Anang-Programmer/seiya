@@ -105,7 +105,7 @@ export function AllApprovalsModal({ open, onOpenChange }: AllApprovalsModalProps
     setPinError("");
   };
 
-  const handleConfirmPin = (e: React.FormEvent) => {
+  const handleConfirmPin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pinPromptItem) return;
 
@@ -115,26 +115,27 @@ export function AllApprovalsModal({ open, onOpenChange }: AllApprovalsModalProps
     }
 
     setIsAuthorizing(true);
-    setTimeout(() => {
-      setIsAuthorizing(false);
-      const ok = approveApprovalRequest(pinPromptItem.id, pinInput);
-      if (ok) {
-        setApprovedCelebration(pinPromptItem);
-        setActionSuccessMsg(`Consensus confirmed! "${pinPromptItem.title}" has been authorized.`);
-        setPinPromptItem(null);
-        setPinInput("");
-        setTimeout(() => setActionSuccessMsg(null), 3500);
-      } else {
-        setPinError("Dual-key rule: You cannot approve your own request.");
-      }
-    }, 700);
+    const item = pinPromptItem;
+    const result = await approveApprovalRequest(item.id, pinInput);
+    setIsAuthorizing(false);
+    if (result.ok) {
+      setApprovedCelebration(item);
+      setActionSuccessMsg(`Consensus confirmed! "${item.title}" has been authorized.`);
+      setPinPromptItem(null);
+      setPinInput("");
+      setTimeout(() => setActionSuccessMsg(null), 3500);
+    } else {
+      setPinError(result.message || "Unable to approve this request.");
+    }
   };
 
-  const handleDecline = (item: ApprovalRequest) => {
+  const handleDecline = async (item: ApprovalRequest) => {
     if (confirm(`Are you sure you want to decline "${item.title}"?`)) {
-      declineApprovalRequest(item.id);
-      setActionSuccessMsg(`Request "${item.title}" was declined.`);
-      setTimeout(() => setActionSuccessMsg(null), 3000);
+      const ok = await declineApprovalRequest(item.id);
+      if (ok) {
+        setActionSuccessMsg(`Request "${item.title}" was declined.`);
+        setTimeout(() => setActionSuccessMsg(null), 3000);
+      }
     }
   };
 

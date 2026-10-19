@@ -1,79 +1,184 @@
-# Seiya Backend API Reference
+# Seiya — Money Decisions, Made Together
 
-> **Audience:** Frontend developer integrating the Seiya Next.js app.
->
-> **Scope:** Backend routes and behaviors established during implementation and live tests in the Seiya project. Check the corresponding route and validator source before relying on any field marked **confirm in source**. This document is an integration guide, not a substitute for server-side authorization.
+Seiya is a couple-finance co-pilot. Two partners share one space, agree on their money rules once ("Seiya's Promise"), and Seiya enforces those rules on every shared expense: purchases above the agreed limit need the partner's approval, late impulse buys are held for a cooling-off period, and personal spending stays private.
 
-## 1. Project and integration conventions
+**Live:** [https://seiya.web.id](https://seiya.web.id)
 
-- Project root used during development: `F:\Web Project\seiya`
-- Application: Next.js App Router, TypeScript, Supabase Auth/Database.
-- Backend code organization:
-  - `src/app/api/**/route.ts` — HTTP endpoints.
-  - `src/backend/services/**` — business logic.
-  - `src/backend/validators/**` — request validation.
-  - `src/backend/agents/**` — AI provider router and agent orchestration.
-  - `src/backend/rag/**` — knowledge retrieval.
-- The application uses cookie-backed Supabase sessions through `@supabase/ssr`. The frontend should call the same-origin API and preserve cookies. Do not send a service-role key or provider API key to the browser.
-- Local base URL used in examples: `http://localhost:3000`.
-- Financial operations in Seiya are **simulated**. No endpoint in this MVP moves real money.
+All money movement in this MVP is **simulated**. No endpoint moves real money.
 
-## 2. Environment variables
+## Contents
 
-All runtime secrets and configuration are read from environment variables (typically `.env.local`). **Never commit actual key values to source control.** The `.gitignore` blocks `.env*` and whitelists only the empty `.env.example` template.
+1. [Features](#1-features)
+2. [Tech stack](#2-tech-stack)
+3. [Getting started](#3-getting-started)
+4. [Environment variables](#4-environment-variables)
+5. [Database (Supabase)](#5-database-supabase)
+6. [Deployment (Vercel + custom domain)](#6-deployment-vercel--custom-domain)
+7. [Project structure](#7-project-structure)
+8. Backend API reference (sections 8 onwards)
+
+## 1. Features
+
+- **Full-name sign-in.** Users register and sign in with their full name and a password; no email is asked. The server maps the name to an internal placeholder email and creates the account through the Supabase admin API.
+- **Onboarding that follows the Figma design.** Choose Your Path (create or join a shared space) → story intro → 21 short profiling questions answered in order → profile summary → recent spending history.
+- **Partner invitations.** The creator gets a single-use private link (`/invite?token=…`); the partner opens it or pastes it on the *Join shared space* screen.
+- **Seiya's Promise.** Once both partners finish onboarding, Seiya's AI drafts one shared set of clauses (cost sharing, "discuss first" limit, cooling-off, family support, privacy, check-ins, emergency fund). Each partner selects and edits clauses; when both save the same version, the numbers become the household's active finance rules and the shared wallets open.
+- **Country-aware amounts.** The "discuss first" question uses round amounts in the user's currency (detected from the browser, changeable); a joining partner uses the shared space's currency.
+- **Dashboard.** Shared and personal wallets, transactions with automatic split, bills, budgets, couple goals, approvals queue, waiting list (cooling-off), settlement (who owes whom), activity log, bank-statement import, and the Ask Seiya AI chat.
+- **Dual-key safety.** A requester can never approve their own request; sensitive actions can require a 6-digit PIN; rules are enforced by database RPCs and RLS, never by UI state or by the AI.
+
+## 2. Tech stack
+
+| Layer | Technology |
+|---|---|
+| App | Next.js 16 (App Router, Turbopack, `cacheComponents`), React 19, TypeScript |
+| Styling | Tailwind CSS 4, Lora + Inter + Plus Jakarta Sans (`next/font`) |
+| Auth & data | Supabase (Auth, Postgres, RLS, SECURITY DEFINER RPCs, pgvector) via `@supabase/ssr` cookie sessions |
+| AI | Provider router with fallback: Groq → Mistral → OpenRouter → Cloudflare Workers AI (Gemini optional); RAG over `knowledge/seiya/*.md` |
+| Hosting | Vercel (production), domain `seiya.web.id` on Vercel DNS |
+
+The app is one Next.js project: the UI and the API routes (`src/app/api/**`) deploy together.
+
+## 3. Getting started
+
+Requirements: Node.js 20+ (24 recommended), npm, a Supabase project, and at least one AI provider key.
+
+```bash
+npm install
+cp .env.example .env.local      # then fill in the values (see section 4)
+npx supabase link --project-ref <your-project-ref>
+npx supabase db push            # applies supabase/migrations
+npm run dev                     # http://localhost:3000
+```
+
+Other scripts:
+
+| Command | What it does |
+|---|---|
+| `npm run build` / `npm start` | Production build / serve the build locally |
+| `npm run lint` | ESLint |
+| `npm run test:setup` … `npm run test:statement` | Manual end-to-end scripts against a running dev server (see the last section) |
+
+In Supabase → Authentication → Providers → Email, keep the Email provider **enabled** (username accounts are email accounts internally). "Confirm email" can stay off; accounts are created already confirmed.
+
+## 4. Environment variables
+
+Put values in `.env.local` locally and in Vercel → Project → Settings → Environment Variables for production. **Never commit real values.** `.gitignore` blocks every `.env*` file except the empty `.env.example` template.
 
 ### Supabase
 
-| Variable | Required | Sensitivity | Description |
+| Variable | Required | Exposure | Description |
 |---|---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Public | Supabase project URL (e.g. `https://<ref>.supabase.co`). Exposed to the browser via `NEXT_PUBLIC_` prefix. |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Yes | Public | Supabase publishable (anon) key. Safe for client-side; row-level security enforces access. |
-
-### AI provider keys (server-only, **secret**)
-
-Each key is read at runtime by its provider adapter. The router skips unconfigured providers.
-
-| Variable | Provider | Description |
-|---|---|---|
-| `GROQ_API_KEY` | Groq | API key from [console.groq.com/keys](https://console.groq.com/keys) |
-| `GOOGLE_API_KEY` | Gemini | API key from [aistudio.google.com/api-keys](https://aistudio.google.com/api-keys). Also used by the RAG embedding pipeline. |
-| `MISTRAL_API_KEY` | Mistral AI | API key from [console.mistral.ai/api-keys](https://console.mistral.ai/api-keys) |
-| `OPENROUTER_API_KEY` | OpenRouter | API key from [openrouter.ai/workspaces/default/keys](https://openrouter.ai/workspaces/default/keys) |
-| `CLOUDFLARE_API_TOKEN` | Cloudflare Workers AI | API token from [Cloudflare dashboard](https://dash.cloudflare.com/) |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare Workers AI | Cloudflare account ID (not a secret, but paired with the token) |
-
-### AI orchestration (server-only, non-secret)
-
-| Variable | Default | Description |
-|---|---|---|
-| `SEIYA_AI_PROVIDER_ORDER` | `groq,gemini,mistral,openrouter,cloudflare` | Comma-separated provider IDs defining the fallback order. |
-| `SEIYA_AI_PRIVATE_PROVIDER_ALLOWLIST` | `groq,gemini,mistral` | Providers allowed to handle private/financial data. Others are skipped for `private` classification. |
-| `SEIYA_AI_PROVIDER_TIMEOUT_MS` | `7000` | Per-provider HTTP timeout in milliseconds (clamped 1500–12000). |
-| `SEIYA_AI_MAX_PROVIDER_ATTEMPTS` | `4` | Maximum number of provider attempts including fallbacks (clamped 1–5). |
-| `SEIYA_AI_PROVIDER_COOLDOWN_MS` | `30000` | Cooldown period before retrying a recently failed provider (clamped 5000–600000). |
-| `SEIYA_AI_GROQ_MODEL` | `openai/gpt-oss-20b` | Model ID for Groq. |
-| `SEIYA_AI_GEMINI_MODEL` | `gemini-3.8-flash` | Model ID for Gemini. |
-| `SEIYA_AI_MISTRAL_MODEL` | `ministral-8b-latest` | Model ID for Mistral. |
-| `SEIYA_AI_OPENROUTER_MODEL` | `nvidia/nemotron-3.5-lightning` | Model ID for OpenRouter. |
-| `SEIYA_AI_CLOUDFLARE_MODEL` | `@cf/meta/llama-3.2-1b-instruct` | Model ID for Cloudflare Workers AI. |
-| `SEIYA_AI_CLOUDFLARE_ENABLE_TOOLS` | `false` | Set `true` to allow Cloudflare provider to declare tool support. |
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Browser | Project URL, e.g. `https://<ref>.supabase.co`. |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Yes | Browser | Publishable (anon) key; RLS protects the data. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | **Server only** | Used to create full-name accounts and to read both partners' onboarding answers when drafting Seiya's Promise. Never prefix with `NEXT_PUBLIC_`. Signup returns `503` when it is missing. |
+| `SEIYA_USERNAME_EMAIL_DOMAIN` | No | Server only | Domain for the internal placeholder emails (default `users.seiya.invalid`). Changing it later locks out existing users. |
 
 ### Application
 
 | Variable | Default | Description |
 |---|---|---|
-| `APP_BASE_URL` | `http://localhost:3000` | Used for generating invitation URLs and as OpenRouter HTTP-Referer. |
+| `APP_BASE_URL` | `http://localhost:3000` | Base for invitation links and the OpenRouter `HTTP-Referer`. Production: `https://seiya.web.id`. |
+| `NEXT_PUBLIC_ENABLE_DEMO_SIMULATION` | `false` | Shows a screen switcher in the auth/onboarding flow for design review. Keep `false` in production. |
 
-### Script-only variables (not needed at runtime)
+### AI provider keys (server only, secret)
 
-These are used by seed/admin scripts and should be supplied in the current shell session, **never saved in `.env.local`**.
+The router skips any provider without a key.
 
-| Variable | Script | Description |
+| Variable | Provider |
+|---|---|
+| `GROQ_API_KEY` | Groq — [console.groq.com/keys](https://console.groq.com/keys) |
+| `MISTRAL_API_KEY` | Mistral — [console.mistral.ai/api-keys](https://console.mistral.ai/api-keys) |
+| `OPENROUTER_API_KEY` | OpenRouter — [openrouter.ai/workspaces/default/keys](https://openrouter.ai/workspaces/default/keys) |
+| `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | Cloudflare Workers AI — [dash.cloudflare.com](https://dash.cloudflare.com/) |
+| `GOOGLE_API_KEY` | Optional. Gemini provider and the RAG query embeddings. Without it, chat still works and RAG reports `unavailable`. |
+
+### AI orchestration (server only)
+
+| Variable | Default | Description |
 |---|---|---|
-| `SEIYA_RAG_SEED_KEY` | `scripts/seed-seiya-rag.mjs` | Supabase service-role or secret key for upserting RAG knowledge chunks. Pass via clipboard; clear after use. |
-| `SUPABASE_SERVICE_ROLE_KEY` | `scripts/seed-dummy-users.mjs`, `scripts/seed-seiya-rag.mjs` | Fallback for `SEIYA_RAG_SEED_KEY`. Same handling rules apply. |
-| `SUPABASE_SECRET_KEY` | `scripts/seed-dummy-users.mjs` | Alternative name for service-role key (legacy Supabase naming). |
-| `SEIYA_DUMMY_PASSWORD` | `scripts/seed-dummy-users.mjs` | Password for dummy test accounts created by the seed script. |
+| `SEIYA_AI_PROVIDER_ORDER` | `groq,mistral,openrouter,cloudflare` | Fallback order. |
+| `SEIYA_AI_PRIVATE_PROVIDER_ALLOWLIST` | `groq,mistral,openrouter` | Providers allowed to see private/financial data (Seiya's Promise drafting and chat use `private`). |
+| `SEIYA_AI_PROVIDER_TIMEOUT_MS` | `7000` | Per-provider timeout (clamped 1500–12000). |
+| `SEIYA_AI_MAX_PROVIDER_ATTEMPTS` | `4` | Attempts including fallbacks (clamped 1–5). |
+| `SEIYA_AI_PROVIDER_COOLDOWN_MS` | `30000` | Cooldown before retrying a failed provider. |
+| `SEIYA_AI_GROQ_MODEL`, `SEIYA_AI_MISTRAL_MODEL`, `SEIYA_AI_OPENROUTER_MODEL`, `SEIYA_AI_CLOUDFLARE_MODEL`, `SEIYA_AI_GEMINI_MODEL` | see `.env.example` | Model per provider. |
+| `SEIYA_AI_CLOUDFLARE_ENABLE_TOOLS` | `false` | Allow tool calls on Cloudflare. |
+
+### Script-only variables (not read by the app)
+
+Supply these in the shell session when running a script; do not keep them in `.env.local`.
+
+| Variable | Script |
+|---|---|
+| `SEIYA_RAG_SEED_KEY` | `scripts/seed-seiya-rag.mjs` (falls back to `SUPABASE_SERVICE_ROLE_KEY`) |
+| `SUPABASE_SECRET_KEY`, `SEIYA_DUMMY_PASSWORD` | `scripts/seed-dummy-users.mjs` |
+
+## 5. Database (Supabase)
+
+Schema, RLS policies and RPCs live in `supabase/migrations/` and are applied with `npx supabase db push` (add `--include-all` if a migration is older than the latest applied one). Recent migrations:
+
+| Migration | Adds |
+|---|---|
+| `20261018120000_household_write_path_rpcs.sql` | Bill, wallet and transaction writes through SECURITY DEFINER RPCs (authenticated users only have `SELECT` on those tables). |
+| `20261018130000_username_signin_invitations.sql` | Token-only invitation acceptance (no email match) and finance-rule validation helpers. |
+| `20261019090000_seiya_promise.sql` | `household_promises` and `household_promise_responses` tables, `get_household_partner`, onboarding progress, and the promise RPCs that activate the finance rules when both versions match. |
+
+Partner profiles are not readable through `profiles` RLS; use the `get_household_partner` RPC (already used by `/api/auth/me`).
+
+## 6. Deployment (Vercel + custom domain)
+
+Production runs on Vercel project **seiya** with the domain **seiya.web.id** (and `www`).
+
+1. Link once: `npx vercel link --project seiya`.
+2. Set every variable from section 4 in Vercel (Production). Set `APP_BASE_URL=https://seiya.web.id`.
+3. Deploy: `npx vercel deploy --prod`. `vercel.json` pins the **Next.js** framework preset; without it a CLI-created project builds as "Other" and every route returns 404.
+4. Domain: the registrar (IDwebhost) points the nameservers to `ns1.vercel-dns.com` and `ns2.vercel-dns.com`; Vercel then serves DNS, `www`, and the HTTPS certificate. If you ever move DNS back to the registrar, use the records shown in Vercel → Settings → Domains instead.
+5. Supabase → Authentication → URL Configuration: set the Site URL to `https://seiya.web.id` (sign-in uses name + password, so this only matters for future email links).
+
+After a nameserver change, some home routers keep a cached failure for a while; test from mobile data or a public DNS (8.8.8.8 / 1.1.1.1) if the site does not open locally.
+
+## 7. Project structure
+
+```text
+src/
+  app/
+    page.tsx                 # app shell: auth gating, onboarding, dashboard tabs
+    invite/page.tsx          # partner invitation landing (stores the token, then redirects)
+    api/**/route.ts          # HTTP endpoints (51 routes)
+  proxy.ts                   # Supabase session refresh (Next 16 replacement for middleware)
+  backend/
+    services/                # business logic (auth, households, promise, transactions, …)
+    validators/              # request validation
+    agents/                  # AI provider router and chat agent
+    rag/                     # knowledge retrieval
+  components/
+    views/                   # screens (auth/onboarding, home, bills, chat, profile, …)
+    onboarding/promise-ui.tsx# Figma building blocks for the promise flow
+    modals/, cards/, ui/
+  lib/
+    api.ts                   # typed client for every API route
+    store.tsx                # AppContext backed by the API (session, household, data, polling)
+    transformers.ts          # API rows -> UI models
+    country-currency.ts      # country detection and per-currency amounts
+supabase/migrations/         # database schema, RLS and RPCs
+knowledge/seiya/*.md         # RAG knowledge (each `##` section is one chunk)
+public/images/               # auth and onboarding illustrations
+```
+
+> `knowledge/seiya/` is read by the RAG seed script. Keep only product knowledge there; private working notes in that folder are git-ignored but would still be embedded if you seed from your machine.
+
+---
+
+# Backend API reference
+
+> **Audience:** developers working on the Seiya Next.js app. Check the route and validator source before relying on any field marked **confirm in source**. This is an integration guide, not a substitute for server-side authorization.
+
+## 8. Integration conventions
+
+- Endpoints: `src/app/api/**/route.ts`; business logic: `src/backend/services/**`; validation: `src/backend/validators/**`; AI: `src/backend/agents/**`; RAG: `src/backend/rag/**`.
+- Sessions are Supabase cookies (`@supabase/ssr`). The browser calls same-origin APIs and keeps cookies. Never send a service-role key or provider key to the browser.
+- Local base URL in examples: `http://localhost:3000`.
 
 ### Common request pattern
 
@@ -101,11 +206,11 @@ Observed/status conventions:
 
 Some APIs may map database errors differently. Frontend code should show a safe message and avoid depending on exact internal database error text.
 
-## 2. Endpoint inventory
+## 9. Endpoint inventory
 
 | Method | Endpoint | Purpose | Auth |
 |---|---|---|---|
-| `POST` | `/api/auth/signup` | Create account | Public entry point |
+| `POST` | `/api/auth/signup` | Create account with full name + password | Public entry point |
 | `POST` | `/api/auth/signin` | Sign in and establish session cookie | Public entry point |
 | `GET` | `/api/auth/me` | Get current authenticated profile, active household, partner, and PIN status | Required |
 | `POST` | `/api/auth/signout` | End local session | Required |
@@ -114,8 +219,10 @@ Some APIs may map database errors differently. Frontend code should show a safe 
 | `GET` | `/api/auth/pin/status` | Check if user has configured a security PIN | Required |
 | `GET`, `POST` | `/api/onboarding` | Read/save onboarding responses and personalization | Required |
 | `GET`, `POST` | `/api/households` | List user's active households / create household via RPC | Required |
-| `POST` | `/api/households/invitations` | Create partner invitation | Required owner/member per server policy; active owner required in RPC |
-| `POST` | `/api/households/invitations/accept` | Accept invitation for the signed-in email | Required; invited email must match |
+| `POST` | `/api/households/invitations` | Create a single-use partner invitation link | Required; active owner required in RPC |
+| `POST` | `/api/households/invitations/accept` | Join a household with an invitation token | Required |
+| `GET` | `/api/households/[householdId]/promise` | Seiya's Promise status; drafts the shared clauses once both partners finished onboarding | Required active household member |
+| `POST` | `/api/households/[householdId]/promise/response` | Save the caller's selected/edited clauses; identical versions activate the finance rules | Required active household member |
 | `GET`, `POST` | `/api/households/[householdId]/finance-rules` | List/propose finance rules (supports both nested & contract fields) | Required active household member |
 | `POST` | `/api/households/[householdId]/finance-rules/[ruleId]/decision` | Approve/reject a finance-rule proposal | Required eligible household member |
 | `GET`, `POST` | `/api/households/[householdId]/wallets` | Read/initialize household wallets | Required active household member and active agreement for initialization |
@@ -155,31 +262,34 @@ Some APIs may map database errors differently. Frontend code should show a safe 
 
 > **Important:** This inventory reflects endpoints implemented in the project during the build. For signup, onboarding, transactions, and budgets, verify exact body/property names against `src/backend/validators/*.ts` and the relevant route before wiring the UI; the UI must not infer missing fields.
 
-## 3. Authentication
+## 10. Authentication
 
 ### `POST /api/auth/signup`
 
-Creates a Supabase Auth account. Signup associates `full_name` metadata with the account, and a database trigger creates the profile. Email confirmation was disabled for the local/demo project during development.
+Creates an account from a **full name** and password (no email is collected):
 
-**Frontend notes**
-- Do not depend on production email-confirmation settings matching local/demo settings.
-- Exact request property names and response shape: **confirm in** `src/backend/validators/auth.ts` and `src/app/api/auth/signup/route.ts`.
+```json
+{ "fullName": "Reno Syaelendra", "password": "at-least-8-chars" }
+```
+
+- The name is normalized (NFKC, collapsed spaces, 2–100 characters) and mapped to an internal placeholder email `u-<sha256(lowercased name)[0:32]>@users.seiya.invalid` (domain overridable with `SEIYA_USERNAME_EMAIL_DOMAIN`).
+- The account is created already confirmed through the Supabase admin API (`SUPABASE_SERVICE_ROLE_KEY`), then signed in so the session cookie is set.
+- `409 USERNAME_TAKEN` when the name is already registered; `503` when the service-role key is not configured.
+- Because names are the login identifier, two people with exactly the same full name cannot both register; they need to add a middle name or initial.
 
 ### `POST /api/auth/signin`
 
-Signs in with email/password and establishes the Supabase session using cookies. The endpoint does not return access tokens in its JSON response.
-
-Exact body/response contract: check `src/backend/validators/auth.ts` and `src/app/api/auth/signin/route.ts`.
+Signs in with `{ "fullName": "…", "password": "…" }` and sets the Supabase session cookie. Wrong name or password returns `401` with the message "Name or password is incorrect." No tokens are returned in JSON.
 
 ### `GET /api/auth/me`
 
-Returns the signed-in user's profile/session identity. The route uses Supabase `getUser()` to verify the session. A request without a valid session was tested to return `401`.
+Returns the signed-in user's profile, active household (with `myRole`), PIN status, and the partner's id and name. The partner is read through the `get_household_partner` RPC because `profiles` RLS only exposes the caller's own row. Without a valid session it returns `401`.
 
 ### `POST /api/auth/signout`
 
 Ends the local Supabase session. After signout, `GET /api/auth/me` was tested to return `401`.
 
-## 4. Onboarding and household setup
+## 11. Onboarding and household setup
 
 ### `GET`, `POST /api/onboarding`
 
@@ -223,7 +333,7 @@ The exact response nesting should be verified against `src/app/api/households/ro
 
 ### `POST /api/households/invitations`
 
-Creates a household invitation for an email address. The response observed during testing had these fields: `success`, `message`, `invitation`, and `inviteUrl`. The invitation included an ID and status `pending`.
+Creates a single-use invitation link. Body: `{ "householdId": "<uuid>", "invitedName": "<optional partner name>" }` (`invitedEmail` is optional and no longer required). The response contains `success`, `message`, `invitation`, and `inviteUrl` (`APP_BASE_URL/invite?token=…`). When no email is given, a placeholder `invite-<hex>@invites.seiya.invalid` is stored.
 
 The invitation URL contains a `token` query parameter. Treat the URL/token as a credential: do not log it, expose it to analytics, or send it to unrelated parties. The database stores a hash of the invitation token.
 
@@ -231,7 +341,7 @@ The current database workflow revokes the household's older pending invitation w
 
 ### `POST /api/households/invitations/accept`
 
-Accepts an invitation for the signed-in user. The signed-in email must match the invited email. In the PowerShell test, the body sent was:
+Accepts an invitation for the signed-in user. The token alone identifies the invitation (no email match, since accounts use full names). Body:
 
 ```json
 { "token": "<invitation token from invite URL>" }
@@ -239,7 +349,31 @@ Accepts an invitation for the signed-in user. The signed-in email must match the
 
 The successful response had top-level fields `success`, `message`, and `result`. The RPC checks expiry, invitation state, active owner status, household capacity, and that the user does not already belong to an active household.
 
-## 5. Financial Agreement
+## 12. Seiya's Promise
+
+The couple's money agreement is drafted by Seiya's AI and agreed by both partners. Source: `src/backend/services/promise.service.ts`, `src/backend/validators/promise.ts`, `supabase/migrations/20261019090000_seiya_promise.sql`.
+
+### `GET /api/households/[householdId]/promise`
+
+Returns `{ success, myUserId, status }` where `status` has:
+
+- `members`: each partner's `onboarding_done` and `history_done` (onboarding saved with `historyCompleted: true`).
+- `promise`: `null` until both partners are done; then the shared draft (`clauses`, `status: "negotiating" | "active"`, `generated_by`).
+- `responses`: each partner's saved selection.
+
+When both partners are done and no draft exists, the route reads both onboarding answers with the service role (never returned to the client), asks the private-data AI providers for clauses, fills missing kinds from a deterministic template, and saves the draft (first writer wins).
+
+Clause kinds: `common_goal`, `cost_sharing` (`params.ownerPercent`), `discuss_first` (`params.threshold`), `cooling_off` (`params.threshold`, `params.hours`), `family_support`, `data_privacy`, `check_in`, `emergency_fund`, `custom`. The partners' onboarding "discuss first" answer (lower of the two) is used as the starting `discuss_first` threshold.
+
+### `POST /api/households/[householdId]/promise/response`
+
+Body: `{ "selected": [PromiseClause, …] }` (1–20 clauses; numeric kinds must carry their params). Returns `outcome`:
+
+- `waiting_partner`: the partner has not saved yet.
+- `different`: both saved, versions differ; the UI marks the differing clauses for negotiation.
+- `active`: both versions are identical. The numbers become a new active finance rule (both approvals recorded), older rules are superseded, the promise is marked active, and wallets can be initialized.
+
+## 13. Financial Agreement
 
 ### `GET /api/households/[householdId]/finance-rules`
 
@@ -302,7 +436,7 @@ Records an approval decision. The validator accepts `approved` or `rejected` (no
 
 `note` may be a string or `null`; validator limit is 500 characters. On successful partner approval, the test proposal became `active`.
 
-## 6. Wallets
+## 14. Wallets
 
 ### `GET /api/households/[householdId]/wallets`
 
@@ -336,7 +470,7 @@ The RPC created one shared and two personal wallets for `shared_and_personal`, w
 
 The RPC is idempotent: a second call was tested to return `created_count: 0`, and the number of `wallet.created` audit events remained 3.
 
-## 7. Transactions
+## 15. Transactions
 
 Routes:
 
@@ -359,7 +493,7 @@ The transaction engine was tested with the following behaviors:
 
 Exact request bodies, enum values, and response shapes for these three transaction routes: confirm in their route/validator files before implementing the UI.
 
-## 8. Bills
+## 16. Bills
 
 ### `GET /api/households/[householdId]/bills`
 
@@ -398,7 +532,7 @@ Starts the bill-payment workflow using a simulated wallet. Body used in test:
 
 Successful response includes `success`, `message`, and `result` with `bill`, `transaction`, and `idempotent_replay`. When a one-time simulated bill payment executed successfully, the bill status changed to `paid` and an audit event `bill.status_changed` recorded `from_status`, `to_status`, and `changed_fields` without repeating bill amount.
 
-## 9. Budgets
+## 17. Budgets
 
 ### `GET /api/households/[householdId]/budgets`
 
@@ -410,7 +544,7 @@ Creates or updates a budget through the backend/database function. The business 
 
 Exact request fields and full response body: confirm in `src/backend/validators/bill-budget.ts` and `src/app/api/households/[householdId]/budgets/route.ts` before wiring a form.
 
-## 10. Couple Goals & Plans (`/api/plans` & `/api/households/[householdId]/plans`)
+## 18. Couple Goals & Plans (`/api/plans` & `/api/households/[householdId]/plans`)
 
 Provides collaborative long-term goal planning and dual-key dissolution matching FINTECHATHON.pdf specifications:
 
@@ -421,7 +555,7 @@ Provides collaborative long-term goal planning and dual-key dissolution matching
 - `DELETE /api/households/[householdId]/plans/[planId]`: deletes a goal.
 - `POST /api/households/[householdId]/plans/[planId]/request-delete`: Dual-Key deletion request. If both `partnerAPin` and `partnerBPin` (6-digit PINs) are provided in-person, immediately dissolves the goal. If initiated by one partner, creates an approval request in the unified approvals queue of type `PLAN_DELETE`.
 
-## 11. Dual-Key Approvals Queue (`/api/approvals` & `/api/households/[householdId]/approvals`)
+## 19. Dual-Key Approvals Queue (`/api/approvals` & `/api/households/[householdId]/approvals`)
 
 The unified action queue for all collaborative decisions requiring partner consent (Bills, Plans, Expenses, Contracts):
 
@@ -433,7 +567,7 @@ The unified action queue for all collaborative decisions requiring partner conse
   - **Atomic execution:** Approving a `BILL` marks the bill as paid and debits the shared wallet; approving `PLAN_DELETE` dissolves the goal; approving `EXPENSE` debits the shared wallet; approving `CONTRACT` activates the proposed contract terms.
   - Declining resets the underlying target status (e.g. bill returns to `upcoming`).
 
-## 12. Waiting List & Held Purchases (`/api/waiting-list`)
+## 20. Waiting List & Held Purchases (`/api/waiting-list`)
 
 Supports the emotional cooling-off safeguard for late-night impulse purchases:
 
@@ -441,20 +575,20 @@ Supports the emotional cooling-off safeguard for late-night impulse purchases:
 - `POST /api/waiting-list/[heldId]/continue`: user confirms intent after cooling-off period. If amount exceeds the shared approval threshold, automatically routes to partner approval (`NEED_APPROVAL`); otherwise executes directly (`ALLOW`) and debits the wallet.
 - `POST /api/waiting-list/[heldId]/cancel`: cancels the held purchase and writes an audit event.
 
-## 13. Activities & Decision Log (`/api/activities`)
+## 21. Activities & Decision Log (`/api/activities`)
 
 Real-time decision and activity stream tracking all agent decisions, safeguard interventions, and partner approvals:
 
 - `GET /api/activities`: returns recent activity entries with `id`, `title`, `category`, `actor` (`partner_a` | `partner_b` | `seiya`), `status` (`ALLOW` | `NEED_APPROVAL` | `HOLD` | `DENY` | `INFO`), `amount`, `currency`, `reason`, and timestamp.
 
-## 14. Shared Expense Settlement (`/api/settlement`)
+## 22. Shared Expense Settlement (`/api/settlement`)
 
 Maintains the mutual ledger balance (who owes whom) based on transaction split ratios:
 
 - `GET /api/settlement`: returns `partnerBOwesA`, `partnerAOwesB`, and `currency`.
 - `POST /api/settlement/settle-up`: resets mutual debt balances to zero and logs an audit activity.
 
-## 15. Dual-Key Security PIN (`/api/auth/pin`)
+## 23. Dual-Key Security PIN (`/api/auth/pin`)
 
 Cryptographic 6-digit PIN protection for sensitive financial decisions (dissolving shared goals, approving high-value transactions):
 
@@ -462,7 +596,7 @@ Cryptographic 6-digit PIN protection for sensitive financial decisions (dissolvi
 - `POST /api/auth/pin/verify`: verifies the caller's or partner's PIN.
 - `GET /api/auth/pin/status`: returns `{ hasPin: boolean }`.
 
-## 16. Deterministic Gateway Decision API (`/api/gateway/decision`)
+## 24. Deterministic Gateway Decision API (`/api/gateway/decision`)
 
 Direct HTTP endpoint for the 8-step Rule Engine specified in FINTECHATHON.pdf (pages 26-27):
 
@@ -474,7 +608,7 @@ Direct HTTP endpoint for the 8-step Rule Engine specified in FINTECHATHON.pdf (p
   - Exceeds shared threshold -> `NEED_APPROVAL` (`SHARED_OVER_THRESHOLD`)
   - Compliant -> `ALLOW` (`WITHIN_RULES` / `LEDGER_ONLY`)
 
-## 17. Statement Import & Historical Extraction (`/api/statement-import` & `/api/households/[householdId]/statement-import`)
+## 25. Statement Import & Historical Extraction (`/api/statement-import` & `/api/households/[householdId]/statement-import`)
 
 Allows couples to bootstrap their initial spending history and starting balances right after onboarding by uploading bank or e-wallet statements (PDF, Excel, CSV):
 
@@ -486,7 +620,7 @@ Allows couples to bootstrap their initial spending history and starting balances
   - **Preview mode (`dryRun=true`):** returns extracted transactions without inserting rows into the database so the couple can review on screen first.
   - **Commit mode (`dryRun=false` or JSON batch payload):** calls transactional RPC `import_statement_batch` to atomically insert transactions with `status = 'executed'`, updates wallet balance with the net delta, and logs an audit activity event.
 
-## 18. AI Agent and RAG
+## 26. AI Agent and RAG
 
 ### `POST /api/ai/chat`
 
@@ -602,7 +736,7 @@ Knowledge source of truth is in `knowledge/seiya/*.md`. Each `##` section is a c
 
 The current RAG knowledge base uses `gemini-embedding-001` with 768-dimensional vectors and Supabase `pgvector`. Document and query embeddings must use the same model/dimension. RAG is for static Seiya explanations/financial education; actual balances, transactions, budgets, bills, and active rules must come from database tools.
 
-## 19. Security and privacy requirements for frontend
+## 27. Security and privacy requirements for frontend
 
 1. Treat `householdId`, `conversationId`, `ruleId`, `billId`, `transactionId`, and `walletId` from the browser as untrusted input. The server must authenticate and authorize each operation.
 2. Never assume possession of a UUID proves access. APIs should verify active household membership and rely on database RLS/RPC checks as defense in depth.
@@ -615,7 +749,7 @@ The current RAG knowledge base uses `gemini-embedding-001` with 768-dimensional 
 9. After an operation times out, consult its status/idempotency result before retrying with a new key.
 10. Onboarding answers (behavior scale, money meaning, communication style, priorities) are private to their owner: never return another partner's answers, never expose the derived behavior band or label in chat, API responses, logs, or onboarding results, and never use them to decide different facts or options for different users.
 
-## 20. Current verification status and known gaps
+## 28. Current verification status and known gaps
 
 ### Verified in the development project
 
@@ -640,9 +774,9 @@ The current RAG knowledge base uses `gemini-embedding-001` with 768-dimensional 
 - Chat personalization (profile styling, money meaning, communication style, PERMA goal) and the wellbeing override are implemented but **not yet verified end-to-end**: no test compares two profiles on the same situation, and no test exercises the stress/crisis path.
 - The current request limiter is in-process, not a distributed/global limiter across multiple server instances.
 - Recurring bills are metadata only; the next recurrence is not automatically generated.
-- The full frontend has not yet been integrated end-to-end.
+- The frontend is integrated with every API route; the two-partner onboarding → Seiya's Promise → wallets flow still needs a full manual run with two real accounts in production.
 
-## 21. Recommended frontend implementation order
+## 29. Recommended frontend implementation order
 
 1. Auth screens: signup, signin, signout, session/profile check.
 2. Onboarding: GET/POST onboarding.
@@ -655,7 +789,7 @@ The current RAG knowledge base uses `gemini-embedding-001` with 768-dimensional 
 
 Before release, the frontend and backend developers should cross-check the exact request/response fields for endpoints marked **confirm in source**, then run the 12-case cross-household matrix and an HTTP 429 fallback test in a controlled environment.
 
-## 22. Manual terminal tests
+## 30. Manual terminal tests
 
 Five scripts in `scripts/` drive the real API (signup cookies + RLS-scoped Supabase reads) and print PASS/WARN/FAIL per assertion. They run against the dev server, not a mock, and they create real rows in the development Supabase project.
 

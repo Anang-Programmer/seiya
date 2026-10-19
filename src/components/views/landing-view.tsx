@@ -7,24 +7,22 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { OnboardingView } from "./onboarding-view";
 import { AuthView, AuthMode } from "./auth-view";
-import { useApp, UserRole } from "@/lib/store";
 
 interface LandingViewProps {
-  onEnterApp: (persona: UserRole) => void;
+  onEnterApp: () => void;
 }
 
 export function LandingView({ onEnterApp }: LandingViewProps) {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode | null>(null);
-  const { partnerAName, partnerBName } = useApp();
 
   if (authMode) {
     return (
       <AuthView
         initialMode={authMode}
-        onSuccess={(persona) => {
+        onSuccess={() => {
           setAuthMode(null);
-          onEnterApp(persona || "partner_a");
+          onEnterApp();
         }}
         onClose={() => setAuthMode(null)}
       />
@@ -85,7 +83,7 @@ export function LandingView({ onEnterApp }: LandingViewProps) {
             className="text-sm shadow-xs rounded-[40px]"
           >
             <SolarIcon name="sparkles" size={18} />
-            Set Up Couple Contract (Figma Flow)
+            Set Up Couple Contract
           </Button>
           <Button
             variant="outline"
@@ -94,22 +92,6 @@ export function LandingView({ onEnterApp }: LandingViewProps) {
             className="text-sm rounded-[40px]"
           >
             Sign In to Account
-          </Button>
-          <Button
-            variant="secondary"
-            size="lg"
-            onClick={() => onEnterApp("partner_a")}
-            className="text-sm rounded-[40px]"
-          >
-            Direct Demo: {partnerAName}
-          </Button>
-          <Button
-            variant="secondary"
-            size="lg"
-            onClick={() => onEnterApp("partner_b")}
-            className="text-sm rounded-[40px]"
-          >
-            Direct Demo: {partnerBName}
           </Button>
         </div>
 
@@ -157,7 +139,7 @@ export function LandingView({ onEnterApp }: LandingViewProps) {
         <OnboardingView
           onComplete={() => {
             setShowOnboarding(false);
-            onEnterApp("partner_a");
+            onEnterApp();
           }}
           onCancel={() => setShowOnboarding(false)}
         />

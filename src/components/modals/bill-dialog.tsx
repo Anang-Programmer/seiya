@@ -35,6 +35,7 @@ export function BillDialog({ open, onOpenChange, billToEdit }: BillDialogProps) 
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (billToEdit) {
@@ -60,8 +61,9 @@ export function BillDialog({ open, onOpenChange, billToEdit }: BillDialogProps) 
     setSuccessMsg("");
   }, [billToEdit, open, reportingCurrency]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
     setError("");
 
     if (!title.trim()) {
@@ -75,8 +77,10 @@ export function BillDialog({ open, onOpenChange, billToEdit }: BillDialogProps) 
       return;
     }
 
+    setIsSaving(true);
+    let ok: boolean;
     if (billToEdit) {
-      editBill(billToEdit.id, {
+      ok = await editBill(billToEdit.id, {
         title: title.trim(),
         category,
         amount: numAmount,
@@ -86,9 +90,9 @@ export function BillDialog({ open, onOpenChange, billToEdit }: BillDialogProps) 
         isRecurring,
         notes: notes.trim(),
       });
-      setSuccessMsg("Bill updated successfully!");
+      if (ok) setSuccessMsg("Bill updated successfully!");
     } else {
-      addBill({
+      ok = await addBill({
         title: title.trim(),
         category,
         amount: numAmount,
@@ -100,7 +104,13 @@ export function BillDialog({ open, onOpenChange, billToEdit }: BillDialogProps) 
         notes: notes.trim(),
         paidBy: currentUser,
       });
-      setSuccessMsg("New bill reminder added! Requires partner confirmation when settled.");
+      if (ok) setSuccessMsg("New bill reminder added! Requires partner confirmation when settled.");
+    }
+    setIsSaving(false);
+
+    if (!ok) {
+      setError("We couldn't save this bill. Please try again.");
+      return;
     }
 
     setTimeout(() => {
@@ -301,9 +311,10 @@ export function BillDialog({ open, onOpenChange, billToEdit }: BillDialogProps) 
                 type="submit"
                 variant="primary"
                 size="sm"
+                disabled={isSaving}
                 className="text-xs"
               >
-                {billToEdit ? "Save Changes" : "Create Bill Reminder"}
+                {isSaving ? "Saving..." : billToEdit ? "Save Changes" : "Create Bill Reminder"}
               </Button>
             </DialogFooter>
           </form>

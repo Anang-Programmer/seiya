@@ -221,12 +221,12 @@ export function ApprovalDeck({ onViewAll, onSelectApproval }: ApprovalDeckProps)
             : "Please enter your 6-digit security PIN to authorize this request."
         }
         actionLabel="Verify PIN & Authorize"
-        onSuccess={() => {
-          if (activeItemForPin) {
-            approveApprovalRequest(activeItemForPin.id, "123456");
-            setActiveItemForPin(null);
-          }
+        onVerify={async (pin) => {
+          if (!activeItemForPin) return "This request is no longer available.";
+          const result = await approveApprovalRequest(activeItemForPin.id, pin);
+          return result.ok ? null : result.message || "Unable to approve this request.";
         }}
+        onSuccess={() => setActiveItemForPin(null)}
       />
     </div>
   );

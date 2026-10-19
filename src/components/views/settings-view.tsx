@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { formatMoney, formatMoneyConverted } from "@/lib/utils";
 import { SolarIcon } from "@/components/icons/solar";
 import { Badge } from "@/components/ui/badge";
@@ -24,9 +24,6 @@ export function SettingsView() {
     setLocale,
     timeZone,
     setTimeZone,
-    simulateMissingFXRate,
-    setSimulateMissingFXRate,
-    applyDemoPreset,
   } = useApp();
 
   const [thresholdInput, setThresholdInput] = useState(contract.approvalThreshold.toString());
@@ -35,20 +32,29 @@ export function SettingsView() {
   const [approveEveryShared, setApproveEveryShared] = useState(contract.approveEverySharedPurchase);
   const [showSavedToast, setShowSavedToast] = useState(false);
 
+  // The contract arrives from the API after mount; keep the form in sync with it.
+  useEffect(() => {
+    setThresholdInput(contract.approvalThreshold.toString());
+    setSplitDinaInput(contract.splitPartnerB.toString());
+    setSplitRakaInput(contract.splitPartnerA.toString());
+    setApproveEveryShared(contract.approveEverySharedPurchase);
+  }, [contract.approvalThreshold, contract.splitPartnerA, contract.splitPartnerB, contract.approveEverySharedPurchase]);
+
   const isProposed = contract.status === "pending_partner_approval";
   const proposedBy = contract.proposedChange?.proposedBy;
   const canIApprove = isProposed && proposedBy !== currentUser;
   const proposedByName = proposedBy === "partner_a" ? partnerAName : partnerBName;
 
-  const handlePropose = (e: React.FormEvent) => {
+  const handlePropose = async (e: React.FormEvent) => {
     e.preventDefault();
-    proposeContractChange(
+    const ok = await proposeContractChange(
       Number(thresholdInput),
       contract.thresholdCurrency,
       Number(splitDinaInput),
       Number(splitRakaInput),
       approveEveryShared
     );
+    if (!ok) return;
     setShowSavedToast(true);
     setTimeout(() => setShowSavedToast(false), 3000);
   };
@@ -137,7 +143,7 @@ export function SettingsView() {
               ))}
             </select>
             <span className="text-[10px] text-[#515151] mt-1 block">
-              Converts dashboard displays via mock rates without mutating native wallets.
+              Converts dashboard displays via reference rates without mutating native wallets.
             </span>
           </div>
 
@@ -181,52 +187,6 @@ export function SettingsView() {
               Used for 24h expiration deadlines and cooling-off windows.
             </span>
           </div>
-        </div>
-
-        {/* Demo Presets and Test Fixtures */}
-        <div className="pt-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div>
-            <span className="text-xs font-semibold text-[#2a2b2f] block">Demonstration Fixtures</span>
-            <span className="text-[11px] text-[#515151]">
-              Quickly toggle between global multi-currency and regional Indonesian presets.
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => applyDemoPreset("global_usd")}
-              className="text-xs"
-            >
-              Global Preset (USD/EUR)
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => applyDemoPreset("regional_idr")}
-              className="text-xs"
-            >
-              Regional Preset (IDR)
-            </Button>
-          </div>
-        </div>
-
-        {/* Test Scenario: Missing FX Rate Toggle */}
-        <div className="p-4 rounded-[12px] bg-[#fef9ef] flex items-center justify-between gap-4">
-          <div>
-            <span className="text-xs font-semibold text-[#2a2b2f] block">
-              Test Scenario: Simulate Missing Exchange Rate
-            </span>
-            <span className="text-[11px] text-[#515151]">
-              Simulates unavailable FX rate for secondary wallet to test incomplete reporting warning without fabricated sums.
-            </span>
-          </div>
-          <input
-            type="checkbox"
-            checked={simulateMissingFXRate}
-            onChange={(e) => setSimulateMissingFXRate(e.target.checked)}
-            className="w-5 h-5 accent-[#B45529] cursor-pointer"
-          />
         </div>
       </div>
 

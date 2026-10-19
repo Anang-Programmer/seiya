@@ -1,7 +1,8 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { signUpWithEmail } from "@/backend/services/auth.service";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { signUpWithUsername } from "@/backend/services/auth.service";
 import { validateSignUp } from "@/backend/validators/auth";
 
 export async function POST(request: Request) {
@@ -26,47 +27,51 @@ export async function POST(request: Request) {
   }
 
   try {
+    let admin;
+    try {
+      admin = createAdminClient();
+    } catch {
+      console.error("[auth/signup] SUPABASE_SERVICE_ROLE_KEY is not configured.");
+      return NextResponse.json(
+        { success: false, message: "Sign-up is temporarily unavailable." },
+        { status: 503 }
+      );
+    }
+
     const supabase = await createClient();
-    const { data, error } = await signUpWithEmail(
+    const { data, error, usernameTaken } = await signUpWithUsername(
+      admin,
       supabase,
       validation.data
     );
 
-    if (error) {
-      console.warn("[auth/signup] Supabase Auth rejected signup:", error.code);
-
+    if (usernameTaken) {
       return NextResponse.json(
         {
           success: false,
-          message:
-            "Unable to create the account. Check the details or try another email.",
+          code: "USERNAME_TAKEN",
+          message: "This name is already used by another account. Please add something to make it unique.",
         },
+        { status: 409 }
+      );
+    }
+
+    if (error || !data?.user) {
+      console.warn("[auth/signup] Account creation failed:", error?.code ?? error?.status);
+      return NextResponse.json(
+        { success: false, message: "Unable to create the account. Please try again." },
         { status: 400 }
       );
     }
 
-    if (!data.user) {
-      return NextResponse.json(
-        { success: false, message: "Account creation was not confirmed." },
-        { status: 500 }
-      );
-    }
-
-    const needsEmailConfirmation = !data.session;
-
     return NextResponse.json(
       {
         success: true,
-        message: needsEmailConfirmation
-          ? "Account created. Please check your email to confirm it."
-          : "Account created successfully.",
-        needsEmailConfirmation,
+        message: "Account created successfully.",
+        needsEmailConfirmation: false,
         user: {
           id: data.user.id,
-          email: data.user.email,
-          fullName:
-            data.user.user_metadata?.full_name ??
-            validation.data.fullName,
+          fullName: validation.data.fullName,
         },
       },
       { status: 201 }

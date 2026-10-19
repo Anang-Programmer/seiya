@@ -11,6 +11,7 @@ import { SeiyaVideoAvatar } from "@/components/ui/seiya-video-avatar";
 import { ActionCard, PlanCard, ClarificationCard } from "@/components/cards/domain-cards";
 import { formatMoneyConverted } from "@/lib/utils";
 import { useApp, ChatMessage } from "@/lib/store";
+import { formatRelativeDate } from "@/lib/transformers";
 
 const Orb = dynamic(() => import("orb-ui").then((mod) => mod.Orb), {
   ssr: false,
@@ -43,8 +44,9 @@ interface ChatSession {
 export function ChatView() {
   const {
     currentUser,
-    chatMessages: initialStoreMessages,
     sendChatMessage,
+    loadChatHistory,
+    householdId,
     partnerAName,
     partnerBName,
     reportingCurrency,
@@ -56,175 +58,56 @@ export function ChatView() {
   const activeName = currentUser === "partner_a" ? partnerAName : partnerBName;
   const partnerName = currentUser === "partner_a" ? partnerBName : partnerAName;
 
-  // Initial Seeded Sessions for Chat History
-  const [sessions, setSessions] = useState<ChatSession[]>([
-    {
-      id: "session-1",
-      title: "Can we afford all bills this month?",
-      timestamp: "Today, 14:29",
-      dateGroup: "Today",
-      mode: "shared",
-      isShared: true,
-      creatorRole: "partner_a",
-      messages: initialStoreMessages.length > 0 ? initialStoreMessages : [
-        {
-          id: "msg-1",
-          sender: "seiya",
-          text: "Hello! I'm Seiya, your financial co-pilot. I operate under your Couple Contract to help you make money decisions together. How can I help you both today?",
-          timestamp: "09:00",
-        },
-        {
-          id: "msg-2",
-          sender: "user",
-          userRole: "partner_a",
-          text: "Can we afford all bills this month?",
-          timestamp: "14:29",
-        },
-        {
-          id: "msg-3",
-          sender: "seiya",
-          text: "Under your Couple Contract, I can record expenses, clarify budgets, analyze affordability, and safeguard mutual funds. How would you like to proceed?",
-          timestamp: "14:29",
-        },
-      ],
-    },
-    {
-      id: "session-2",
-      title: "Kyoto Trip Savings Plan",
-      timestamp: "Yesterday, 16:40",
-      dateGroup: "Yesterday",
-      mode: "shared",
-      isShared: true,
-      creatorRole: "partner_a",
-      messages: [
-        {
-          id: "msg-k1",
-          sender: "user",
-          userRole: "partner_a",
-          text: "We want to save $15,000 for our trip to Kyoto in 10 months.",
-          timestamp: "16:40",
-        },
-        {
-          id: "msg-k2",
-          sender: "seiya",
-          text: "I've structured a mutual milestone for your Kyoto vacation. Based on your 60:40 Couple Contract split ratio, here is the recommended monthly funding plan:",
-          timestamp: "16:40",
-          cardType: "PLAN",
-          cardData: {
-            title: "Kyoto Vacation Fund",
-            targetAmount: 15000,
-            currency: "USD",
-            currentAmount: 2500,
-            horizon: "10 months (July 2027)",
-            monthlyTarget: 1250,
-            split: "60% Taylor ($750) : 40% Alex ($500)",
-            fundingWallet: "Shared Savings",
-            assumptions: "Includes flight estimates, traditional ryokan lodging, and daily shared meal budgets.",
-          },
-        },
-      ],
-    },
-    {
-      id: "session-3",
-      title: "Dinner Bistro Split ($85)",
-      timestamp: "Yesterday, 19:10",
-      dateGroup: "Yesterday",
-      mode: "shared",
-      isShared: true,
-      creatorRole: "partner_a",
-      messages: [
-        {
-          id: "msg-d1",
-          sender: "user",
-          userRole: "partner_a",
-          text: "Paid $85 for dinner together, I paid.",
-          timestamp: "19:10",
-        },
-        {
-          id: "msg-d2",
-          sender: "seiya",
-          text: "Checked against Couple Contract rules: standard expense within agreed single-signer limit ($500). Recorded with 60:40 split ratio.",
-          timestamp: "19:10",
-          cardType: "ACTION_ALLOW",
-          cardData: {
-            title: "Dinner together",
-            category: "Food & Drinks",
-            amount: 85,
-            currency: "USD",
-            wallet: "shared",
-            paidBy: partnerAName,
-            partnerBOwesA: 51,
-          },
-        },
-      ],
-    },
-    {
-      id: "session-4",
-      title: "Annual Home Insurance ($1,200)",
-      timestamp: "11 Oct 2026",
-      dateGroup: "Previous",
-      mode: "shared",
-      isShared: true,
-      creatorRole: "partner_a",
-      messages: [
-        {
-          id: "msg-i1",
-          sender: "user",
-          userRole: "partner_a",
-          text: "Pay for annual home insurance $1,200 from shared wallet.",
-          timestamp: "10:15",
-        },
-        {
-          id: "msg-i2",
-          sender: "seiya",
-          text: "This payment exceeds your agreed $500 threshold and requires mutual authorization from Taylor before funds are disbursed.",
-          timestamp: "10:15",
-          cardType: "ACTION_NEED_APPROVAL",
-          cardData: {
-            title: "Annual Home Insurance",
-            amount: 1200,
-            currency: "USD",
-            wallet: "shared",
-            reason: "Amount exceeds agreed USD 500 threshold. Both keys required.",
-          },
-        },
-      ],
-    },
-    {
-      id: "session-5",
-      title: "Flash-Sale TV ($1,400) Hold",
-      timestamp: "08 Oct 2026",
-      dateGroup: "Previous",
-      mode: "personal",
-      isShared: false,
-      creatorRole: "partner_a",
-      messages: [
-        {
-          id: "msg-f1",
-          sender: "user",
-          userRole: "partner_a",
-          text: "Checkout flash-sale TV for $1,400 from the shared wallet.",
-          timestamp: "23:40",
-        },
-        {
-          id: "msg-f2",
-          sender: "seiya",
-          text: "Late-night promotional checkout triggered during cooling-off hours (23:00 - 08:00). Placed on an 8-hour hold to prevent impulse purchases.",
-          timestamp: "23:40",
-          cardType: "ACTION_HOLD",
-          cardData: {
-            title: "Flash-Sale TV",
-            amount: 1400,
-            currency: "USD",
-            wallet: "shared",
-            reason: "Late-night impulse safeguard active until 08:00 tomorrow.",
-          },
-        },
-      ],
-    },
-  ]);
+  // Conversations live in Supabase; new ones are added as the user chats.
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
 
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+
+  const appendToSession = (sessionId: string, message: ChatMessage) => {
+    setSessions((prev) =>
+      prev.map((session) =>
+        session.id === sessionId ? { ...session, messages: [...session.messages, message] } : session
+      )
+    );
+  };
+
+  // Restore saved conversations for this household.
+  useEffect(() => {
+    let cancelled = false;
+    loadChatHistory().then((history) => {
+      if (cancelled || history.length === 0) return;
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      setSessions((prev) => {
+        const known = new Set(prev.map((s) => s.id));
+        const restored: ChatSession[] = history
+          .filter((h) => !known.has(`history-${h.conversationId}`))
+          .map((h) => {
+            const updated = new Date(h.updatedAt).getTime();
+            const dateGroup: ChatSession["dateGroup"] =
+              updated >= startOfToday.getTime()
+                ? "Today"
+                : updated >= startOfToday.getTime() - 86_400_000
+                ? "Yesterday"
+                : "Previous";
+            return {
+              id: `history-${h.conversationId}`,
+              title: h.title,
+              timestamp: formatRelativeDate(h.updatedAt, locale),
+              dateGroup,
+              mode: "personal",
+              isShared: false,
+              creatorRole: currentUser,
+              messages: h.messages,
+            };
+          });
+        return [...prev, ...restored];
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [householdId]); // eslint-disable-line react-hooks/exhaustive-deps
   const [newChatMode, setNewChatMode] = useState<"personal" | "shared">("personal");
   const [historyFilter, setHistoryFilter] = useState<"all" | "shared" | "private">("all");
   const [showHistory, setShowHistory] = useState<boolean>(false);
@@ -373,9 +256,13 @@ export function ChatView() {
       }
       setIsProcessing(true);
 
-      sendChatMessage(fullUserText).finally(() => {
-        setIsProcessing(false);
-      });
+      sendChatMessage(fullUserText, { sessionKey: newSessionId })
+        .then((reply) => {
+          if (reply) appendToSession(newSessionId, reply);
+        })
+        .finally(() => {
+          setIsProcessing(false);
+        });
 
       setToastMessage(
         isShared
@@ -452,9 +339,9 @@ export function ChatView() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const handleSend = async (textToSend?: string) => {
+  const handleSend = async (textToSend?: string): Promise<ChatMessage | null> => {
     const text = textToSend || inputText;
-    if (!text.trim()) return;
+    if (!text.trim()) return null;
 
     setInputText("");
     setIsProcessing(true);
@@ -467,9 +354,11 @@ export function ChatView() {
       timestamp: new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
     };
 
+    const targetSessionId = activeSessionId ?? `session-${Date.now()}`;
+
     // If currently in Neutral state (activeSessionId === null), auto-create a new conversation session
     if (!activeSessionId) {
-      const newSessionId = `session-${Date.now()}`;
+      const newSessionId = targetSessionId;
       const isShared = newChatMode === "shared";
       const title = text.length > 32 ? text.slice(0, 32) + "..." : text;
       const introText = isShared
@@ -518,13 +407,14 @@ export function ChatView() {
       );
     }
 
-    // Call store handler to execute any side-effects (e.g. transactions, approvals, plans)
-    await sendChatMessage(text);
-
-    // Simulate "Checking rules..." delay before returning gateway confirmation
-    setTimeout(() => {
+    // Seiya's AI backend answers (and may record expenses through its tools).
+    try {
+      const reply = await sendChatMessage(text, { sessionKey: targetSessionId });
+      if (reply) appendToSession(targetSessionId, reply);
+      return reply;
+    } finally {
       setIsProcessing(false);
-    }, 900);
+    }
   };
 
   // Speech Synthesis Helper for Voice Chat
@@ -632,21 +522,10 @@ export function ChatView() {
     if (!queryText.trim()) return;
     setHasVoiceTranscribed(true);
     setLiveVoiceTranscript("");
-    await handleSend(queryText);
+    const reply = await handleSend(queryText);
 
-    // Speak intelligent tailored reply matching couple financials
-    const lower = queryText.toLowerCase();
-    let reply = "";
-    if (lower.includes("bill") || lower.includes("afford")) {
-      reply = `All regular bills this month are within agreed limits. You have sufficient liquidity in your shared pool.`;
-    } else if (lower.includes("lunch") || lower.includes("dinner") || lower.includes("food") || lower.includes("paid")) {
-      reply = `Logged your meal expense with standard 60 to 40 ratio! Both wallets have been adjusted.`;
-    } else if (lower.includes("kyoto") || lower.includes("trip") || lower.includes("savings")) {
-      reply = `Your Kyoto trip goal is progressing nicely! Target is 15,000 dollars in 10 months.`;
-    } else {
-      reply = `Under your Couple Contract, all rules and balances have been checked and approved!`;
-    }
-    speakVoiceText(reply);
+    // Read Seiya's actual answer aloud.
+    if (reply?.text) speakVoiceText(reply.text);
   };
 
   // Manage voice mode lifecycle

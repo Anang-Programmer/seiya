@@ -1,7 +1,28 @@
 "use client";
 
-import React, { createContext, useContext, useState, useMemo } from "react";
-import { formatMoney, convertMoney, convertAmount, SUPPORTED_CURRENCIES, MOCK_FX_METADATA } from "./currency";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { convertAmount, convertMoney } from "./currency";
+import * as api from "./api";
+import { ApiError } from "./api";
+import {
+  contractFromRules,
+  DEFAULT_CONTRACT,
+  formatRelativeDate,
+  otherRole,
+  roleFromMembership,
+  rulesFromContract,
+  toIsoDate,
+  transformActivity,
+  transformApproval,
+  transformBill,
+  transformHeldPurchase,
+  transformPlan,
+  transformTransaction,
+  transformWallets,
+  type TransformContext,
+  type WalletState,
+} from "./transformers";
+import { createClient as createBrowserSupabase } from "./supabase/client";
 
 export type UserRole = "partner_a" | "partner_b";
 
@@ -141,9 +162,77 @@ export interface PendingDirectChat {
   mode?: "personal" | "shared";
 }
 
+export interface AuthUser {
+  id: string;
+  email: string | null;
+  fullName: string;
+}
+
+export interface PartnerProfile {
+  userId: string;
+  fullName: string;
+}
+
+export interface HouseholdInfo {
+  id: string;
+  name: string;
+  baseCurrency: string;
+  country: string | null;
+}
+
+export interface ContractMeta {
+  pendingRuleId: string | null;
+  pendingNeedsMyApproval: boolean;
+  hasActiveRule: boolean;
+}
+
+export interface ChatHistorySession {
+  conversationId: string;
+  title: string;
+  updatedAt: string;
+  messages: ChatMessage[];
+}
+
+export interface BudgetSummary {
+  amount: number;
+  spent: number;
+  currency: string;
+  usagePercent: number;
+  daysRemaining: number;
+}
+
+export interface AppNotice {
+  id: number;
+  kind: "error" | "success" | "info";
+  message: string;
+}
+
+export type ContractSignatureResult = "active" | "pending_partner" | "awaiting_partner_join" | "error";
+
+export type GatewayOutcome = "ALLOW" | "NEED_APPROVAL" | "HOLD" | "DENY";
+
 interface AppContextType {
+  // Auth & session
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  authUser: AuthUser | null;
+  householdId: string | null;
+  household: HouseholdInfo | null;
+  myRole: UserRole;
+  hasPin: boolean;
+  partnerProfile: PartnerProfile | null;
+  refreshSession: () => Promise<api.ApiMeResponse | null>;
+  refreshData: () => Promise<void>;
+  signOut: () => Promise<void>;
+  // Verifies the caller's 6-digit PIN; the first use saves it as their PIN.
+  // Resolves to an error message, or null when accepted.
+  verifySecurityPin: (pin: string) => Promise<string | null>;
+  dataStatus: { loading: boolean; loaded: boolean; error: string | null };
+  notices: AppNotice[];
+  notify: (kind: AppNotice["kind"], message: string) => void;
+  dismissNotice: (id: number) => void;
+
   currentUser: UserRole;
-  setCurrentUser: (user: UserRole) => void;
   // Partner Names & Labels
   partnerAName: string;
   partnerBName: string;
@@ -155,14 +244,9 @@ interface AppContextType {
   // Currency Management
   reportingCurrency: string;
   setReportingCurrency: (currency: string) => void;
-  simulateMissingFXRate: boolean;
-  setSimulateMissingFXRate: (val: boolean) => void;
   // Wallets Native Balances
-  wallets: {
-    personalA: { balance: number; currency: string; label: string };
-    personalB: { balance: number; currency: string; label: string };
-    shared: { balance: number; currency: string; label: string };
-  };
+  wallets: WalletState;
+  walletsReady: boolean;
   // Reporting Estimates
   convertedBalances: {
     personalA: { amount: number; available: boolean; isEstimate: boolean };
@@ -176,6 +260,9 @@ interface AppContextType {
     currency: string;
   };
   contract: CoupleContract;
+  contractMeta: ContractMeta;
+  // Aggregate of the budgets whose period covers today (null when none are set).
+  budgetSummary: BudgetSummary | null;
   transactions: Transaction[];
   approvals: ApprovalRequest[];
   heldPurchases: HeldPurchase[];
@@ -198,25 +285,25 @@ interface AppContextType {
     wallet: "shared" | "personal_a" | "personal_b";
     timeOfDay?: string;
     category?: string;
-  }) => {
-    outcome: "ALLOW" | "NEED_APPROVAL" | "HOLD" | "DENY";
+  }) => Promise<{
+    outcome: GatewayOutcome;
     reason: string;
     details?: any;
-  };
-  approveRequest: (approvalId: string) => void;
-  declineRequest: (approvalId: string) => void;
-  continueHeldPurchase: (heldId: string) => void;
-  cancelHeldPurchase: (heldId: string) => void;
-  recordTransaction: (tx: Omit<Transaction, "id" | "date" | "timestamp">) => Transaction;
-  undoTransaction: (txId: string) => void;
+  }>;
+  approveRequest: (approvalId: string) => Promise<void>;
+  declineRequest: (approvalId: string) => Promise<void>;
+  continueHeldPurchase: (heldId: string) => Promise<void>;
+  cancelHeldPurchase: (heldId: string) => Promise<void>;
+  recordTransaction: (tx: Omit<Transaction, "id" | "date" | "timestamp">) => Promise<Transaction | null>;
+  undoTransaction: (txId: string) => Promise<boolean>;
   proposeContractChange: (
     newThreshold: number,
     thresholdCurrency: string,
     newSplitB: number,
     newSplitA: number,
     approveEveryShared: boolean
-  ) => void;
-  approveContractChange: () => void;
+  ) => Promise<boolean>;
+  approveContractChange: () => Promise<boolean>;
   activateInitialContract: (params: {
     splitPartnerA: number;
     splitPartnerB: number;
@@ -224,38 +311,38 @@ interface AppContextType {
     thresholdCurrency: string;
     coolingOffEnabled?: boolean;
     approveEverySharedPurchase?: boolean;
-  }) => void;
-  sendChatMessage: (text: string) => Promise<void>;
-  payBill: (billId: string) => void;
-  settleUp: () => void;
-  // Demo presets
-  applyDemoPreset: (preset: "global_usd" | "regional_idr") => void;
+    walletMode?: "shared_only" | "shared_and_personal" | "separate_only";
+  }) => Promise<ContractSignatureResult>;
+  sendChatMessage: (text: string, options?: { sessionKey?: string }) => Promise<ChatMessage | null>;
+  loadChatHistory: () => Promise<ChatHistorySession[]>;
+  payBill: (billId: string) => Promise<void>;
+  settleUp: () => Promise<void>;
   // Bill Management
-  addBill: (bill: Omit<BillItem, "id" | "daysRemaining">) => BillItem;
-  editBill: (billId: string, updated: Partial<BillItem>) => void;
-  deleteBill: (billId: string) => void;
-  requestPayBill: (billId: string) => void;
+  addBill: (bill: Omit<BillItem, "id" | "daysRemaining">) => Promise<boolean>;
+  editBill: (billId: string, updated: Partial<BillItem>) => Promise<boolean>;
+  deleteBill: (billId: string) => Promise<boolean>;
+  requestPayBill: (billId: string) => Promise<boolean>;
   // Plan Management & Dual-Key Deletion
-  addPlan: (newPlan: Omit<PlanItem, "id">) => PlanItem;
-  updatePlan: (planId: string, updated: Partial<PlanItem>) => void;
-  deletePlan: (planId: string) => void;
+  addPlan: (newPlan: Omit<PlanItem, "id">) => Promise<PlanItem | null>;
+  updatePlan: (planId: string, updated: Partial<PlanItem>) => Promise<boolean>;
+  deletePlan: (planId: string) => Promise<boolean>;
   requestDeletePlan: (
     planId: string,
     partnerAPin?: string,
     partnerBPin?: string
-  ) => { success: boolean; requiresApproval?: boolean };
+  ) => Promise<{ success: boolean; requiresApproval?: boolean; message?: string }>;
   // Approval Queue Management
-  approveApprovalRequest: (approvalId: string, pin?: string) => boolean;
-  declineApprovalRequest: (approvalId: string, reason?: string) => void;
+  approveApprovalRequest: (approvalId: string, pin?: string) => Promise<{ ok: boolean; message?: string }>;
+  declineApprovalRequest: (approvalId: string, reason?: string) => Promise<boolean>;
   // Direct chat shortcut from dashboard
   pendingDirectChat: PendingDirectChat | null;
   setPendingDirectChat: (data: PendingDirectChat | null) => void;
   // Expense Proposal
-  proposeExpense: (params: ProposeExpenseParams) => {
+  proposeExpense: (params: ProposeExpenseParams) => Promise<{
     outcome: "NEED_APPROVAL" | "ALLOW" | "HOLD";
     id: string;
     reason: string;
-  };
+  }>;
 }
 
 export interface ProposeExpenseParams {
@@ -273,350 +360,468 @@ export interface ProposeExpenseParams {
 
 const AppContext = createContext<AppContextType | null>(null);
 
+const HELD_TX_PREFIX = "tx:";
+const POLL_INTERVAL_MS = 20_000;
+
+const EMPTY_WALLETS: WalletState = {
+  personalA: { balance: 0, currency: "IDR", label: "Your balance" },
+  personalB: { balance: 0, currency: "IDR", label: "Partner balance" },
+  shared: { balance: 0, currency: "IDR", label: "Shared balance" },
+};
+
+const EMPTY_CONTRACT_META: ContractMeta = { pendingRuleId: null, pendingNeedsMyApproval: false, hasActiveRule: false };
+
+const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
+
+function errorMessage(error: unknown, fallback = "Something went wrong. Please try again.") {
+  if (error instanceof ApiError || error instanceof Error) return error.message || fallback;
+  return fallback;
+}
+
+// Next local 08:00, used as the end of the late-night cooling-off window.
+function nextMorningIso() {
+  const d = new Date();
+  if (d.getHours() >= 8) d.setDate(d.getDate() + 1);
+  d.setHours(8, 0, 0, 0);
+  return d.toISOString();
+}
+
+function nowTime(locale: string) {
+  return new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
+  // ---------------------------------------------------------------------------
+  // Auth & session state
+  // ---------------------------------------------------------------------------
+  const [isLoading, setIsLoading] = useState(true);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [household, setHousehold] = useState<HouseholdInfo | null>(null);
   const [currentUser, setCurrentUser] = useState<UserRole>("partner_a");
+  const [hasPin, setHasPin] = useState(false);
+  const [partnerProfile, setPartnerProfile] = useState<PartnerProfile | null>(null);
 
-  // Neutral default identities
-  const [partnerAName, setPartnerAName] = useState<string>("Alex");
-  const [partnerBName, setPartnerBName] = useState<string>("Taylor");
+  const householdId = household?.id ?? null;
+  const isAuthenticated = Boolean(authUser);
+
+  const [partnerAName, setPartnerAName] = useState<string>("Partner A");
+  const [partnerBName, setPartnerBName] = useState<string>("Partner B");
   const [locale, setLocale] = useState<string>("en-US");
-  const [timeZone, setTimeZone] = useState<string>("America/New_York");
+  const [timeZone, setTimeZone] = useState<string>("Asia/Jakarta");
 
-  // Multi-currency reporting & mock FX controls
-  const [reportingCurrency, setReportingCurrency] = useState<string>("USD");
-  const [simulateMissingFXRate, setSimulateMissingFXRate] = useState<boolean>(false);
+  const [reportingCurrency, setReportingCurrency] = useState<string>("IDR");
+  const reportingCurrencyTouched = useRef(false);
   const [pendingDirectChat, setPendingDirectChat] = useState<PendingDirectChat | null>(null);
 
-  // Wallets with native denomination
-  const [wallets, setWallets] = useState({
-    personalA: { balance: 14800, currency: "USD", label: "Your balance" },
-    personalB: { balance: 12500, currency: "EUR", label: "Partner balance" },
-    shared: { balance: 24200, currency: "USD", label: "Shared balance" },
+  // ---------------------------------------------------------------------------
+  // Household data (all loaded from the API)
+  // ---------------------------------------------------------------------------
+  const [wallets, setWallets] = useState<WalletState>(EMPTY_WALLETS);
+  const [walletIds, setWalletIds] = useState<{ shared: string | null; mine: string | null }>({ shared: null, mine: null });
+  const [contract, setContract] = useState<CoupleContract>(DEFAULT_CONTRACT);
+  const [contractMeta, setContractMeta] = useState<ContractMeta>(EMPTY_CONTRACT_META);
+  const [settlement, setSettlement] = useState({ partnerBOwesA: 0, partnerAOwesB: 0, currency: "IDR" });
+  const [budgetSummary, setBudgetSummary] = useState<BudgetSummary | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [heldLedgerTransactions, setHeldLedgerTransactions] = useState<HeldPurchase[]>([]);
+  const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
+  const [heldPurchaseRows, setHeldPurchaseRows] = useState<HeldPurchase[]>([]);
+  const [bills, setBills] = useState<BillItem[]>([]);
+  const [plans, setPlans] = useState<PlanItem[]>([]);
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [dataStatus, setDataStatus] = useState<{ loading: boolean; loaded: boolean; error: string | null }>({
+    loading: false,
+    loaded: false,
+    error: null,
   });
 
-  const [monthlySummary, setMonthlySummary] = useState({
-    income: 8250,
-    expenses: 4180,
-    currency: "USD",
-  });
+  const [notices, setNotices] = useState<AppNotice[]>([]);
+  const noticeSeq = useRef(0);
 
-  const [contract, setContract] = useState<CoupleContract>({
-    status: "active",
-    splitPartnerB: 60,
-    splitPartnerA: 40,
-    approvalThreshold: 500,
-    thresholdCurrency: "USD",
-    approveEverySharedPurchase: false,
-    cooldownThreshold: 1000,
-    cooldownCurrency: "USD",
-    cooldownSchedule: "23:00 - 08:00 (Local Time)",
-    coolingOffEnabled: true,
-    proposedChange: null,
-  });
+  // Chat-view session key -> backend conversation id.
+  const conversationIds = useRef(new Map<string, string>());
+  const walletInitAttempted = useRef(false);
+  const refreshInFlight = useRef<Promise<void> | null>(null);
+  const refreshRerunRequested = useRef(false);
 
-  const [settlement, setSettlement] = useState({
-    partnerBOwesA: 51,
-    partnerAOwesB: 0,
-    currency: "USD",
-  });
+  const heldPurchases = useMemo(
+    () => [...heldPurchaseRows, ...heldLedgerTransactions],
+    [heldPurchaseRows, heldLedgerTransactions]
+  );
 
-  const [transactions, setTransactions] = useState<Transaction[]>([
-    {
-      id: "tx-1",
-      title: "Artisanal Coffee & Breakfast",
-      amount: -18.5,
-      currency: "USD",
-      category: "Food & Drinks",
-      wallet: "personal_a",
-      paidBy: "partner_a",
-      date: "Today, 08:34",
-      timestamp: "2026-10-14T08:34:00Z",
-      isPrivateToA: true,
-    },
-    {
-      id: "tx-2",
-      title: "Consulting Client Payout",
-      amount: 1450.0,
-      currency: "USD",
-      category: "Income",
-      wallet: "personal_a",
-      paidBy: "partner_a",
-      date: "Today, 07:45",
-      timestamp: "2026-10-14T07:45:00Z",
-      isPrivateToA: true,
-    },
-    {
-      id: "tx-3",
-      title: "Bookstore Purchase",
-      amount: -45.0,
-      currency: "EUR",
-      category: "Others",
-      wallet: "personal_b",
-      paidBy: "partner_b",
-      date: "Yesterday, 14:20",
-      timestamp: "2026-10-13T14:20:00Z",
-      isPrivateToB: true,
-    },
-    {
-      id: "tx-4",
-      title: "Bistro Dinner Together",
-      amount: -85.0,
-      currency: "USD",
-      category: "Food & Drinks",
-      wallet: "shared",
-      paidBy: "partner_a",
-      splitRatio: { partnerB: 60, partnerA: 40 },
-      partnerBOwesA: 51.0,
-      date: "Yesterday, 19:10",
-      timestamp: "2026-10-13T19:10:00Z",
-    },
-    {
-      id: "tx-5",
-      title: "Organic Groceries",
-      amount: -145.0,
-      currency: "USD",
-      category: "Shopping",
-      wallet: "shared",
-      paidBy: "partner_b",
-      splitRatio: { partnerB: 60, partnerA: 40 },
-      date: "12 Oct 2026, 17:30",
-      timestamp: "2026-10-12T17:30:00Z",
-    },
-    {
-      id: "tx-6",
-      title: "High-Speed Fiber Internet",
-      amount: -75.0,
-      currency: "USD",
-      category: "Bills",
-      wallet: "shared",
-      paidBy: "partner_b",
-      date: "10 Oct 2026, 10:00",
-      timestamp: "2026-10-10T10:00:00Z",
-    },
-  ]);
+  const notify = useCallback((kind: AppNotice["kind"], message: string) => {
+    const id = ++noticeSeq.current;
+    setNotices((prev) => [...prev.slice(-3), { id, kind, message }]);
+    setTimeout(() => setNotices((prev) => prev.filter((n) => n.id !== id)), kind === "error" ? 6500 : 4000);
+  }, []);
 
-  const [approvals, setApprovals] = useState<ApprovalRequest[]>([
-    {
-      id: "appr-1",
-      title: "Electricity & AC - Payment Confirmation",
-      amount: 145,
-      currency: "USD",
-      wallet: "shared",
-      requester: "partner_b",
-      approver: "partner_a",
-      status: "pending",
-      reason: "Taylor marked electricity bill as paid. Requires your confirmation to settle from shared wallet.",
-      createdAt: "2026-10-16T07:10:00Z",
-      expiresInHours: 24,
-      category: "Bills",
-      type: "BILL",
-      targetId: "bill-1",
-    },
-    {
-      id: "appr-2",
-      title: "Delete Goal: Kyoto Vacation Trip",
-      amount: 6000,
-      currency: "USD",
-      wallet: "shared",
-      requester: "partner_b",
-      approver: "partner_a",
-      status: "pending",
-      reason: "Goal dissolution proposed by Taylor. Dual-Key PIN consent required to dissolve collaborative goal.",
-      createdAt: "2026-10-15T21:10:00Z",
-      expiresInHours: 48,
-      category: "Plans",
-      type: "PLAN_DELETE",
-      targetId: "plan-1",
-    },
-    {
-      id: "appr-3",
-      title: "Weekend Getaway Airbnb Reservation",
-      amount: 540,
-      currency: "USD",
-      wallet: "shared",
-      requester: "partner_a",
-      approver: "partner_b",
-      status: "pending",
-      reason: "Shared expense exceeds agreed $500 threshold under Couple Contract Rule §2.",
-      createdAt: "2026-10-16T06:20:00Z",
-      expiresInHours: 18,
-      category: "Expenses",
-      type: "EXPENSE",
-    },
-    {
-      id: "appr-4",
-      title: "Amend Contract Split to 50:50",
-      amount: 0,
-      currency: "USD",
-      wallet: "shared",
-      requester: "partner_b",
-      approver: "partner_a",
-      status: "pending",
-      reason: "Proposed adjustment of shared contribution split from 60:40 to equal 50:50.",
-      createdAt: "2026-10-16T06:50:00Z",
-      expiresInHours: 72,
-      category: "Contracts",
-      type: "CONTRACT",
-    },
-  ]);
+  const dismissNotice = useCallback((id: number) => {
+    setNotices((prev) => prev.filter((n) => n.id !== id));
+  }, []);
 
-  const [heldPurchases, setHeldPurchases] = useState<HeldPurchase[]>([
-    {
-      id: "hold-1",
-      title: "Limited Edition Designer Jacket",
-      amount: 1250,
-      currency: "USD",
-      wallet: "shared",
-      requester: "partner_a",
-      status: "held",
-      holdUntil: "Tomorrow at 08:00 (Local Time)",
-      reason: "Late-night promotional checkout (23:40) exceeding USD 1,000 cooling-off safeguard",
-      createdAt: "2026-10-13T23:40:00Z",
-    },
-  ]);
+  const resetData = useCallback(() => {
+    setWallets(EMPTY_WALLETS);
+    setWalletIds({ shared: null, mine: null });
+    setContract(DEFAULT_CONTRACT);
+    setContractMeta(EMPTY_CONTRACT_META);
+    setSettlement({ partnerBOwesA: 0, partnerAOwesB: 0, currency: "IDR" });
+    setBudgetSummary(null);
+    setTransactions([]);
+    setHeldLedgerTransactions([]);
+    setApprovals([]);
+    setHeldPurchaseRows([]);
+    setBills([]);
+    setPlans([]);
+    setActivities([]);
+    setChatMessages([]);
+    setDataStatus({ loading: false, loaded: false, error: null });
+    conversationIds.current.clear();
+    walletInitAttempted.current = false;
+  }, []);
 
-  const [bills, setBills] = useState<BillItem[]>([
-    {
-      id: "bill-1",
-      title: "High-Speed Fiber Internet 1Gbps",
-      amount: 95,
-      currency: "USD",
-      dueDate: "17 Oct 2026",
-      daysRemaining: 3,
-      wallet: "shared",
-      category: "Utilities",
-      status: "upcoming",
-      anomaly: {
-        type: "increase",
-        message: "Bill increased +15% from last month (promotional discount ended)",
-      },
-    },
-    {
-      id: "bill-2",
-      title: "Annual Home Insurance",
-      amount: 1200,
-      currency: "USD",
-      dueDate: "19 Oct 2026",
-      daysRemaining: 5,
-      wallet: "shared",
-      category: "Housing",
-      status: "pending_approval",
-    },
-    {
-      id: "bill-3",
-      title: "Cloud Streaming Family Plan",
-      amount: 22,
-      currency: "USD",
-      dueDate: "21 Oct 2026",
-      daysRemaining: 7,
-      wallet: "shared",
-      category: "Entertainment",
-      status: "upcoming",
-      anomaly: {
-        type: "duplicate",
-        message: "Duplicate streaming plan detected across shared and personal accounts",
-      },
-    },
-  ]);
+  // ---------------------------------------------------------------------------
+  // Session
+  // ---------------------------------------------------------------------------
+  const applyMe = useCallback((me: api.ApiMeResponse) => {
+    // The auth email is an internal placeholder (username sign-in), so never show it.
+    const fullName = me.profile.full_name?.trim() || "You";
+    setAuthUser({ id: me.user.id, email: me.user.email, fullName });
+    setHasPin(Boolean(me.hasPin));
 
-  const [plans, setPlans] = useState<PlanItem[]>([
-    {
-      id: "plan-1",
-      title: "Kyoto Vacation Trip",
-      category: "Travel",
-      targetAmount: 6000,
-      currentAmount: 2400,
-      currency: "USD",
-      targetDate: "Jul 2027 (10 months)",
-      recommendedMonthly: 600,
-      splitRecommendation: { partnerB: 360, partnerA: 240 },
-      walletFunding: "Planned shared contributions",
-      status: "Active",
-      assumptions: "Planned monthly contribution of USD 600. Taylor 60% (USD 360), Alex 40% (USD 240). No auto-debit.",
-    },
-    {
-      id: "plan-2",
-      title: "Emergency Reserve (6 Months)",
-      category: "Safety Net",
-      targetAmount: 24000,
-      currentAmount: 18000,
-      currency: "USD",
-      targetDate: "Dec 2026",
-      recommendedMonthly: 1000,
-      splitRecommendation: { partnerB: 600, partnerA: 400 },
-      walletFunding: "Planned monthly allocations",
-      status: "Active",
-      assumptions: "Covers 6 months of fixed household commitments at USD 4,000/mo.",
-    },
-    {
-      id: "plan-3",
-      title: "City Electric Scooter",
-      category: "Mobility",
-      targetAmount: 1800,
-      currentAmount: 400,
-      currency: "USD",
-      targetDate: "Oct 2027",
-      recommendedMonthly: 150,
-      splitRecommendation: { partnerB: 90, partnerA: 60 },
-      walletFunding: "Shared contribution",
-      status: "Draft",
-      assumptions: "Draft created by Seiya Planner. Awaiting mutual partner activation.",
-    },
-  ]);
+    if (me.profile.preferred_language === "id") {
+      setLocale((prev) => (prev === "en-US" ? "id-ID" : prev));
+    }
 
-  const [activities, setActivities] = useState<ActivityItem[]>([
-    {
-      id: "act-1",
-      title: "Late-night Jacket Purchase Held",
-      category: "Safeguard",
-      actor: "seiya",
-      status: "HOLD",
-      amount: 1250,
-      currency: "USD",
-      reason: "Cooling-off safeguard triggered (> USD 1,000 at 23:40). Held until 08:00.",
-      timestamp: "Yesterday, 23:40",
-      timeAgo: "8h ago",
-    },
-    {
-      id: "act-2",
-      title: "Home Insurance Approval Requested",
-      category: "Bill",
-      actor: "partner_a",
-      status: "NEED_APPROVAL",
-      amount: 1200,
-      currency: "USD",
-      reason: "Shared bill exceeds agreed USD 500 threshold. Pending Taylor's signature.",
-      timestamp: "Today, 09:15",
-      timeAgo: "2h ago",
-    },
-    {
-      id: "act-3",
-      title: "Dinner Together Shared",
-      category: "Food & Drinks",
-      actor: "partner_a",
-      status: "ALLOW",
-      amount: 85,
-      currency: "USD",
-      reason: "Expense recorded with 60:40 split. Taylor owes Alex USD 51.00.",
-      timestamp: "Yesterday, 19:10",
-      timeAgo: "1d ago",
-    },
-  ]);
+    if (me.household) {
+      const role = roleFromMembership(me.household.myRole);
+      setCurrentUser(role);
+      setHousehold({
+        id: me.household.id,
+        name: me.household.name,
+        baseCurrency: me.household.base_currency || "IDR",
+        country: me.household.country ?? null,
+      });
+      if (!reportingCurrencyTouched.current) {
+        setReportingCurrency(me.household.base_currency || "IDR");
+      }
 
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    {
-      id: "msg-1",
-      sender: "seiya",
-      text: "Hello! I'm Seiya, your financial co-pilot. I operate under your Couple Contract with Dual-Key safety. How can I help you both today?",
-      timestamp: "09:00",
-    },
-  ]);
+      const partner = me.household.partner;
+      setPartnerProfile(partner ? { userId: partner.userId, fullName: partner.fullName || "Partner" } : null);
 
-  // Derived Converted Balances into reporting currency
+      if (role === "partner_a") {
+        setPartnerAName(fullName);
+        if (partner?.fullName) setPartnerBName(partner.fullName);
+      } else {
+        setPartnerBName(fullName);
+        if (partner?.fullName) setPartnerAName(partner.fullName);
+      }
+    } else {
+      setHousehold(null);
+      setPartnerProfile(null);
+      setCurrentUser("partner_a");
+      setPartnerAName(fullName);
+    }
+  }, []);
+
+  const clearSession = useCallback(() => {
+    setAuthUser(null);
+    setHousehold(null);
+    setPartnerProfile(null);
+    setHasPin(false);
+    setCurrentUser("partner_a");
+    setPartnerAName("Partner A");
+    setPartnerBName("Partner B");
+    reportingCurrencyTouched.current = false;
+    resetData();
+  }, [resetData]);
+
+  const refreshSession = useCallback(async (): Promise<api.ApiMeResponse | null> => {
+    try {
+      const me = await api.apiGetMe();
+      applyMe(me);
+      return me;
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        clearSession();
+      } else if (error instanceof ApiError && error.code === "PROFILE_NOT_FOUND") {
+        clearSession();
+        notify("error", error.message);
+      } else {
+        // Keep the previous session on transient failures.
+        console.warn("[store] session refresh failed:", error);
+      }
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [applyMe, clearSession, notify]);
+
+  const signOut = useCallback(async () => {
+    try {
+      await api.apiSignOut();
+    } catch (error) {
+      // A 401 means the session is already gone, which is the goal anyway.
+      if (!(error instanceof ApiError && error.status === 401)) {
+        notify("error", errorMessage(error, "Unable to sign out."));
+        return;
+      }
+    }
+    clearSession();
+  }, [clearSession, notify]);
+
+  // ---------------------------------------------------------------------------
+  // Data loading
+  // ---------------------------------------------------------------------------
+  const transformContext = useCallback(
+    (ids: { shared: string | null; mine: string | null }): TransformContext => ({
+      myUserId: authUser?.id ?? null,
+      myRole: currentUser,
+      locale,
+      sharedWalletId: ids.shared,
+      myPersonalWalletId: ids.mine,
+    }),
+    [authUser?.id, currentUser, locale]
+  );
+
+
+  const loadHouseholdData = useCallback(
+    async (hid: string) => {
+      setDataStatus((prev) => ({ ...prev, loading: true }));
+      const baseCurrency = household?.baseCurrency ?? "IDR";
+
+      const [
+        walletsRes,
+        txRes,
+        billsRes,
+        approvalsRes,
+        plansRes,
+        activitiesRes,
+        heldRes,
+        settlementRes,
+        rulesRes,
+        budgetsRes,
+      ] = await Promise.allSettled([
+        api.apiGetWallets(hid),
+        api.apiGetTransactions(hid, 100),
+        api.apiGetBills(hid),
+        api.apiGetApprovals(hid),
+        api.apiGetPlans(hid),
+        api.apiGetActivities(),
+        api.apiGetWaitingList(),
+        api.apiGetSettlement(),
+        api.apiGetFinanceRules(hid),
+        api.apiGetBudgets(hid),
+      ]);
+
+      const errors: string[] = [];
+      const collect = (res: PromiseSettledResult<unknown>) => {
+        if (res.status === "rejected") errors.push(errorMessage(res.reason));
+      };
+      [walletsRes, txRes, billsRes, approvalsRes, plansRes, activitiesRes, heldRes, settlementRes, rulesRes, budgetsRes].forEach(collect);
+
+      let ids = walletIds;
+      if (walletsRes.status === "fulfilled") {
+        const result = transformWallets(walletsRes.value.wallets, { myUserId: authUser?.id ?? null, myRole: currentUser }, baseCurrency);
+        setWallets(result.wallets);
+        ids = { shared: result.sharedWalletId, mine: result.myPersonalWalletId };
+        setWalletIds(ids);
+      }
+      const ctx = transformContext(ids);
+
+      let mappedApprovals: ApprovalRequest[] = approvals;
+      if (approvalsRes.status === "fulfilled") {
+        mappedApprovals = approvalsRes.value.approvals.map(transformApproval);
+        setApprovals(mappedApprovals);
+      }
+
+      if (txRes.status === "fulfilled") {
+        const rows = txRes.value.transactions;
+        setTransactions(rows.filter((t) => t.status === "executed").map((t) => transformTransaction(t, ctx)));
+        setHeldLedgerTransactions(
+          rows
+            .filter((t) => t.status === "on_hold")
+            .map((t) => {
+              const tx = transformTransaction(t, ctx);
+              return {
+                id: `${HELD_TX_PREFIX}${t.id}`,
+                title: tx.title,
+                amount: Math.abs(tx.amount),
+                currency: tx.currency,
+                wallet: tx.wallet,
+                requester: tx.paidBy,
+                status: "held" as const,
+                holdUntil: t.hold_until ? formatRelativeDate(t.hold_until, locale) : "Cooling-off period",
+                reason: "Cooling-off safeguard from your couple contract. Confirm after the hold ends to execute it.",
+                createdAt: t.created_at,
+              };
+            })
+        );
+      }
+
+      if (billsRes.status === "fulfilled") {
+        setBills(billsRes.value.bills.map((b) => transformBill(b, ctx)));
+      }
+      if (plansRes.status === "fulfilled") {
+        setPlans(plansRes.value.plans.map(transformPlan));
+      }
+      if (activitiesRes.status === "fulfilled") {
+        setActivities(activitiesRes.value.activities.map((a) => transformActivity(a, locale)));
+      }
+      if (heldRes.status === "fulfilled") {
+        setHeldPurchaseRows(heldRes.value.heldPurchases.map((h) => transformHeldPurchase(h, locale)));
+      }
+      if (settlementRes.status === "fulfilled") {
+        const s = settlementRes.value.settlement;
+        setSettlement({
+          partnerBOwesA: Number(s.partnerBOwesA) || 0,
+          partnerAOwesB: Number(s.partnerAOwesB) || 0,
+          currency: s.currency || baseCurrency,
+        });
+      }
+
+      if (budgetsRes.status === "fulfilled") {
+        const today = new Date().toISOString().slice(0, 10);
+        const current = (budgetsRes.value.budgets ?? []).filter((b) => b.period_start <= today && b.period_end >= today);
+        if (current.length === 0) {
+          setBudgetSummary(null);
+        } else {
+          const amount = current.reduce((sum, b) => sum + convertAmount(Number(b.amount), b.currency, baseCurrency), 0);
+          const spent = current.reduce((sum, b) => sum + convertAmount(Number(b.spent), b.currency, baseCurrency), 0);
+          const periodEnd = current.reduce((max, b) => (b.period_end > max ? b.period_end : max), current[0].period_end);
+          setBudgetSummary({
+            amount: round2(amount),
+            spent: round2(spent),
+            currency: baseCurrency,
+            usagePercent: amount > 0 ? Math.round((spent / amount) * 1000) / 10 : 0,
+            daysRemaining: Math.max(0, Math.ceil((new Date(`${periodEnd}T23:59:59`).getTime() - Date.now()) / 86_400_000)),
+          });
+        }
+      }
+
+      let hasActiveRule = contractMeta.hasActiveRule;
+      const rulesData = rulesRes.status === "fulfilled" ? rulesRes.value : null;
+
+      if (rulesData) {
+        const parsed = contractFromRules(rulesData.rules, rulesData.approvals, {
+          myUserId: authUser?.id ?? null,
+          myRole: currentUser,
+          currency: baseCurrency,
+        });
+        setContract(parsed.contract);
+        setContractMeta({
+          pendingRuleId: parsed.pendingRuleId,
+          pendingNeedsMyApproval: parsed.pendingNeedsMyApproval,
+          hasActiveRule: parsed.hasActiveRule,
+        });
+        hasActiveRule = parsed.hasActiveRule;
+      }
+
+      // Wallets can only be provisioned once both partners ratified the agreement.
+      if (hasActiveRule && partnerProfile && !ids.shared && !walletInitAttempted.current) {
+        walletInitAttempted.current = true;
+        try {
+          await api.apiInitializeWallets(hid);
+          const fresh = await api.apiGetWallets(hid);
+          const result = transformWallets(fresh.wallets, { myUserId: authUser?.id ?? null, myRole: currentUser }, baseCurrency);
+          setWallets(result.wallets);
+          setWalletIds({ shared: result.sharedWalletId, mine: result.myPersonalWalletId });
+        } catch (error) {
+          console.warn("[store] wallet initialization failed:", error);
+        }
+      }
+
+      const allFailed = errors.length === 10;
+      setDataStatus({
+        loading: false,
+        loaded: true,
+        error: allFailed ? errors[0] : errors.length ? `Some data could not be loaded: ${errors[0]}` : null,
+      });
+    },
+    [
+      household?.baseCurrency,
+      walletIds,
+      authUser,
+      currentUser,
+      transformContext,
+      approvals,
+      locale,
+      contractMeta.hasActiveRule,
+      partnerProfile,
+    ]
+  );
+
+  const loadRef = useRef(loadHouseholdData);
+  useEffect(() => {
+    loadRef.current = loadHouseholdData;
+  }, [loadHouseholdData]);
+
+  const refreshData = useCallback(async () => {
+    if (!householdId) return;
+    // A refresh requested while one is running (e.g. right after a mutation)
+    // must not reuse the older, possibly stale load: queue one more pass.
+    if (refreshInFlight.current) {
+      refreshRerunRequested.current = true;
+      return refreshInFlight.current;
+    }
+    const run = (async () => {
+      do {
+        refreshRerunRequested.current = false;
+        await loadRef.current(householdId);
+      } while (refreshRerunRequested.current);
+    })().finally(() => {
+      refreshInFlight.current = null;
+    });
+    refreshInFlight.current = run;
+    return run;
+  }, [householdId]);
+
+  // Wallets can only be provisioned once the agreement is active; do it as
+  // soon as a signature activates it rather than waiting for the next poll.
+  const ensureWallets = async (hid: string) => {
+    try {
+      await api.apiInitializeWallets(hid);
+      walletInitAttempted.current = true;
+    } catch (error) {
+      console.warn("[store] wallet initialization failed:", error);
+    }
+  };
+
+  // Initial session check.
+  useEffect(() => {
+    void refreshSession();
+  }, [refreshSession]);
+
+  // Load household data whenever the active household (or partner) changes.
+  useEffect(() => {
+    if (householdId && authUser) {
+      void refreshData();
+    }
+  }, [householdId, authUser?.id, partnerProfile?.userId, refreshData]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep both partners in sync: poll for partner actions and refresh on focus.
+  useEffect(() => {
+    if (!authUser) return;
+    const tick = () => {
+      if (document.visibilityState !== "visible") return;
+      if (!householdId || !partnerProfile) void refreshSession();
+      if (householdId) void refreshData();
+    };
+    const interval = setInterval(tick, POLL_INTERVAL_MS);
+    window.addEventListener("focus", tick);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", tick);
+    };
+  }, [authUser, householdId, partnerProfile, refreshSession, refreshData]);
+
+  // ---------------------------------------------------------------------------
+  // Derived values
+  // ---------------------------------------------------------------------------
   const convertedBalances = useMemo(() => {
-    const convA = convertMoney(wallets.personalA.balance, wallets.personalA.currency, reportingCurrency, simulateMissingFXRate);
-    const convB = convertMoney(wallets.personalB.balance, wallets.personalB.currency, reportingCurrency, simulateMissingFXRate);
-    const convShared = convertMoney(wallets.shared.balance, wallets.shared.currency, reportingCurrency, simulateMissingFXRate);
+    const convA = convertMoney(wallets.personalA.balance, wallets.personalA.currency, reportingCurrency);
+    const convB = convertMoney(wallets.personalB.balance, wallets.personalB.currency, reportingCurrency);
+    const convShared = convertMoney(wallets.shared.balance, wallets.shared.currency, reportingCurrency);
 
     const allAvailable = convA.available && convB.available && convShared.available;
     const total = allAvailable ? convA.convertedAmount + convB.convertedAmount + convShared.convertedAmount : 0;
@@ -627,1310 +832,682 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       shared: { amount: convShared.convertedAmount, available: convShared.available, isEstimate: convShared.isEstimate },
       totalCombined: { amount: total, available: allAvailable, isIncomplete: !allAvailable },
     };
-  }, [wallets, reportingCurrency, simulateMissingFXRate]);
+  }, [wallets, reportingCurrency]);
 
-  // Preset switchers for global vs regional demo testing
-  const applyDemoPreset = (preset: "global_usd" | "regional_idr") => {
-    if (preset === "regional_idr") {
-      setPartnerAName("Raka");
-      setPartnerBName("Dina");
-      setLocale("id-ID");
-      setTimeZone("Asia/Jakarta");
-      setReportingCurrency("IDR");
-      setWallets({
-        personalA: { balance: 230_000_000, currency: "IDR", label: "Your balance" },
-        personalB: { balance: 133_400_000, currency: "IDR", label: "Partner balance" },
-        shared: { balance: 220_000_000, currency: "IDR", label: "Shared balance" },
-      });
-      setMonthlySummary({ income: 12_525_000, expenses: 6_350_000, currency: "IDR" });
-      setContract((prev) => ({
-        ...prev,
-        approvalThreshold: 500_000,
-        thresholdCurrency: "IDR",
-        cooldownThreshold: 1_000_000,
-        cooldownCurrency: "IDR",
-      }));
-      setSettlement({ partnerBOwesA: 51_000, partnerAOwesB: 0, currency: "IDR" });
-    } else {
-      setPartnerAName("Alex");
-      setPartnerBName("Taylor");
-      setLocale("en-US");
-      setTimeZone("America/New_York");
-      setReportingCurrency("USD");
-      setWallets({
-        personalA: { balance: 14800, currency: "USD", label: "Your balance" },
-        personalB: { balance: 12500, currency: "EUR", label: "Partner balance" },
-        shared: { balance: 24200, currency: "USD", label: "Shared balance" },
-      });
-      setMonthlySummary({ income: 8250, expenses: 4180, currency: "USD" });
-      setContract((prev) => ({
-        ...prev,
-        approvalThreshold: 500,
-        thresholdCurrency: "USD",
-        cooldownThreshold: 1000,
-        cooldownCurrency: "USD",
-      }));
-      setSettlement({ partnerBOwesA: 51, partnerAOwesB: 0, currency: "USD" });
+  const monthlySummary = useMemo(() => {
+    const currency = household?.baseCurrency ?? reportingCurrency;
+    // No clock reads while there is nothing to sum (this also keeps prerendering deterministic).
+    if (transactions.length === 0) return { income: 0, expenses: 0, currency };
+    const now = new Date();
+    let income = 0;
+    let expenses = 0;
+    for (const tx of transactions) {
+      const at = new Date(tx.timestamp);
+      if (at.getFullYear() !== now.getFullYear() || at.getMonth() !== now.getMonth()) continue;
+      const value = convertAmount(Math.abs(tx.amount), tx.currency, currency);
+      if (tx.amount >= 0) income += value;
+      else expenses += value;
+    }
+    return { income: round2(income), expenses: round2(expenses), currency };
+  }, [transactions, household?.baseCurrency, reportingCurrency]);
+
+  const walletsReady = Boolean(walletIds.shared || walletIds.mine);
+
+  // ---------------------------------------------------------------------------
+  // Action helpers
+  // ---------------------------------------------------------------------------
+  const requireHousehold = () => {
+    if (!householdId) {
+      throw new ApiError("Create or join your shared space first.", 400);
+    }
+    return householdId;
+  };
+
+  const walletIdFor = (wallet: Transaction["wallet"]) => {
+    if (wallet === "shared") {
+      if (!walletIds.shared) {
+        throw new ApiError("Your shared wallet is not active yet. Both partners must ratify the couple contract first.", 409);
+      }
+      return walletIds.shared;
+    }
+    const owner: UserRole = wallet === "personal_a" ? "partner_a" : "partner_b";
+    if (owner !== currentUser) {
+      throw new ApiError("You can only record transactions on your own personal wallet.", 403);
+    }
+    if (!walletIds.mine) {
+      throw new ApiError("Your personal wallet is not active yet.", 409);
+    }
+    return walletIds.mine;
+  };
+
+  const verifySecurityPin: AppContextType["verifySecurityPin"] = async (pin) => {
+    try {
+      if (!hasPin) {
+        await api.apiSetupPin(pin);
+        setHasPin(true);
+        notify("info", "Your 6-digit security PIN has been saved for future approvals.");
+        return null;
+      }
+      await api.apiVerifyPin(pin);
+      return null;
+    } catch (error) {
+      return errorMessage(error, "Invalid security PIN.");
     }
   };
 
-  // Deterministic Gateway evaluation
-  const processGatewayDecision = (request: {
-    actionType: "EXPENSE" | "BILL_PAY" | "PURCHASE" | "EXTERNAL_TRANSFER" | "PRIVACY_REQUEST";
-    title: string;
-    amount: number;
-    currency: string;
-    wallet: "shared" | "personal_a" | "personal_b";
-    timeOfDay?: string;
-    category?: string;
-  }) => {
-    if (request.actionType === "EXTERNAL_TRANSFER") {
-      return {
-        outcome: "DENY" as const,
-        reason: "External transfers to outside bank accounts are blocked. Seiya operates on couple-managed accounts only.",
-      };
+  const processGatewayDecision: AppContextType["processGatewayDecision"] = async (request) => {
+    try {
+      const { decision } = await api.apiGatewayDecision({
+        ...request,
+        timeOfDay: request.timeOfDay ?? nowTime("en-GB"),
+      });
+      return { outcome: decision.outcome, reason: decision.reason, details: decision.details };
+    } catch (error) {
+      return { outcome: "DENY", reason: errorMessage(error, "Unable to evaluate this action right now.") };
     }
-
-    if (request.actionType === "PRIVACY_REQUEST") {
-      return {
-        outcome: "DENY" as const,
-        reason: "Couple Privacy Contract: Partner's aggregate balance is shared, but itemized transaction history is private.",
-      };
-    }
-
-    // Cooling-off check (Late-night & amount threshold)
-    // Convert to threshold currency for accurate comparison
-    const convCooldown = convertMoney(request.amount, request.currency, contract.cooldownCurrency);
-    const isLateNight = request.timeOfDay ? request.timeOfDay >= "23:00" || request.timeOfDay < "08:00" : false;
-
-    if (
-      contract.coolingOffEnabled &&
-      convCooldown.available &&
-      convCooldown.convertedAmount >= contract.cooldownThreshold &&
-      (isLateNight || request.title.toLowerCase().includes("flash-sale") || request.title.toLowerCase().includes("shoes") || request.title.toLowerCase().includes("jacket"))
-    ) {
-      return {
-        outcome: "HOLD" as const,
-        reason: `Late-night checkout above couple safeguard (${formatMoney(contract.cooldownThreshold, contract.cooldownCurrency, locale)}). Held until 08:00 to ensure thoughtful decisions.`,
-        details: { holdUntil: "Tomorrow at 08:00", originalAmount: request.amount, currency: request.currency },
-      };
-    }
-
-    // Check shared-wallet approval threshold
-    const convThreshold = convertMoney(request.amount, request.currency, contract.thresholdCurrency);
-    const exceedsThreshold =
-      contract.approveEverySharedPurchase ||
-      (convThreshold.available && convThreshold.convertedAmount >= contract.approvalThreshold);
-
-    if (request.wallet === "shared" && exceedsThreshold) {
-      return {
-        outcome: "NEED_APPROVAL" as const,
-        reason: contract.approveEverySharedPurchase
-          ? "Couple policy: Every shared purchase requires partner confirmation."
-          : `Shared expense exceeds agreed approval threshold (${formatMoney(contract.approvalThreshold, contract.thresholdCurrency, locale)}). Partner signature required.`,
-        details: {
-          requester: currentUser,
-          approver: currentUser === "partner_a" ? "partner_b" : "partner_a",
-          amount: request.amount,
-          currency: request.currency,
-        },
-      };
-    }
-
-    return {
-      outcome: "ALLOW" as const,
-      reason: "Action complies with agreed Couple Contract rules and limits.",
-    };
   };
 
-  const approveRequest = (approvalId: string) => {
+  const recordTransaction: AppContextType["recordTransaction"] = async (tx) => {
+    try {
+      const hid = requireHousehold();
+      const res = await api.apiCreateTransaction(hid, {
+        walletId: walletIdFor(tx.wallet),
+        transactionType: tx.amount >= 0 ? "income" : "expense",
+        amount: round2(Math.abs(tx.amount)),
+        description: tx.title,
+        category: tx.category,
+      });
+      if (res.transaction?.status && res.transaction.status !== "executed") {
+        notify("info", res.message);
+      }
+      await refreshData();
+      return res.transaction ? transformTransaction(res.transaction, transformContext(walletIds)) : null;
+    } catch (error) {
+      notify("error", errorMessage(error, "Unable to record transaction."));
+      return null;
+    }
+  };
+
+  const undoTransaction: AppContextType["undoTransaction"] = async (txId) => {
+    try {
+      await api.apiUndoTransaction(txId);
+      notify("success", "Transaction undone.");
+      await refreshData();
+      return true;
+    } catch (error) {
+      notify("error", errorMessage(error, "Unable to undo transaction."));
+      return false;
+    }
+  };
+
+  const approveApprovalRequest: AppContextType["approveApprovalRequest"] = async (approvalId, pin) => {
     const item = approvals.find((a) => a.id === approvalId);
-    if (!item) return;
-
+    if (!item) return { ok: false, message: "This request no longer exists." };
     if (item.requester === currentUser) {
-      alert("Security Rule: A requester cannot approve their own financial request.");
-      return;
+      return { ok: false, message: "Dual-Key Security Rule: A requester cannot approve their own financial request." };
     }
 
-    setApprovals((prev) =>
-      prev.map((a) => (a.id === approvalId ? { ...a, status: "approved" } : a))
-    );
+    try {
+      // First approval with a PIN doubles as PIN setup for accounts without one.
+      if (pin && !hasPin) {
+        await api.apiSetupPin(pin);
+        setHasPin(true);
+        notify("info", "Your 6-digit security PIN has been saved for future approvals.");
+      }
 
-    if (item.wallet === "shared") {
-      setWallets((prev) => ({
-        ...prev,
-        shared: { ...prev.shared, balance: prev.shared.balance - item.amount },
-      }));
+      // Optimistic update; refreshData below reconciles with the server.
+      setApprovals((prev) => prev.map((a) => (a.id === approvalId ? { ...a, status: "approved" } : a)));
+
+      // The backend executes the linked expense/bill/plan action atomically.
+      await api.apiDecideApproval(approvalId, "approved", pin);
+      await refreshData();
+      return { ok: true };
+    } catch (error) {
+      setApprovals((prev) => prev.map((a) => (a.id === approvalId ? { ...a, status: item.status } : a)));
+      return { ok: false, message: errorMessage(error, "Unable to approve this request.") };
     }
-
-    setBills((prev) =>
-      prev.map((b) => (b.title === item.title ? { ...b, status: "paid" } : b))
-    );
-
-    const approverName = currentUser === "partner_a" ? partnerAName : partnerBName;
-
-    setActivities((prev) => [
-      {
-        id: `act-${Date.now()}`,
-        title: `${item.title} Approved & Executed`,
-        category: "Approval",
-        actor: currentUser,
-        status: "ALLOW",
-        amount: item.amount,
-        currency: item.currency,
-        reason: `Approved by ${approverName} with passkey signature via Dual-Key Gateway.`,
-        timestamp: "Just now",
-        timeAgo: "Just now",
-      },
-      ...prev,
-    ]);
   };
 
-  const declineRequest = (approvalId: string) => {
+  const declineApprovalRequest: AppContextType["declineApprovalRequest"] = async (approvalId, reason) => {
     const item = approvals.find((a) => a.id === approvalId);
-    if (!item) return;
+    if (!item) return false;
 
-    setApprovals((prev) =>
-      prev.map((a) => (a.id === approvalId ? { ...a, status: "declined" } : a))
-    );
-
-    const declinerName = currentUser === "partner_a" ? partnerAName : partnerBName;
-
-    setActivities((prev) => [
-      {
-        id: `act-${Date.now()}`,
-        title: `${item.title} Declined`,
-        category: "Approval",
-        actor: currentUser,
-        status: "DENY",
-        amount: item.amount,
-        currency: item.currency,
-        reason: `Declined by ${declinerName}.`,
-        timestamp: "Just now",
-        timeAgo: "Just now",
-      },
-      ...prev,
-    ]);
+    setApprovals((prev) => prev.map((a) => (a.id === approvalId ? { ...a, status: "declined" } : a)));
+    try {
+      await api.apiDecideApproval(approvalId, "declined", undefined, reason);
+      await refreshData();
+      return true;
+    } catch (error) {
+      setApprovals((prev) => prev.map((a) => (a.id === approvalId ? { ...a, status: item.status } : a)));
+      notify("error", errorMessage(error, "Unable to decline this request."));
+      return false;
+    }
   };
 
-  const continueHeldPurchase = (heldId: string) => {
-    const item = heldPurchases.find((h) => h.id === heldId);
-    if (!item) return;
+  const approveRequest = async (approvalId: string) => {
+    const result = await approveApprovalRequest(approvalId);
+    if (!result.ok && result.message) notify("error", result.message);
+  };
 
-    // Rerunning checks
-    const convThreshold = convertMoney(item.amount, item.currency, contract.thresholdCurrency);
-    if (item.wallet === "shared" && convThreshold.available && convThreshold.convertedAmount >= contract.approvalThreshold) {
-      setHeldPurchases((prev) => prev.filter((h) => h.id !== heldId));
-      const newAppr: ApprovalRequest = {
-        id: `appr-${Date.now()}`,
-        title: item.title,
-        amount: item.amount,
-        currency: item.currency,
-        wallet: item.wallet,
-        requester: item.requester,
-        approver: item.requester === "partner_a" ? "partner_b" : "partner_a",
-        status: "pending",
-        reason: "User confirmed held item; secondary gateway check routed to partner approval.",
-        createdAt: new Date().toISOString(),
-        expiresInHours: 24,
-      };
-      setApprovals((prev) => [newAppr, ...prev]);
+  const declineRequest = async (approvalId: string) => {
+    await declineApprovalRequest(approvalId);
+  };
+
+  const continueHeldPurchase: AppContextType["continueHeldPurchase"] = async (heldId) => {
+    try {
+      if (heldId.startsWith(HELD_TX_PREFIX)) {
+        const res = await api.apiExecuteHeldTransaction(heldId.slice(HELD_TX_PREFIX.length));
+        notify("success", res.message || "Held transaction processed.");
+        await refreshData();
+        return;
+      }
+
+      // continue_held_purchase records the ledger entry (or routes it to approval) atomically.
+      const res = await api.apiContinueHeldPurchase(heldId);
+      notify(
+        res.outcome === "ALLOW" ? "success" : "info",
+        res.message || (res.outcome === "ALLOW" ? "Purchase confirmed." : "Held purchase routed to partner approval.")
+      );
+      await refreshData();
+    } catch (error) {
+      notify("error", errorMessage(error, "Unable to continue this purchase."));
+    }
+  };
+
+  const cancelHeldPurchase: AppContextType["cancelHeldPurchase"] = async (heldId) => {
+    if (heldId.startsWith(HELD_TX_PREFIX)) {
+      notify("error", "This purchase is already reserved in the ledger and can only be executed after the cooling-off period.");
       return;
     }
-
-    setHeldPurchases((prev) => prev.filter((h) => h.id !== heldId));
-    setWallets((prev) => ({
-      ...prev,
-      shared: { ...prev.shared, balance: prev.shared.balance - item.amount },
-    }));
-
-    setActivities((prev) => [
-      {
-        id: `act-${Date.now()}`,
-        title: `${item.title} Confirmed after Cooldown`,
-        category: "Safeguard",
-        actor: currentUser,
-        status: "ALLOW",
-        amount: item.amount,
-        currency: item.currency,
-        reason: "Secondary confirmation verified through gateway.",
-        timestamp: "Just now",
-        timeAgo: "Just now",
-      },
-      ...prev,
-    ]);
+    const previous = heldPurchaseRows;
+    setHeldPurchaseRows((prev) => prev.filter((h) => h.id !== heldId));
+    try {
+      await api.apiCancelHeldPurchase(heldId);
+      await refreshData();
+    } catch (error) {
+      setHeldPurchaseRows(previous);
+      notify("error", errorMessage(error, "Unable to cancel this purchase."));
+    }
   };
 
-  const cancelHeldPurchase = (heldId: string) => {
-    setHeldPurchases((prev) => prev.filter((h) => h.id !== heldId));
-    setActivities((prev) => [
-      {
-        id: `act-${Date.now()}`,
-        title: "Held Purchase Cancelled",
-        category: "Safeguard",
-        actor: currentUser,
-        status: "INFO",
-        reason: "Cancelled by user after cooling-off review.",
-        timestamp: "Just now",
-        timeAgo: "Just now",
-      },
-      ...prev,
-    ]);
-  };
-
-  const recordTransaction = (tx: Omit<Transaction, "id" | "date" | "timestamp">): Transaction => {
-    const newTx: Transaction = {
-      ...tx,
-      id: `tx-${Date.now()}`,
-      date: "Today, " + new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
-      timestamp: new Date().toISOString(),
-    };
-
-    setTransactions((prev) => [newTx, ...prev]);
-
-    // Update native wallet balance
-    if (newTx.wallet === "shared") {
-      setWallets((prev) => ({
-        ...prev,
-        shared: { ...prev.shared, balance: prev.shared.balance + newTx.amount },
-      }));
-    } else if (newTx.wallet === "personal_a") {
-      setWallets((prev) => ({
-        ...prev,
-        personalA: { ...prev.personalA, balance: prev.personalA.balance + newTx.amount },
-      }));
-    } else if (newTx.wallet === "personal_b") {
-      setWallets((prev) => ({
-        ...prev,
-        personalB: { ...prev.personalB, balance: prev.personalB.balance + newTx.amount },
-      }));
-    }
-
-    // Update settlement
-    if (newTx.partnerBOwesA) {
-      setSettlement((prev) => ({
-        ...prev,
-        partnerBOwesA: prev.partnerBOwesA + (newTx.partnerBOwesA || 0),
-      }));
-    } else if (newTx.partnerAOwesB) {
-      setSettlement((prev) => ({
-        ...prev,
-        partnerAOwesB: prev.partnerAOwesB + (newTx.partnerAOwesB || 0),
-      }));
-    }
-
-    setActivities((prev) => [
-      {
-        id: `act-${Date.now()}`,
-        title: newTx.title,
-        category: newTx.category,
-        actor: newTx.paidBy,
-        status: "ALLOW",
-        amount: Math.abs(newTx.amount),
-        currency: newTx.currency,
-        reason: `Transaction recorded to ${newTx.wallet}.`,
-        timestamp: "Just now",
-        timeAgo: "Just now",
-      },
-      ...prev,
-    ]);
-
-    return newTx;
-  };
-
-  const undoTransaction = (txId: string) => {
-    const tx = transactions.find((t) => t.id === txId);
-    if (!tx) return;
-
-    setTransactions((prev) => prev.filter((t) => t.id !== txId));
-
-    if (tx.wallet === "shared") {
-      setWallets((prev) => ({
-        ...prev,
-        shared: { ...prev.shared, balance: prev.shared.balance - tx.amount },
-      }));
-    } else if (tx.wallet === "personal_a") {
-      setWallets((prev) => ({
-        ...prev,
-        personalA: { ...prev.personalA, balance: prev.personalA.balance - tx.amount },
-      }));
-    } else if (tx.wallet === "personal_b") {
-      setWallets((prev) => ({
-        ...prev,
-        personalB: { ...prev.personalB, balance: prev.personalB.balance - tx.amount },
-      }));
-    }
-
-    if (tx.partnerBOwesA) {
-      setSettlement((prev) => ({
-        ...prev,
-        partnerBOwesA: Math.max(0, prev.partnerBOwesA - tx.partnerBOwesA!),
-      }));
-    }
-
-    setActivities((prev) => [
-      {
-        id: `act-${Date.now()}`,
-        title: `Undo: ${tx.title}`,
-        category: "Undo",
-        actor: currentUser,
-        status: "INFO",
-        reason: "Eligible transaction entry reverted within undo window.",
-        timestamp: "Just now",
-        timeAgo: "Just now",
-      },
-      ...prev,
-    ]);
-  };
-
-  const proposeContractChange = (
-    newThreshold: number,
-    thresholdCurrency: string,
-    newSplitB: number,
-    newSplitA: number,
-    approveEveryShared: boolean
+  const proposeContractChange: AppContextType["proposeContractChange"] = async (
+    newThreshold,
+    _thresholdCurrency,
+    newSplitB,
+    newSplitA,
+    approveEveryShared
   ) => {
-    setContract((prev) => ({
-      ...prev,
-      status: "pending_partner_approval",
-      proposedChange: {
-        approvalThreshold: newThreshold,
-        thresholdCurrency,
-        splitPartnerB: newSplitB,
-        splitPartnerA: newSplitA,
-        approveEverySharedPurchase: approveEveryShared,
-        proposedBy: currentUser,
-        timestamp: new Date().toISOString(),
-      },
-    }));
-
-    setActivities((prev) => [
-      {
-        id: `act-${Date.now()}`,
-        title: "Contract Amendment Proposed",
-        category: "Contract",
-        actor: currentUser,
-        status: "NEED_APPROVAL",
-        reason: `Proposed approval threshold ${thresholdCurrency} ${newThreshold}. Pending partner signature.`,
-        timestamp: "Just now",
-        timeAgo: "Just now",
-      },
-      ...prev,
-    ]);
-  };
-
-  const approveContractChange = () => {
-    if (!contract.proposedChange) return;
-    if (contract.proposedChange.proposedBy === currentUser) {
-      alert("A partner cannot approve their own contract proposal.");
-      return;
+    try {
+      const hid = requireHousehold();
+      await api.apiProposeFinanceRules(
+        hid,
+        rulesFromContract({
+          splitPartnerA: newSplitA,
+          splitPartnerB: newSplitB,
+          approvalThreshold: newThreshold,
+          approveEverySharedPurchase: approveEveryShared,
+          coolingOffEnabled: contract.coolingOffEnabled,
+          cooldownThreshold: contract.cooldownThreshold,
+        })
+      );
+      notify("success", "Contract amendment sent to your partner for signature.");
+      await refreshData();
+      return true;
+    } catch (error) {
+      notify("error", errorMessage(error, "Unable to propose contract change."));
+      return false;
     }
-
-    setContract((prev) => ({
-      ...prev,
-      status: "active",
-      approvalThreshold: prev.proposedChange!.approvalThreshold,
-      thresholdCurrency: prev.proposedChange!.thresholdCurrency,
-      splitPartnerB: prev.proposedChange!.splitPartnerB,
-      splitPartnerA: prev.proposedChange!.splitPartnerA,
-      approveEverySharedPurchase: prev.proposedChange!.approveEverySharedPurchase,
-      proposedChange: null,
-    }));
-
-    setActivities((prev) => [
-      {
-        id: `act-${Date.now()}`,
-        title: "Contract Amendment Activated",
-        category: "Contract",
-        actor: currentUser,
-        status: "ALLOW",
-        reason: "Both partners have signed the updated contract terms.",
-        timestamp: "Just now",
-        timeAgo: "Just now",
-      },
-      ...prev,
-    ]);
   };
 
-  const activateInitialContract = (params: {
-    splitPartnerA: number;
-    splitPartnerB: number;
-    approvalThreshold: number;
-    thresholdCurrency: string;
-    coolingOffEnabled?: boolean;
-    approveEverySharedPurchase?: boolean;
-  }) => {
-    setContract((prev) => ({
-      ...prev,
-      status: "active",
-      splitPartnerA: params.splitPartnerA,
-      splitPartnerB: params.splitPartnerB,
-      approvalThreshold: params.approvalThreshold,
-      thresholdCurrency: params.thresholdCurrency,
-      coolingOffEnabled: params.coolingOffEnabled ?? prev.coolingOffEnabled,
-      approveEverySharedPurchase: params.approveEverySharedPurchase ?? false,
-      proposedChange: null,
-    }));
-
-    setActivities((prev) => [
-      {
-        id: `act-${Date.now()}`,
-        title: "Mutual Couple Contract Activated",
-        category: "Contract",
-        actor: currentUser,
-        status: "ALLOW",
-        reason: `Contract ratified: ${params.splitPartnerB}% ${partnerBName} : ${params.splitPartnerA}% ${partnerAName}, Approval limit ${params.thresholdCurrency} ${params.approvalThreshold}. Dual signatures verified.`,
-        timestamp: "Just now",
-        timeAgo: "Just now",
-      },
-      ...prev,
-    ]);
+  const approveContractChange: AppContextType["approveContractChange"] = async () => {
+    try {
+      const hid = requireHousehold();
+      if (!contractMeta.pendingRuleId) return false;
+      if (contract.proposedChange?.proposedBy === currentUser) {
+        notify("error", "A partner cannot approve their own contract proposal.");
+        return false;
+      }
+      await api.apiDecideFinanceRule(hid, contractMeta.pendingRuleId, "approved");
+      notify("success", "Contract amendment signed.");
+      await ensureWallets(hid);
+      await refreshData();
+      return true;
+    } catch (error) {
+      notify("error", errorMessage(error, "Unable to sign the contract amendment."));
+      return false;
+    }
   };
 
-  const payBill = (billId: string) => {
-    const bill = bills.find((b) => b.id === billId);
-    if (!bill) return;
+  const activateInitialContract: AppContextType["activateInitialContract"] = async (params) => {
+    try {
+      const hid = requireHousehold();
+      if (!partnerProfile) {
+        const me = await refreshSession();
+        if (!me?.household?.partner) return "awaiting_partner_join";
+      }
 
-    const gateway = processGatewayDecision({
-      actionType: "BILL_PAY",
-      title: bill.title,
-      amount: bill.amount,
-      currency: bill.currency,
-      wallet: bill.wallet,
-    });
+      const { rules, approvals: ruleApprovals } = await api.apiGetFinanceRules(hid);
+      const pending = rules.find((r) => r.status === "pending_approval");
+      const active = rules.find((r) => r.status === "active");
 
-    if (gateway.outcome === "NEED_APPROVAL") {
-      const newAppr: ApprovalRequest = {
-        id: `appr-${Date.now()}`,
+      if (pending) {
+        const mine = ruleApprovals.find((a) => a.rule_id === pending.id && a.user_id === authUser?.id);
+        if (!mine || mine.decision === "pending") {
+          await api.apiDecideFinanceRule(hid, pending.id, "approved");
+        }
+      } else if (!active) {
+        await api.apiProposeFinanceRules(
+          hid,
+          rulesFromContract({
+            splitPartnerA: params.splitPartnerA,
+            splitPartnerB: params.splitPartnerB,
+            approvalThreshold: params.approvalThreshold,
+            approveEverySharedPurchase: params.approveEverySharedPurchase,
+            coolingOffEnabled: params.coolingOffEnabled,
+            walletMode: params.walletMode,
+          })
+        );
+      }
+
+      const after = await api.apiGetFinanceRules(hid);
+      const isActive = after.rules.some((r) => r.status === "active");
+      if (isActive) await ensureWallets(hid);
+      await refreshData();
+      return isActive ? "active" : "pending_partner";
+    } catch (error) {
+      notify("error", errorMessage(error, "Unable to sign the couple contract."));
+      return "error";
+    }
+  };
+
+  const payBill: AppContextType["payBill"] = async (billId) => {
+    try {
+      const hid = requireHousehold();
+      const res = await api.apiPayBill(hid, billId, walletIdFor("shared"));
+      notify("success", res.message);
+      await refreshData();
+    } catch (error) {
+      notify("error", errorMessage(error, "Unable to pay this bill."));
+    }
+  };
+
+  const settleUp: AppContextType["settleUp"] = async () => {
+    try {
+      const res = await api.apiSettleUp();
+      setSettlement(res.settlement);
+      notify("success", "Shared expense ledger settled.");
+      await refreshData();
+    } catch (error) {
+      notify("error", errorMessage(error, "Unable to settle up."));
+    }
+  };
+
+  const addBill: AppContextType["addBill"] = async (bill) => {
+    try {
+      const hid = requireHousehold();
+      await api.apiCreateBill(hid, {
         title: bill.title,
-        amount: bill.amount,
+        payee: bill.category || null,
+        amount: round2(bill.amount),
         currency: bill.currency,
-        wallet: bill.wallet,
-        requester: currentUser,
-        approver: currentUser === "partner_a" ? "partner_b" : "partner_a",
-        status: "pending",
-        reason: gateway.reason,
-        createdAt: new Date().toISOString(),
-        expiresInHours: 24,
-      };
-      setApprovals((prev) => [newAppr, ...prev]);
-      setBills((prev) =>
-        prev.map((b) => (b.id === billId ? { ...b, status: "pending_approval" } : b))
-      );
-    } else if (gateway.outcome === "ALLOW") {
-      setBills((prev) =>
-        prev.map((b) => (b.id === billId ? { ...b, status: "paid" } : b))
-      );
-      setWallets((prev) => ({
-        ...prev,
-        shared: { ...prev.shared, balance: prev.shared.balance - bill.amount },
-      }));
+        dueDate: toIsoDate(bill.dueDate),
+        recurrence: bill.isRecurring ? "monthly" : "none",
+        notes: bill.notes || null,
+      });
+      await refreshData();
+      return true;
+    } catch (error) {
+      notify("error", errorMessage(error, "Unable to add this bill."));
+      return false;
     }
   };
 
-  const settleUp = () => {
-    setSettlement({
-      partnerBOwesA: 0,
-      partnerAOwesB: 0,
-      currency: settlement.currency,
-    });
-    setActivities((prev) => [
-      {
-        id: `act-${Date.now()}`,
-        title: "Settlement Completed",
-        category: "Settlement",
-        actor: currentUser,
-        status: "ALLOW",
-        reason: "Shared expense ledger balance settled between partners.",
-        timestamp: "Just now",
-        timeAgo: "Just now",
-      },
-      ...prev,
-    ]);
+  const editBill: AppContextType["editBill"] = async (billId, updated) => {
+    try {
+      const hid = requireHousehold();
+      await api.apiUpdateBill(hid, billId, {
+        ...(updated.title !== undefined ? { title: updated.title } : {}),
+        ...(updated.category !== undefined ? { payee: updated.category || null } : {}),
+        ...(updated.amount !== undefined ? { amount: round2(updated.amount) } : {}),
+        ...(updated.currency !== undefined ? { currency: updated.currency } : {}),
+        ...(updated.dueDate !== undefined ? { dueDate: toIsoDate(updated.dueDate) } : {}),
+        ...(updated.isRecurring !== undefined ? { recurrence: updated.isRecurring ? ("monthly" as const) : ("none" as const) } : {}),
+        ...(updated.notes !== undefined ? { notes: updated.notes || null } : {}),
+        ...(updated.status !== undefined ? { status: updated.status } : {}),
+      });
+      await refreshData();
+      return true;
+    } catch (error) {
+      notify("error", errorMessage(error, "Unable to update this bill."));
+      return false;
+    }
   };
 
-  const proposeExpense = (params: ProposeExpenseParams) => {
-    const decision = processGatewayDecision({
+  const deleteBill: AppContextType["deleteBill"] = async (billId) => {
+    const previous = bills;
+    setBills((prev) => prev.filter((b) => b.id !== billId));
+    try {
+      await api.apiDeleteBill(requireHousehold(), billId);
+      await refreshData();
+      return true;
+    } catch (error) {
+      setBills(previous);
+      notify("error", errorMessage(error, "Unable to delete this bill."));
+      return false;
+    }
+  };
+
+  const requestPayBill: AppContextType["requestPayBill"] = async (billId) => {
+    try {
+      await api.apiRequestPayBill(requireHousehold(), billId);
+      notify("success", "Payment confirmation requested from your partner.");
+      await refreshData();
+      return true;
+    } catch (error) {
+      notify("error", errorMessage(error, "Unable to request payment confirmation."));
+      return false;
+    }
+  };
+
+  const toPlanInput = (plan: Partial<PlanItem>): Partial<api.PlanInput> => ({
+    ...(plan.title !== undefined ? { title: plan.title } : {}),
+    ...(plan.category !== undefined ? { category: plan.category } : {}),
+    ...(plan.targetAmount !== undefined ? { targetAmount: round2(plan.targetAmount) } : {}),
+    ...(plan.currentAmount !== undefined ? { currentAmount: round2(plan.currentAmount) } : {}),
+    ...(plan.currency !== undefined ? { currency: plan.currency } : {}),
+    ...(plan.targetDate !== undefined ? { targetDate: plan.targetDate.slice(0, 100) } : {}),
+    ...(plan.recommendedMonthly !== undefined ? { recommendedMonthly: round2(plan.recommendedMonthly) } : {}),
+    ...(plan.splitRecommendation !== undefined
+      ? {
+          splitRecommendation: {
+            partnerA: round2(plan.splitRecommendation.partnerA),
+            partnerB: round2(plan.splitRecommendation.partnerB),
+          },
+        }
+      : {}),
+    ...(plan.walletFunding !== undefined ? { walletFunding: plan.walletFunding } : {}),
+    ...(plan.status !== undefined ? { status: plan.status } : {}),
+    ...(plan.assumptions !== undefined ? { assumptions: plan.assumptions ? plan.assumptions.slice(0, 1000) : null } : {}),
+  });
+
+  const addPlan: AppContextType["addPlan"] = async (newPlan) => {
+    try {
+      const hid = requireHousehold();
+      const res = await api.apiCreatePlan(hid, toPlanInput(newPlan) as api.PlanInput);
+      const plan = transformPlan(res.plan);
+      setPlans((prev) => [plan, ...prev.filter((p) => p.id !== plan.id)]);
+      void refreshData();
+      return plan;
+    } catch (error) {
+      notify("error", errorMessage(error, "Unable to create this goal."));
+      return null;
+    }
+  };
+
+  const updatePlan: AppContextType["updatePlan"] = async (planId, updated) => {
+    const previous = plans;
+    setPlans((prev) => prev.map((p) => (p.id === planId ? { ...p, ...updated } : p)));
+    try {
+      await api.apiUpdatePlan(requireHousehold(), planId, toPlanInput(updated));
+      await refreshData();
+      return true;
+    } catch (error) {
+      setPlans(previous);
+      notify("error", errorMessage(error, "Unable to update this goal."));
+      return false;
+    }
+  };
+
+  const deletePlan: AppContextType["deletePlan"] = async (planId) => {
+    const previous = plans;
+    setPlans((prev) => prev.filter((p) => p.id !== planId));
+    try {
+      await api.apiDeletePlan(requireHousehold(), planId);
+      await refreshData();
+      return true;
+    } catch (error) {
+      setPlans(previous);
+      notify("error", errorMessage(error, "Unable to delete this goal."));
+      return false;
+    }
+  };
+
+  const requestDeletePlan: AppContextType["requestDeletePlan"] = async (planId, partnerAPin, partnerBPin) => {
+    try {
+      const hid = requireHousehold();
+      // The server cannot read the partner's PIN hash, so verify our own PIN here
+      // before submitting an in-person dual-PIN dissolution.
+      if (partnerAPin && partnerBPin && hasPin) {
+        const myPin = currentUser === "partner_a" ? partnerAPin : partnerBPin;
+        try {
+          await api.apiVerifyPin(myPin);
+        } catch {
+          return { success: false, message: "Your security PIN is incorrect." };
+        }
+      }
+      const res = await api.apiRequestDeletePlan(hid, planId, partnerAPin, partnerBPin);
+      await refreshData();
+      return { success: true, requiresApproval: res.requiresApproval, message: res.message };
+    } catch (error) {
+      return { success: false, message: errorMessage(error, "Unable to process the goal deletion.") };
+    }
+  };
+
+  const proposeExpense: AppContextType["proposeExpense"] = async (params) => {
+    const hid = requireHousehold();
+    const amount = round2(params.amount);
+
+    const decision = await processGatewayDecision({
       actionType: "EXPENSE",
       title: params.title,
-      amount: params.amount,
+      amount,
       currency: params.currency,
       wallet: params.wallet,
       category: params.category,
     });
 
-    const approverRole: UserRole = currentUser === "partner_a" ? "partner_b" : "partner_a";
-    const approverName = approverRole === "partner_a" ? partnerAName : partnerBName;
+    if (decision.outcome === "DENY") {
+      throw new ApiError(decision.reason, 403);
+    }
 
-    if (decision.outcome === "NEED_APPROVAL") {
-      const newAppr: ApprovalRequest = {
-        id: `appr-exp-${Date.now()}`,
-        title: `Expense: ${params.title}`,
-        amount: params.amount,
+    if (decision.outcome === "HOLD") {
+      const res = await api.apiCreateHeldPurchase({
+        title: params.title,
+        amount,
         currency: params.currency,
         wallet: params.wallet,
-        requester: currentUser,
-        approver: approverRole,
-        status: "pending",
-        reason: params.notes ? `${params.notes} • ${decision.reason}` : decision.reason,
-        createdAt: new Date().toISOString(),
-        expiresInHours: 48,
+        requesterRole: currentUser,
+        holdUntil: nextMorningIso(),
+        reason: decision.reason,
+      });
+      await refreshData();
+      return { outcome: "HOLD", id: res.heldPurchase.id, reason: decision.reason };
+    }
+
+    // ALLOW and NEED_APPROVAL both go through the transaction engine, which
+    // re-applies the couple rules atomically and reserves the balance.
+    const res = await api.apiCreateTransaction(hid, {
+      walletId: walletIdFor(params.wallet),
+      transactionType: "expense",
+      amount,
+      description: params.title,
+      category: params.category,
+    });
+    const tx = res.transaction;
+    const status = tx?.status;
+
+    if (status === "pending_approval" && tx) {
+      const reason = params.notes ? `${params.notes} • ${decision.reason}` : decision.reason;
+      // The transaction engine already queued the partner approval.
+      if (res.approval_id) {
+        await refreshData();
+        return { outcome: "NEED_APPROVAL", id: res.approval_id, reason };
+      }
+      const approval = await api.apiCreateApproval({
+        title: `Expense: ${params.title}`,
+        amount,
+        currency: tx.currency || params.currency,
+        wallet: params.wallet,
+        requesterRole: currentUser,
+        approverRole: otherRole(currentUser),
         category: "Expenses",
         type: "EXPENSE",
-        notes: params.notes,
-      };
-      setApprovals((prev) => [newAppr, ...prev]);
-      setActivities((prev) => [
-        {
-          id: `act-${Date.now()}`,
-          title: `Expense Proposed: ${params.title}`,
-          category: "Approval Request",
-          actor: currentUser,
-          status: "NEED_APPROVAL",
-          amount: params.amount,
-          currency: params.currency,
-          reason: `Dual-Key signature required by ${approverName}.`,
-          timestamp: "Just now",
-          timeAgo: "Just now",
-        },
-        ...prev,
-      ]);
-      return { outcome: "NEED_APPROVAL" as const, id: newAppr.id, reason: decision.reason };
-    } else if (decision.outcome === "HOLD") {
-      const newHeld: HeldPurchase = {
-        id: `held-exp-${Date.now()}`,
-        title: params.title,
-        amount: params.amount,
-        currency: params.currency,
-        wallet: params.wallet,
-        requester: currentUser,
-        status: "held",
-        holdUntil: "Tomorrow at 08:00",
-        reason: decision.reason,
-        createdAt: new Date().toISOString(),
-      };
-      setHeldPurchases((prev) => [newHeld, ...prev]);
-      setActivities((prev) => [
-        {
-          id: `act-${Date.now()}`,
-          title: `Expense Held by Safeguard: ${params.title}`,
-          category: "Safeguard",
-          actor: currentUser,
-          status: "HOLD",
-          amount: params.amount,
-          currency: params.currency,
-          reason: decision.reason,
-          timestamp: "Just now",
-          timeAgo: "Just now",
-        },
-        ...prev,
-      ]);
-      return { outcome: "HOLD" as const, id: newHeld.id, reason: decision.reason };
-    } else {
-      recordTransaction({
-        title: params.title,
-        amount: -Math.abs(params.amount),
-        currency: params.currency,
-        category: params.category,
-        wallet: params.wallet,
-        paidBy: currentUser,
-        splitRatio: params.splitRatio,
+        targetId: tx.id,
+        notes: params.notes || null,
+        reason,
+        expiresInHours: 48,
       });
-      setActivities((prev) => [
-        {
-          id: `act-${Date.now()}`,
-          title: `Expense Recorded: ${params.title}`,
-          category: "Transaction",
-          actor: currentUser,
-          status: "ALLOW",
-          amount: params.amount,
-          currency: params.currency,
-          reason: "Executed directly within agreed threshold.",
-          timestamp: "Just now",
-          timeAgo: "Just now",
-        },
-        ...prev,
-      ]);
-      return { outcome: "ALLOW" as const, id: `tx-${Date.now()}`, reason: "Expense recorded directly." };
-    }
-  };
-
-  const addPlan = (newPlan: Omit<PlanItem, "id">): PlanItem => {
-    const id = `plan-${Date.now()}`;
-    const plan: PlanItem = {
-      ...newPlan,
-      id,
-    };
-    setPlans((prev) => [plan, ...prev]);
-
-    const creatorName = currentUser === "partner_a" ? partnerAName : partnerBName;
-
-    setActivities((prev) => [
-      {
-        id: `act-${Date.now()}`,
-        title: `New Goal Added: ${plan.title}`,
-        category: "Plan",
-        actor: currentUser,
-        status: "INFO",
-        amount: plan.targetAmount,
-        currency: plan.currency,
-        reason: `${creatorName} manually created financial goal "${plan.title}" targeting ${plan.targetDate}.`,
-        timestamp: "Just now",
-        timeAgo: "Just now",
-      },
-      ...prev,
-    ]);
-
-    return plan;
-  };
-
-  const updatePlan = (planId: string, updated: Partial<PlanItem>) => {
-    setPlans((prev) =>
-      prev.map((p) => {
-        if (p.id === planId) {
-          return { ...p, ...updated };
-        }
-        return p;
-      })
-    );
-
-    const plan = plans.find((p) => p.id === planId);
-    if (plan) {
-      const editorName = currentUser === "partner_a" ? partnerAName : partnerBName;
-      setActivities((prev) => [
-        {
-          id: `act-${Date.now()}`,
-          title: `Goal Adjusted: ${updated.title || plan.title}`,
-          category: "Plan",
-          actor: currentUser,
-          status: "INFO",
-          amount: updated.targetAmount || plan.targetAmount,
-          currency: updated.currency || plan.currency,
-          reason: `${editorName} adjusted goal terms and allocation for "${updated.title || plan.title}".`,
-          timestamp: "Just now",
-          timeAgo: "Just now",
-        },
-        ...prev,
-      ]);
-    }
-  };
-
-  const deletePlan = (planId: string) => {
-    setPlans((prev) => prev.filter((p) => p.id !== planId));
-  };
-
-  const addBill = (billData: Omit<BillItem, "id" | "daysRemaining">): BillItem => {
-    const id = `bill-${Date.now()}`;
-    const newBill: BillItem = {
-      ...billData,
-      id,
-      daysRemaining: 14,
-      status: "upcoming",
-    };
-    setBills((prev) => [newBill, ...prev]);
-
-    const creatorName = currentUser === "partner_a" ? partnerAName : partnerBName;
-    setActivities((prev) => [
-      {
-        id: `act-${Date.now()}`,
-        title: `New Bill Added: ${newBill.title}`,
-        category: "Bills",
-        actor: currentUser,
-        status: "INFO",
-        amount: newBill.amount,
-        currency: newBill.currency,
-        reason: `${creatorName} registered recurring obligation "${newBill.title}" due on ${newBill.dueDate}.`,
-        timestamp: "Just now",
-        timeAgo: "Just now",
-      },
-      ...prev,
-    ]);
-
-    return newBill;
-  };
-
-  const editBill = (billId: string, updated: Partial<BillItem>) => {
-    setBills((prev) =>
-      prev.map((b) => (b.id === billId ? { ...b, ...updated } : b))
-    );
-  };
-
-  const deleteBill = (billId: string) => {
-    const bill = bills.find((b) => b.id === billId);
-    setBills((prev) => prev.filter((b) => b.id !== billId));
-
-    if (bill) {
-      const actorName = currentUser === "partner_a" ? partnerAName : partnerBName;
-      setActivities((prev) => [
-        {
-          id: `act-${Date.now()}`,
-          title: `Bill Deleted: ${bill.title}`,
-          category: "Bills",
-          actor: currentUser,
-          status: "INFO",
-          amount: bill.amount,
-          currency: bill.currency,
-          reason: `${actorName} removed recurring bill "${bill.title}".`,
-          timestamp: "Just now",
-          timeAgo: "Just now",
-        },
-        ...prev,
-      ]);
-    }
-  };
-
-  const requestPayBill = (billId: string) => {
-    const bill = bills.find((b) => b.id === billId);
-    if (!bill) return;
-
-    // Set bill status to pending_approval ("Waiting Partner ACC")
-    setBills((prev) =>
-      prev.map((b) => (b.id === billId ? { ...b, status: "pending_approval" } : b))
-    );
-
-    const requesterName = currentUser === "partner_a" ? partnerAName : partnerBName;
-    const partnerRole: UserRole = currentUser === "partner_a" ? "partner_b" : "partner_a";
-    const partnerName = currentUser === "partner_a" ? partnerBName : partnerAName;
-
-    // Create an approval request for the partner to manually confirm
-    const newApproval: ApprovalRequest = {
-      id: `appr-${Date.now()}`,
-      title: `${bill.title} - Payment Confirmation`,
-      amount: bill.amount,
-      currency: bill.currency,
-      wallet: bill.wallet,
-      requester: currentUser,
-      approver: partnerRole,
-      status: "pending",
-      reason: `${requesterName} marked this bill as paid. Requires ${partnerName}'s confirmation to settle.`,
-      createdAt: new Date().toISOString(),
-      expiresInHours: 24,
-      category: "Bills",
-      type: "BILL",
-      targetId: bill.id,
-    };
-
-    setApprovals((prev) => [newApproval, ...prev]);
-
-    setActivities((prev) => [
-      {
-        id: `act-${Date.now()}`,
-        title: `Payment Confirmation Requested: ${bill.title}`,
-        category: "Bills",
-        actor: currentUser,
-        status: "NEED_APPROVAL",
-        amount: bill.amount,
-        currency: bill.currency,
-        reason: `${requesterName} marked bill as paid. Dispatched to ${partnerName} for partner confirmation.`,
-        timestamp: "Just now",
-        timeAgo: "Just now",
-      },
-      ...prev,
-    ]);
-  };
-
-  const requestDeletePlan = (
-    planId: string,
-    partnerAPin?: string,
-    partnerBPin?: string
-  ): { success: boolean; requiresApproval?: boolean } => {
-    const plan = plans.find((p) => p.id === planId);
-    if (!plan) return { success: false };
-
-    // Both PINs provided in-person (Dual-Key immediate consensus)
-    if (partnerAPin && partnerBPin && partnerAPin.length === 6 && partnerBPin.length === 6) {
-      setPlans((prev) => prev.filter((p) => p.id !== planId));
-      setActivities((prev) => [
-        {
-          id: `act-${Date.now()}`,
-          title: `Goal Dissolved: ${plan.title}`,
-          category: "Plans",
-          actor: currentUser,
-          status: "ALLOW",
-          amount: plan.targetAmount,
-          currency: plan.currency,
-          reason: `Both ${partnerAName} & ${partnerBName} entered their cryptographic PINs to confirm goal deletion.`,
-          timestamp: "Just now",
-          timeAgo: "Just now",
-        },
-        ...prev,
-      ]);
-      return { success: true, requiresApproval: false };
+      await refreshData();
+      return { outcome: "NEED_APPROVAL", id: approval.approval.id, reason };
     }
 
-    // Single partner initiating -> Create an approval request for partner
-    const requesterName = currentUser === "partner_a" ? partnerAName : partnerBName;
-    const partnerRole: UserRole = currentUser === "partner_a" ? "partner_b" : "partner_a";
-    const partnerName = currentUser === "partner_a" ? partnerBName : partnerAName;
-
-    const newApproval: ApprovalRequest = {
-      id: `appr-${Date.now()}`,
-      title: `Delete Goal: ${plan.title}`,
-      amount: plan.targetAmount,
-      currency: plan.currency,
-      wallet: "shared",
-      requester: currentUser,
-      approver: partnerRole,
-      status: "pending",
-      reason: `${requesterName} requested deletion of collaborative goal "${plan.title}". Requires ${partnerName}'s dual-key PIN signature.`,
-      createdAt: new Date().toISOString(),
-      expiresInHours: 48,
-      category: "Plans",
-      type: "PLAN_DELETE",
-      targetId: plan.id,
-    };
-
-    setApprovals((prev) => [newApproval, ...prev]);
-
-    setActivities((prev) => [
-      {
-        id: `act-${Date.now()}`,
-        title: `Goal Deletion Proposed: ${plan.title}`,
-        category: "Plans",
-        actor: currentUser,
-        status: "NEED_APPROVAL",
-        amount: plan.targetAmount,
-        currency: plan.currency,
-        reason: `${requesterName} requested to dissolve "${plan.title}". Awaiting ${partnerName}'s dual-key approval.`,
-        timestamp: "Just now",
-        timeAgo: "Just now",
-      },
-      ...prev,
-    ]);
-
-    return { success: true, requiresApproval: true };
+    await refreshData();
+    if (status === "on_hold" && tx) {
+      return { outcome: "HOLD", id: `${HELD_TX_PREFIX}${tx.id}`, reason: res.message };
+    }
+    return { outcome: "ALLOW", id: tx?.id ?? "", reason: res.message || "Expense recorded directly." };
   };
 
-  const approveApprovalRequest = (approvalId: string, pin?: string): boolean => {
-    const item = approvals.find((a) => a.id === approvalId);
-    if (!item) return false;
-
-    if (item.requester === currentUser) {
-      alert("Dual-Key Security Rule: A requester cannot approve their own financial request.");
-      return false;
-    }
-
-    setApprovals((prev) =>
-      prev.map((a) => (a.id === approvalId ? { ...a, status: "approved" } : a))
-    );
-
-    const approverName = currentUser === "partner_a" ? partnerAName : partnerBName;
-
-    // Execute based on approval category/type
-    if (item.type === "BILL" || item.category === "Bills") {
-      setBills((prev) =>
-        prev.map((b) => (
-          b.id === item.targetId ||
-          b.title === item.title.replace(" - Payment Confirmation", "").replace(" - Payment ACC", "")
-            ? { ...b, status: "paid" }
-            : b
-        ))
-      );
-      if (item.wallet === "shared") {
-        setWallets((prev) => ({
-          ...prev,
-          shared: { ...prev.shared, balance: Math.max(0, prev.shared.balance - item.amount) },
-        }));
-      }
-    } else if (item.type === "PLAN_DELETE" || item.category === "Plans") {
-      if (item.targetId) {
-        setPlans((prev) => prev.filter((p) => p.id !== item.targetId));
-      }
-    } else if (item.type === "EXPENSE" || item.category === "Expenses") {
-      if (item.wallet === "shared") {
-        setWallets((prev) => ({
-          ...prev,
-          shared: { ...prev.shared, balance: Math.max(0, prev.shared.balance - item.amount) },
-        }));
-      }
-    } else if (item.type === "CONTRACT" || item.category === "Contracts") {
-      if (contract.proposedChange) {
-        setContract((prev) => ({
-          ...prev,
-          status: "active",
-          approvalThreshold: prev.proposedChange!.approvalThreshold,
-          thresholdCurrency: prev.proposedChange!.thresholdCurrency,
-          splitPartnerB: prev.proposedChange!.splitPartnerB,
-          splitPartnerA: prev.proposedChange!.splitPartnerA,
-          approveEverySharedPurchase: prev.proposedChange!.approveEverySharedPurchase,
-          proposedChange: null,
-        }));
+  // ---------------------------------------------------------------------------
+  // AI chat
+  // ---------------------------------------------------------------------------
+  const normalizeCardData = (data: Record<string, unknown> | undefined) => {
+    if (!data) return undefined;
+    const out: Record<string, unknown> = { ...data };
+    for (const key of ["amount", "targetAmount", "monthlyTarget", "currentAmount"]) {
+      if (typeof out[key] === "string" && out[key] !== "" && Number.isFinite(Number(out[key]))) {
+        out[key] = Number(out[key]);
       }
     }
-
-    setActivities((prev) => [
-      {
-        id: `act-${Date.now()}`,
-        title: `${item.title} Approved & Executed`,
-        category: item.category || "Approval",
-        actor: currentUser,
-        status: "ALLOW",
-        amount: item.amount,
-        currency: item.currency,
-        reason: `Dual-Key signature verified by ${approverName} with security PIN. Execution confirmed.`,
-        timestamp: "Just now",
-        timeAgo: "Just now",
-      },
-      ...prev,
-    ]);
-
-    return true;
-  };
-
-  const declineApprovalRequest = (approvalId: string, reason?: string) => {
-    const item = approvals.find((a) => a.id === approvalId);
-    if (!item) return;
-
-    setApprovals((prev) =>
-      prev.map((a) => (a.id === approvalId ? { ...a, status: "declined" } : a))
-    );
-
-    // If it was a bill, reset status
-    if (item.type === "BILL" || item.category === "Bills") {
-      setBills((prev) =>
-        prev.map((b) => (
-          b.id === item.targetId ||
-          b.title === item.title.replace(" - Payment Confirmation", "").replace(" - Payment ACC", "")
-            ? { ...b, status: "upcoming" }
-            : b
-        ))
-      );
+    if (typeof out.holdUntil === "string" && !Number.isNaN(new Date(out.holdUntil).getTime())) {
+      out.holdUntil = formatRelativeDate(out.holdUntil, locale);
     }
-
-    const declinerName = currentUser === "partner_a" ? partnerAName : partnerBName;
-
-    setActivities((prev) => [
-      {
-        id: `act-${Date.now()}`,
-        title: `${item.title} Declined`,
-        category: item.category || "Approval",
-        actor: currentUser,
-        status: "DENY",
-        amount: item.amount,
-        currency: item.currency,
-        reason: `Declined by ${declinerName}. ${reason || "Action rejected under mutual veto power."}`,
-        timestamp: "Just now",
-        timeAgo: "Just now",
-      },
-      ...prev,
-    ]);
+    return out;
   };
 
-  // Agent Chat Simulation supporting multi-currency and global scenarios
-  const sendChatMessage = async (text: string) => {
+  const sendChatMessage: AppContextType["sendChatMessage"] = async (text, options) => {
+    const sessionKey = options?.sessionKey ?? "default";
     const userMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       sender: "user",
       userRole: currentUser,
       text,
-      timestamp: new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
+      timestamp: nowTime(locale),
     };
-
     setChatMessages((prev) => [...prev, userMsg]);
 
-    const lower = text.toLowerCase();
-
-    // 1. Record shared expense
-    if (lower.includes("lunch") || lower.includes("dinner") || lower.includes("paid") || lower.includes("85") || lower.includes("45")) {
-      const currency = reportingCurrency;
-      const amount = convertAmount(45, "USD", reportingCurrency);
-      const splitB = 60;
-      const splitA = 40;
-      const bOwes = (amount * splitB) / 100;
-
-      const recordedTx = recordTransaction({
-        title: "Lunch together",
-        amount: -amount,
-        currency,
-        category: "Food & Drinks",
-        wallet: "shared",
-        paidBy: currentUser,
-        splitRatio: { partnerB: splitB, partnerA: splitA },
-        partnerBOwesA: currentUser === "partner_a" ? bOwes : 0,
-        partnerAOwesB: currentUser === "partner_b" ? (amount * splitA) / 100 : 0,
-      });
-
-      const seiyaReply: ChatMessage = {
+    let reply: ChatMessage;
+    if (!householdId) {
+      reply = {
         id: `msg-${Date.now() + 1}`,
         sender: "seiya",
-        text: `Checked against Couple Contract rules: standard expense within agreed limits. Recorded with ${splitB}:${splitA} split ratio.`,
-        timestamp: new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
-        cardType: "ACTION_ALLOW",
-        cardData: {
-          title: "Lunch together",
-          category: "Food & Drinks",
-          amount,
-          currency,
-          paidBy: currentUser === "partner_a" ? partnerAName : partnerBName,
-          split: `${partnerBName} 60% : ${partnerAName} 40%`,
-          settlementText: `${partnerBName} owes ${partnerAName} ${formatMoney(bOwes, currency, locale)}`,
-          wallet: "Shared wallet",
-          txId: recordedTx.id,
-        },
+        text: "Let's finish setting up your shared space first. Once you and your partner are connected, I can help with expenses, bills, and goals.",
+        timestamp: nowTime(locale),
       };
-      setChatMessages((prev) => [...prev, seiyaReply]);
-      return;
-    }
+    } else {
+      try {
+        const res = await api.apiSendChat(householdId, text, conversationIds.current.get(sessionKey));
+        if (res.conversationId) conversationIds.current.set(sessionKey, res.conversationId);
+        if (res.warning) console.warn("[chat]", res.warning);
 
-    // 2. Clarification
-    if (lower.includes("groceries")) {
-      const currency = reportingCurrency;
-      const amount = convertAmount(120, "USD", reportingCurrency);
-
-      const seiyaReply: ChatMessage = {
-        id: `msg-${Date.now() + 1}`,
-        sender: "seiya",
-        text: `I can record the ${formatMoney(amount, currency, locale)} grocery expense. One quick question before recording:`,
-        timestamp: new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
-        cardType: "CLARIFICATION",
-        cardData: {
-          question: "Which wallet was used?",
-          options: ["Shared wallet", "Personal wallet"],
-          amount,
-          currency,
-          category: "Shopping",
-          title: "Groceries",
-        },
-      };
-      setChatMessages((prev) => [...prev, seiyaReply]);
-      return;
-    }
-
-    // 3. Edit / Correct transaction
-    if (lower.includes("actually") || lower.includes("correct") || lower.includes("38") || lower.includes("58")) {
-      const currency = reportingCurrency;
-      const amount = convertAmount(38, "USD", reportingCurrency);
-      const bOwes = (amount * 60) / 100;
-
-      setTransactions((prev) =>
-        prev.map((t) => {
-          if (t.title.toLowerCase().includes("dinner") || t.title.toLowerCase().includes("lunch")) {
-            return {
-              ...t,
-              amount: -amount,
-              currency,
-              partnerBOwesA: bOwes,
-            };
-          }
-          return t;
-        })
-      );
-
-      const seiyaReply: ChatMessage = {
-        id: `msg-${Date.now() + 1}`,
-        sender: "seiya",
-        text: `Updated the prior dining transaction to ${formatMoney(amount, currency, locale)} without creating a duplicate. ${partnerBName} now owes ${partnerAName} ${formatMoney(bOwes, currency, locale)}.`,
-        timestamp: new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
-        cardType: "ACTION_ALLOW",
-        cardData: {
-          title: "Lunch together (Updated)",
-          category: "Food & Drinks",
-          amount,
-          currency,
-          paidBy: currentUser === "partner_a" ? partnerAName : partnerBName,
-          split: `${partnerBName} 60% : ${partnerAName} 40%`,
-          settlementText: `${partnerBName} owes ${partnerAName} ${formatMoney(bOwes, currency, locale)}`,
-          wallet: "Shared wallet",
-          statusNote: "Transaction corrected in place",
-        },
-      };
-      setChatMessages((prev) => [...prev, seiyaReply]);
-      return;
-    }
-
-    // 4. Shared bill approval (e.g. shared flights or insurance)
-    if (lower.includes("flight") || lower.includes("insurance") || lower.includes("motor") || lower.includes("installment") || lower.includes("650") || lower.includes("1200")) {
-      const currency = reportingCurrency;
-      const amount = convertAmount(650, "USD", reportingCurrency);
-
-      const gateway = processGatewayDecision({
-        actionType: "BILL_PAY",
-        title: "Shared Flight Tickets",
-        amount,
-        currency,
-        wallet: "shared",
-      });
-
-      if (gateway.outcome === "NEED_APPROVAL") {
-        const newAppr: ApprovalRequest = {
-          id: `appr-${Date.now()}`,
-          title: "Shared Flight Tickets",
-          amount,
-          currency,
-          wallet: "shared",
-          requester: currentUser,
-          approver: currentUser === "partner_a" ? "partner_b" : "partner_a",
-          status: "pending",
-          reason: gateway.reason,
-          createdAt: new Date().toISOString(),
-          expiresInHours: 24,
-        };
-        setApprovals((prev) => [newAppr, ...prev]);
-
-        const seiyaReply: ChatMessage = {
+        reply = {
           id: `msg-${Date.now() + 1}`,
           sender: "seiya",
-          text: `This payment of ${formatMoney(amount, currency, locale)} exceeds your agreed shared threshold. Dual-Key Gateway requires partner approval before funds can be debited.`,
-          timestamp: new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
-          cardType: "ACTION_NEED_APPROVAL",
-          cardData: {
-            title: "Shared Flight Tickets",
-            amount,
-            currency,
-            wallet: "Shared savings",
-            requester: currentUser === "partner_a" ? partnerAName : partnerBName,
-            waitingFor: currentUser === "partner_a" ? partnerBName : partnerAName,
-            reason: gateway.reason,
-            expiresIn: "24 hours",
-            status: "Waiting for partner signature",
-          },
+          text: res.message,
+          timestamp: nowTime(locale),
+          ...(res.cardType ? { cardType: res.cardType as ChatMessage["cardType"] } : {}),
+          ...(res.cardData ? { cardData: normalizeCardData(res.cardData) } : {}),
         };
-        setChatMessages((prev) => [...prev, seiyaReply]);
-        return;
+
+        // A tool call (e.g. record_expense) may have changed household data.
+        if (res.cardType) void refreshData();
+      } catch (error) {
+        reply = {
+          id: `msg-${Date.now() + 1}`,
+          sender: "seiya",
+          text: errorMessage(error, "Seiya is temporarily unavailable. Please try again in a moment."),
+          timestamp: nowTime(locale),
+        };
       }
     }
 
-    // 5. Cooling-off hold
-    if (lower.includes("tv") || lower.includes("jacket") || lower.includes("shoes") || lower.includes("flash-sale") || lower.includes("1400") || lower.includes("1250")) {
-      const currency = reportingCurrency;
-      const amount = convertAmount(1400, "USD", reportingCurrency);
+    setChatMessages((prev) => [...prev, reply]);
+    return reply;
+  };
 
-      const gateway = processGatewayDecision({
-        actionType: "PURCHASE",
-        title: "Flash-sale 4K OLED TV",
-        amount,
-        currency,
-        wallet: "shared",
-        timeOfDay: "23:40",
+  // Chat history is read straight from Supabase; RLS limits it to the
+  // caller's own private conversations and shared household ones.
+  const loadChatHistory: AppContextType["loadChatHistory"] = async () => {
+    if (!householdId || !authUser) return [];
+    try {
+      const supabase = createBrowserSupabase();
+      const { data: conversations, error } = await supabase
+        .from("agent_conversations")
+        .select("id, title, updated_at, created_at")
+        .eq("household_id", householdId)
+        .order("updated_at", { ascending: false })
+        .limit(20);
+      if (error || !conversations?.length) return [];
+
+      const ids = conversations.map((c) => c.id);
+      const { data: messages } = await supabase
+        .from("agent_messages")
+        .select("id, conversation_id, role, content, created_at")
+        .in("conversation_id", ids)
+        .in("role", ["user", "assistant"])
+        .order("created_at", { ascending: true })
+        .limit(400);
+
+      return conversations.map((c) => {
+        const convMessages: ChatMessage[] = (messages ?? [])
+          .filter((m) => m.conversation_id === c.id)
+          .map((m) => ({
+            id: m.id,
+            sender: m.role === "user" ? ("user" as const) : ("seiya" as const),
+            userRole: m.role === "user" ? currentUser : undefined,
+            text: m.content,
+            timestamp: new Date(m.created_at).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
+          }));
+        const firstUser = convMessages.find((m) => m.sender === "user")?.text ?? "Conversation";
+        conversationIds.current.set(`history-${c.id}`, c.id);
+        return {
+          conversationId: c.id,
+          title: c.title || (firstUser.length > 32 ? `${firstUser.slice(0, 32)}...` : firstUser),
+          updatedAt: c.updated_at || c.created_at,
+          messages: convMessages,
+        };
       });
-
-      if (gateway.outcome === "HOLD") {
-        const newHeld: HeldPurchase = {
-          id: `hold-${Date.now()}`,
-          title: "Flash-sale 4K OLED TV",
-          amount,
-          currency,
-          wallet: "shared",
-          requester: currentUser,
-          status: "held",
-          holdUntil: "Tomorrow at 08:00 (Local Time)",
-          reason: gateway.reason,
-          createdAt: new Date().toISOString(),
-        };
-        setHeldPurchases((prev) => [newHeld, ...prev]);
-
-        const seiyaReply: ChatMessage = {
-          id: `msg-${Date.now() + 1}`,
-          sender: "seiya",
-          text: `Placed on cooling-off hold. This is a couple-defined safeguard for purchases over threshold during the late-night window.`,
-          timestamp: new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
-          cardType: "ACTION_HOLD",
-          cardData: {
-            title: "Flash-sale 4K OLED TV",
-            amount,
-            currency,
-            wallet: "Shared wallet",
-            holdUntil: "Tomorrow, 08:00",
-            reason: gateway.reason,
-            heldId: newHeld.id,
-          },
-        };
-        setChatMessages((prev) => [...prev, seiyaReply]);
-        return;
-      }
+    } catch (error) {
+      console.warn("[store] chat history unavailable:", error);
+      return [];
     }
-
-    // 6. External transfer denial
-    if (lower.includes("external") || (lower.includes("transfer") && lower.includes("account"))) {
-      const currency = reportingCurrency;
-      const amount = convertAmount(2500, "USD", reportingCurrency);
-
-      const seiyaReply: ChatMessage = {
-        id: `msg-${Date.now() + 1}`,
-        sender: "seiya",
-        text: "Gateway Rule Violation: External bank account transfers are blocked. Seiya operates on couple-managed allocations only.",
-        timestamp: new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
-        cardType: "ACTION_DENY",
-        cardData: {
-          title: "External Wire Transfer",
-          amount,
-          currency,
-          reason: "Direct transfer to external account is blocked by the Dual-Key Gateway.",
-          safeAlternative: "Record internal couple allocations or joint goal contributions.",
-        },
-      };
-      setChatMessages((prev) => [...prev, seiyaReply]);
-      return;
-    }
-
-    // 7. Privacy breach denial
-    if (lower.includes("private") || lower.includes("show all") || lower.includes("transactions of")) {
-      const seiyaReply: ChatMessage = {
-        id: `msg-${Date.now() + 1}`,
-        sender: "seiya",
-        text: `Privacy Guard Active: Under your Couple Contract, each partner's aggregate savings balance is visible, but detailed personal transactions are private.`,
-        timestamp: new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
-        cardType: "ACTION_DENY",
-        cardData: {
-          title: `Inspect Partner's Itemized Transactions`,
-          reason: `Partner privacy rule protects line-item personal history. Only total balance is visible.`,
-          safeAlternative: `View aggregate savings total on the Home dashboard or Wallets page.`,
-        },
-      };
-      setChatMessages((prev) => [...prev, seiyaReply]);
-      return;
-    }
-
-    // 8. Global Honeymoon Goal Plan
-    if (lower.includes("vacation") || lower.includes("honeymoon") || lower.includes("kyoto") || lower.includes("trip") || lower.includes("15000") || lower.includes("2000")) {
-      const currency = reportingCurrency;
-      const target = convertAmount(15000, "USD", reportingCurrency);
-      const monthly = Math.round(target / 10);
-      const splitB = Math.round((monthly * 60) / 100);
-      const splitA = Math.round((monthly * 40) / 100);
-
-      const seiyaReply: ChatMessage = {
-        id: `msg-${Date.now() + 1}`,
-        sender: "seiya",
-        text: `Here is a collaborative goal projection for your trip. Saving ${formatMoney(target, currency, locale)} in 10 months requires ${formatMoney(monthly, currency, locale)}/month.`,
-        timestamp: new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
-        cardType: "PLAN",
-        cardData: {
-          title: "Kyoto Vacation Trip",
-          targetAmount: target,
-          currency,
-          horizon: "10 months",
-          monthlyTarget: monthly,
-          split: `${partnerBName} ${formatMoney(splitB, currency, locale)} • ${partnerAName} ${formatMoney(splitA, currency, locale)}`,
-          fundingWallet: "Planned contributions",
-          status: "Draft",
-          assumptions: "Planned monthly contribution. Does not automatically debit any wallet. Awaiting partner approval.",
-        },
-      };
-      setChatMessages((prev) => [...prev, seiyaReply]);
-      return;
-    }
-
-    // Default friendly assistant fallback
-    const fallbackReply: ChatMessage = {
-      id: `msg-${Date.now() + 1}`,
-      sender: "seiya",
-      text: `Under your Couple Contract, I can record expenses, clarify budgets, analyze affordability, and safeguard mutual funds. How would you like to proceed?`,
-      timestamp: new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
-    };
-    setChatMessages((prev) => [...prev, fallbackReply]);
   };
 
   const unreadNotificationsCount =
     approvals.filter((a) => a.status === "pending" && a.approver === currentUser).length +
     heldPurchases.filter((h) => h.status === "held").length +
-    bills.filter((b) => b.daysRemaining <= 3).length;
+    bills.filter((b) => b.status !== "paid" && b.daysRemaining <= 3).length;
 
   return (
     <AppContext.Provider
       value={{
+        isAuthenticated,
+        isLoading,
+        authUser,
+        householdId,
+        household,
+        myRole: currentUser,
+        hasPin,
+        partnerProfile,
+        refreshSession,
+        refreshData,
+        signOut,
+        verifySecurityPin,
+        dataStatus,
+        notices,
+        notify,
+        dismissNotice,
         currentUser,
-        setCurrentUser,
         partnerAName,
         partnerBName,
         setPartnerNames: (a, b) => {
@@ -1942,13 +1519,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         timeZone,
         setTimeZone,
         reportingCurrency,
-        setReportingCurrency,
-        simulateMissingFXRate,
-        setSimulateMissingFXRate,
+        setReportingCurrency: (currency) => {
+          reportingCurrencyTouched.current = true;
+          setReportingCurrency(currency);
+        },
         wallets,
+        walletsReady,
         convertedBalances,
         monthlySummary,
         contract,
+        contractMeta,
+        budgetSummary,
         transactions,
         approvals,
         heldPurchases,
@@ -1969,6 +1550,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         approveContractChange,
         activateInitialContract,
         sendChatMessage,
+        loadChatHistory,
         payBill,
         settleUp,
         addPlan,
@@ -1981,7 +1563,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         requestDeletePlan,
         approveApprovalRequest,
         declineApprovalRequest,
-        applyDemoPreset,
         pendingDirectChat,
         setPendingDirectChat,
         proposeExpense,

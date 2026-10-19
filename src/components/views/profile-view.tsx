@@ -34,6 +34,9 @@ export function ProfileView({ onLogout, initialTab = "overview" }: ProfileViewPr
     settlement,
     settleUp,
     approvals,
+    hasPin,
+    partnerProfile,
+    verifySecurityPin,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<"overview" | "contract" | "security" | "privacy" | "preferences">(
@@ -101,24 +104,30 @@ export function ProfileView({ onLogout, initialTab = "overview" }: ProfileViewPr
     showToast("Profile name updated successfully.");
   };
 
-  const handleProposeContract = (e: React.FormEvent) => {
+  const handleProposeContract = async (e: React.FormEvent) => {
     e.preventDefault();
-    proposeContractChange(
+    const ok = await proposeContractChange(
       Number(thresholdInput),
       contract.thresholdCurrency,
       Number(splitDinaInput),
       Number(splitRakaInput),
       approveEveryShared
     );
-    showToast("Contract amendment proposed. Partner signature required.");
+    if (ok) showToast("Contract amendment proposed. Partner signature required.");
   };
 
   const handleApproveContract = () => {
     setShowPinModal(true);
   };
 
+  const handlePinVerify = async (pin: string) => {
+    const pinError = await verifySecurityPin(pin);
+    if (pinError) return pinError;
+    const ok = await approveContractChange();
+    return ok ? null : "Unable to sign the contract amendment.";
+  };
+
   const handlePinSuccess = () => {
-    approveContractChange();
     showToast("Contract amendment approved & active via Security PIN!");
   };
 
@@ -548,7 +557,7 @@ export function ProfileView({ onLogout, initialTab = "overview" }: ProfileViewPr
                   <p className="text-xs text-[#515151]">Hardware device key bound for high-value Dual-Key transactions</p>
                 </div>
               </div>
-              <Badge variant="allow">Active</Badge>
+              <Badge variant={hasPin ? "allow" : "pending"}>{hasPin ? "Active" : "Set on first approval"}</Badge>
             </div>
 
             <div className="pt-3 border-t border-[#d1c9bf]/30 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
@@ -590,7 +599,7 @@ export function ProfileView({ onLogout, initialTab = "overview" }: ProfileViewPr
               </div>
             </div>
             <span className="text-xs font-mono font-semibold text-[#2d5232] bg-[#dce8db] px-3 py-1 rounded-full">
-              2 Active Signers
+              {partnerProfile ? 2 : 1} Active Signer{partnerProfile ? "s" : ""}
             </span>
           </div>
         </div>
@@ -703,7 +712,7 @@ export function ProfileView({ onLogout, initialTab = "overview" }: ProfileViewPr
           <div className="p-5 rounded-[16px] bg-[#fbf0eb] border border-[#a34426]/20 flex items-center justify-between">
             <div>
               <h4 className="text-sm font-bold text-[#2a2b2f]">Account Session</h4>
-              <p className="text-xs text-[#515151] mt-0.5">Switch active user or return to landing page persona selection.</p>
+              <p className="text-xs text-[#515151] mt-0.5">Sign out of Seiya on this device.</p>
             </div>
             {onLogout && (
               <Button
@@ -735,6 +744,7 @@ export function ProfileView({ onLogout, initialTab = "overview" }: ProfileViewPr
         title="Approve Contract Amendment"
         description="Dual-Key signature requires 6-digit security PIN confirmation to activate new rules."
         actionLabel="Sign & Activate"
+        onVerify={handlePinVerify}
         onSuccess={handlePinSuccess}
       />
     </div>

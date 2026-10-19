@@ -48,3 +48,8 @@ seiya_agent_orchestrator/
 next-env.d.ts
 
 /backupcode_coding-high
+
+# local AI-assistant tooling and private working notes (never pushed)
+.claude/
+knowledge/seiya/CLAUDE-CODE-PROMPT.md
+knowledge/seiya/DEPLOYMENT-GUIDE.md
