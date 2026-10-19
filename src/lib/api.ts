@@ -533,6 +533,18 @@ export interface PromiseStatus {
   responses: Array<{ user_id: string; selected: PromiseClause[]; submitted_at: string }>;
 }
 
+// ---------------------------------------------------------------------------
+// Ask Seiya chat history (served from our domain, not straight from Supabase)
+// ---------------------------------------------------------------------------
+
+export interface ChatHistoryRow {
+  conversations: Array<{ id: string; title: string | null; updated_at: string | null; created_at: string }>;
+  messages: Array<{ id: string; conversation_id: string; role: string; content: string; created_at: string }>;
+}
+
+export const apiGetChatHistory = (hid: string) =>
+  request<{ success: true } & ChatHistoryRow>(`/api/households/${hid}/chat-history`);
+
 export const apiGetPromise = (hid: string) =>
   request<{ success: true; myUserId: string; status: PromiseStatus }>(`/api/households/${hid}/promise`);
 

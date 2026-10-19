@@ -80,7 +80,8 @@ Put values in `.env.local` locally and in Vercel → Project → Settings → En
 | Variable | Default | Description |
 |---|---|---|
 | `APP_BASE_URL` | `http://localhost:3000` | Base for invitation links and the OpenRouter `HTTP-Referer`. Production: `https://seiya.web.id`. |
-| `WECHAT_APP_ID`, `WECHAT_APP_SECRET` | empty | Enable "Continue with WeChat" (server only). The button is hidden until both are set. See section 6. |
+| `WECHAT_MP_APP_ID`, `WECHAT_MP_APP_SECRET` | empty | WeChat login **inside the WeChat app** (Official Account web authorization; the free sandbox test account works). Server only. See section 6. |
+| `WECHAT_APP_ID`, `WECHAT_APP_SECRET` | empty | WeChat **QR login in any browser** (Open Platform Website Application, paid verification). Server only. See section 6. |
 | `NEXT_PUBLIC_ENABLE_DEMO_SIMULATION` | `false` | Shows a screen switcher in the auth/onboarding flow for design review. Keep `false` in production. |
 
 ### AI provider keys (server only, secret)
@@ -142,16 +143,49 @@ Production runs on Vercel project **seiya** with the domain **seiya.web.id** (an
 
 ### WeChat login (optional)
 
-"Continue with WeChat" appears on the login and register screens once `WECHAT_APP_ID` and `WECHAT_APP_SECRET` are set. Supabase has no WeChat provider, so the server runs the OAuth exchange (`/api/auth/wechat/start` → WeChat QR page → `/api/auth/wechat/callback`), then creates the account on first use (`wx-<hash>@users.seiya.invalid`, name from the WeChat nickname) and starts a normal Supabase session. A random `state` cookie protects against login CSRF; the AppSecret never reaches the browser.
+Google is blocked in mainland China, so Seiya offers "Continue with WeChat" on the login and register screens. Supabase has no WeChat provider, so the server runs the OAuth exchange (`/api/auth/wechat/start` → WeChat → `/api/auth/wechat/callback`), creates the account on first use (`wx-<hash>@users.seiya.invalid`, name from the WeChat nickname) and starts a normal Supabase session. A random `state` cookie protects against login CSRF; the AppSecret never reaches the browser. The browser decides which WeChat app is used:
 
-1. Register at [open.weixin.qq.com](https://open.weixin.qq.com) and create a **Website Application** (网站应用). WeChat reviews the developer/company and charges a yearly verification fee.
-2. Set the authorized callback domain to `seiya.web.id` (no `https://`, no path).
-3. Put the AppID and AppSecret into Vercel → Environment Variables (Production) and redeploy.
-4. Check `GET https://seiya.web.id/api/auth/wechat` returns `{"enabled":true}`.
+| Where the page is opened | WeChat app used | Env vars |
+|---|---|---|
+| Inside the WeChat app (WeChat's built-in browser) | Official Account web authorization (`snsapi_userinfo`), e.g. the **free sandbox test account** | `WECHAT_MP_APP_ID`, `WECHAT_MP_APP_SECRET` |
+| Any other browser | Open Platform Website Application, QR login (`snsapi_login`) | `WECHAT_APP_ID`, `WECHAT_APP_SECRET` |
 
-Accounts are keyed by `unionid` when WeChat provides it, otherwise `openid`. Linking WeChat to an existing name + password account is not built yet.
+With only the test account set, normal browsers show a note to open seiya.web.id inside WeChat.
+
+**Free setup for demos and testing (sandbox test account, 测试号):**
+
+1. Open [mp.weixin.qq.com/debug/cgi-bin/sandbox?t=sandbox/login](https://mp.weixin.qq.com/debug/cgi-bin/sandbox?t=sandbox/login) and scan the QR code with WeChat. You get an **appID** and **appsecret**.
+2. On that page, under 体验接口权限表 → 网页服务 → 网页帐号 → 网页授权获取用户基本信息 → 修改, set the domain to `seiya.web.id` (no `https://`, no path).
+3. Every tester scans the **测试号二维码** on that page to follow the test account (the sandbox allows about 100 testers).
+4. Put the values into Vercel (Production) as `WECHAT_MP_APP_ID` and `WECHAT_MP_APP_SECRET`, then redeploy.
+5. Send `https://seiya.web.id` to yourself in WeChat, open it there, and tap **Continue with WeChat**.
+
+The test account is for demos only; for the public, use a verified Official Account (服务号) and/or an Open Platform Website Application (paid yearly verification, company entity).
+
+Accounts are keyed by `unionid` when WeChat provides it, otherwise by `<appid>:<openid>` (so test-account users are separate from production users). Linking WeChat to an existing name + password account is not built yet.
 
 After a nameserver change, some home routers keep a cached failure for a while; test from mobile data or a public DNS (8.8.8.8 / 1.1.1.1) if the site does not open locally.
+
+### Access from mainland China
+
+Seiya is built for a competition in China, where Google services are blocked and some CDNs are unreliable. The browser only needs to reach **`seiya.web.id`**:
+
+| Concern | Status |
+|---|---|
+| Login | Name + password, or WeChat (see above). No Google sign-in. |
+| Fonts | `next/font` downloads Lora, Inter and Plus Jakarta Sans at build time and serves them from `/_next/static/media`; no runtime request to Google Fonts. |
+| Receipt OCR (tesseract.js) | Worker, engine (WASM) and `eng`/`ind` language data are served from `/ocr` on our domain, not `cdn.jsdelivr.net`. `scripts/copy-ocr-assets.mjs` copies them from the pinned npm packages (`tesseract.js`, `tesseract.js-core`, `@tesseract.js-data/eng`, `@tesseract.js-data/ind`) before every `dev`/`build`; `public/ocr/` is git-ignored. Verified: with `/ocr` removed the OCR fails instead of falling back to the CDN, and with it present the sample receipt reads in about 1 s. |
+| Supabase | Only the server talks to Supabase. Chat history, the last direct browser read, now goes through `GET /api/households/[householdId]/chat-history`. |
+| AI providers (Groq, Mistral, OpenRouter, Cloudflare) | Called only from the Vercel server, outside China. |
+| Analytics / trackers | None. |
+
+The only external hosts left in the client bundle are strings the browser never requests (tesseract.js's default CDN path, which `src/lib/receipt-ocr.ts` overrides, and a license comment).
+
+Remaining risks:
+
+- **Vercel from China.** `*.vercel.app` addresses are often blocked; use `https://seiya.web.id`. Custom domains on Vercel usually load but can be slow or intermittent depending on the network. Test from inside China before the event (for example a phone on a Chinese mobile network, or an online "China speed test" for the URL).
+- **If it is too slow**, the usual fix is a host with mainland or Hong Kong points of presence. Hosting inside mainland China requires an ICP filing (ICP备案) for the domain; Hong Kong hosting does not.
+- **First receipt scan** downloads about 8 MB once (engine plus Indonesian/English data); later scans are cached by the browser.
 
 ## 7. Project structure
 

@@ -24,9 +24,6 @@ export async function GET(request: Request) {
     return res;
   };
 
-  const config = getWechatConfig();
-  if (!config) return fail("not_configured");
-
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
   // WeChat sends no code when the user taps "cancel" on the phone.
@@ -35,6 +32,11 @@ export async function GET(request: Request) {
   const cookieStore = await cookies();
   const expected = cookieStore.get(WECHAT_STATE_COOKIE)?.value;
   if (!state || !expected || state !== expected) return fail("state");
+
+  // The state says which WeChat app issued the code; its secret must redeem it.
+  const kind = state.split(".")[0] === "mp" ? "mp" : "website";
+  const config = getWechatConfig(kind);
+  if (!config) return fail("not_configured");
 
   try {
     const identity = await exchangeWechatCode(config, code);

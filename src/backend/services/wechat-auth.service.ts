@@ -2,45 +2,75 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-// "Continue with WeChat" (WeChat Open Platform, Website Application, QR login).
-// Supabase has no WeChat provider, so the server runs the OAuth exchange and
-// then starts a normal Supabase session for an account keyed by the WeChat ID.
-// Docs: https://developers.weixin.qq.com/doc/oplatform/Website_App/WeChat_Login/Wechat_Login.html
+// "Continue with WeChat". Supabase has no WeChat provider, so the server runs
+// the OAuth exchange and then starts a normal Supabase session for an account
+// keyed by the WeChat ID. Two kinds of WeChat app are supported:
+// - "website": Open Platform Website Application, QR login in any browser
+//   (needs a paid, verified developer account).
+//   https://developers.weixin.qq.com/doc/oplatform/Website_App/WeChat_Login/Wechat_Login.html
+// - "mp": Official Account web authorization inside the WeChat app. Works with
+//   the free sandbox test account (测试号) for demos and testing.
+//   https://developers.weixin.qq.com/doc/offiaccount/OA_Web_Apps/Wechat_webpage_authorization.html
 
 export const WECHAT_STATE_COOKIE = "seiya_wx_state";
 export const WECHAT_STATE_MAX_AGE = 600; // seconds
 
 const INTERNAL_EMAIL_DOMAIN = process.env.SEIYA_USERNAME_EMAIL_DOMAIN?.trim() || "users.seiya.invalid";
 
+export type WechatAppKind = "website" | "mp";
+
 export interface WechatConfig {
+  kind: WechatAppKind;
   appId: string;
   appSecret: string;
   callbackUrl: string;
 }
 
-/** Null until WECHAT_APP_ID, WECHAT_APP_SECRET and APP_BASE_URL are set. */
-export function getWechatConfig(): WechatConfig | null {
-  const appId = process.env.WECHAT_APP_ID?.trim();
-  const appSecret = process.env.WECHAT_APP_SECRET?.trim();
+/**
+ * website: WECHAT_APP_ID / WECHAT_APP_SECRET.
+ * mp (inside WeChat, e.g. the free test account): WECHAT_MP_APP_ID / WECHAT_MP_APP_SECRET.
+ * Null until that pair and APP_BASE_URL are set.
+ */
+export function getWechatConfig(kind: WechatAppKind): WechatConfig | null {
+  const prefix = kind === "website" ? "WECHAT" : "WECHAT_MP";
+  const appId = process.env[`${prefix}_APP_ID`]?.trim();
+  const appSecret = process.env[`${prefix}_APP_SECRET`]?.trim();
   const baseUrl = process.env.APP_BASE_URL?.trim().replace(/\/+$/, "");
   if (!appId || !appSecret || !baseUrl) return null;
-  return { appId, appSecret, callbackUrl: `${baseUrl}/api/auth/wechat/callback` };
+  return { kind, appId, appSecret, callbackUrl: `${baseUrl}/api/auth/wechat/callback` };
+}
+
+/** WeChat's in-app browser identifies itself as "MicroMessenger". */
+export function isWechatBrowser(userAgent: string | null) {
+  return /MicroMessenger/i.test(userAgent ?? "");
+}
+
+/**
+ * Which WeChat app to use for this browser: in-app authorization inside WeChat
+ * when configured, otherwise the QR login of the website application.
+ */
+export function pickWechatConfig(userAgent: string | null): WechatConfig | null {
+  const mp = getWechatConfig("mp");
+  const website = getWechatConfig("website");
+  if (isWechatBrowser(userAgent) && mp) return mp;
+  return website;
 }
 
 export function newWechatState() {
   return randomBytes(24).toString("base64url");
 }
 
-/** WeChat's QR-code login page for the website application. */
+/** QR login page (website) or in-app authorization page (mp). */
 export function buildWechatAuthorizeUrl(config: WechatConfig, state: string) {
   const params = new URLSearchParams({
     appid: config.appId,
     redirect_uri: config.callbackUrl,
     response_type: "code",
-    scope: "snsapi_login",
+    scope: config.kind === "website" ? "snsapi_login" : "snsapi_userinfo",
     state,
   });
-  return `https://open.weixin.qq.com/connect/qrconnect?${params.toString()}#wechat_redirect`;
+  const page = config.kind === "website" ? "qrconnect" : "oauth2/authorize";
+  return `https://open.weixin.qq.com/connect/${page}?${params.toString()}#wechat_redirect`;
 }
 
 export class WechatAuthError extends Error {
@@ -100,7 +130,9 @@ export async function exchangeWechatCode(config: WechatConfig, code: string): Pr
     // The profile is optional; the account can still be created from the ID.
   }
 
-  return { wechatId: unionid || openid, nickname };
+  // openid is per WeChat app, so it is namespaced by the AppID; unionid (when the
+  // app is bound to an Open Platform account) is the same across apps.
+  return { wechatId: unionid || `${config.appId}:${openid}`, nickname };
 }
 
 /** Deterministic internal address for a WeChat account (never deliverable). */

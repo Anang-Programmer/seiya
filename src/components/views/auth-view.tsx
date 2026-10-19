@@ -54,6 +54,7 @@ const WECHAT_ERRORS: Record<string, string> = {
   profile: "WeChat couldn't confirm your account. Please try again.",
   session: "Seiya couldn't start your session after WeChat. Please try again.",
   not_configured: "WeChat sign-in isn't available yet.",
+  open_in_wechat: "To continue with WeChat, open seiya.web.id inside the WeChat app.",
 };
 
 function WeChatLogo({ size = 20 }: { size?: number }) {
@@ -133,6 +134,8 @@ export function AuthView({
     return reason ? WECHAT_ERRORS[reason] ?? WECHAT_ERRORS.session : "";
   });
   const [wechatEnabled, setWechatEnabled] = useState(false);
+  // Only the in-app WeChat login is set up: show how to reach it.
+  const [wechatOpenInApp, setWechatOpenInApp] = useState(false);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.has("wechat_error")) {
@@ -143,8 +146,10 @@ export function AuthView({
     let cancelled = false;
     fetch("/api/auth/wechat", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : { enabled: false }))
-      .then((d: { enabled?: boolean }) => {
-        if (!cancelled) setWechatEnabled(Boolean(d.enabled));
+      .then((d: { enabled?: boolean; openInWechat?: boolean }) => {
+        if (cancelled) return;
+        setWechatEnabled(Boolean(d.enabled));
+        setWechatOpenInApp(Boolean(d.openInWechat));
       })
       .catch(() => undefined);
     return () => {
@@ -1612,20 +1617,31 @@ export function AuthView({
                 </div>
 
                 {/* Continue with WeChat: signs in, or creates the account on first use */}
-                {wechatEnabled && (
+                {(wechatEnabled || wechatOpenInApp) && (
                   <div className="space-y-3 pt-1">
                     <div className="flex items-center gap-3 text-xs text-[#a3abaa]">
                       <span className="h-px flex-1 bg-[#e8dfd5]" />
                       <span>or</span>
                       <span className="h-px flex-1 bg-[#e8dfd5]" />
                     </div>
-                    <a
-                      href="/api/auth/wechat/start"
-                      className="w-full py-3.5 px-6 rounded-full border border-[#d1c9bf] bg-white hover:bg-[#f6fbf8] hover:border-[#07C160]/50 text-[#2a2b2f] font-serif text-base flex items-center justify-center gap-2.5 transition-all shadow-2xs cursor-pointer"
-                    >
-                      <WeChatLogo />
-                      <span>Continue with WeChat</span>
-                    </a>
+                    {wechatEnabled ? (
+                      <a
+                        href="/api/auth/wechat/start"
+                        className="w-full py-3.5 px-6 rounded-full border border-[#d1c9bf] bg-white hover:bg-[#f6fbf8] hover:border-[#07C160]/50 text-[#2a2b2f] font-serif text-base flex items-center justify-center gap-2.5 transition-all shadow-2xs cursor-pointer"
+                      >
+                        <WeChatLogo />
+                        <span>Continue with WeChat</span>
+                      </a>
+                    ) : (
+                      <div className="w-full py-3 px-5 rounded-[20px] border border-dashed border-[#07C160]/40 bg-[#f6fbf8] text-[#2a2b2f] flex items-start gap-2.5">
+                        <WeChatLogo />
+                        <p className="text-xs sm:text-sm leading-relaxed">
+                          <span className="font-semibold">Continue with WeChat</span> works inside the WeChat app. Send{" "}
+                          <span className="font-semibold">seiya.web.id</span> to yourself in WeChat, open it there, and tap the
+                          button.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 

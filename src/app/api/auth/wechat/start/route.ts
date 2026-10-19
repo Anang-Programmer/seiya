@@ -4,7 +4,9 @@ import {
   WECHAT_STATE_MAX_AGE,
   buildWechatAuthorizeUrl,
   getWechatConfig,
+  isWechatBrowser,
   newWechatState,
+  pickWechatConfig,
 } from "@/backend/services/wechat-auth.service";
 
 /**
@@ -12,12 +14,15 @@ import {
  * httpOnly cookie and checked on the callback (protects against login CSRF).
  */
 export async function GET(request: Request) {
-  const config = getWechatConfig();
+  const userAgent = request.headers.get("user-agent");
+  const config = pickWechatConfig(userAgent);
   if (!config) {
-    return NextResponse.redirect(new URL("/?wechat_error=not_configured", request.url));
+    const reason = !isWechatBrowser(userAgent) && getWechatConfig("mp") ? "open_in_wechat" : "not_configured";
+    return NextResponse.redirect(new URL(`/?wechat_error=${reason}`, request.url));
   }
 
-  const state = newWechatState();
+  // The cookie remembers which WeChat app started the login (website / mp).
+  const state = `${config.kind}.${newWechatState()}`;
   const response = NextResponse.redirect(buildWechatAuthorizeUrl(config, state));
   response.cookies.set(WECHAT_STATE_COOKIE, state, {
     httpOnly: true,

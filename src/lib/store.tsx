@@ -22,7 +22,6 @@ import {
   type TransformContext,
   type WalletState,
 } from "./transformers";
-import { createClient as createBrowserSupabase } from "./supabase/client";
 
 export type UserRole = "partner_a" | "partner_b";
 
@@ -1475,28 +1474,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return reply;
   };
 
-  // Chat history is read straight from Supabase; RLS limits it to the
-  // caller's own private conversations and shared household ones.
+  // Chat history comes through our API (same RLS: the caller's private
+  // conversations and shared household ones), so the browser only ever talks
+  // to our own domain, which matters for users in mainland China.
   const loadChatHistory: AppContextType["loadChatHistory"] = async () => {
     if (!householdId || !authUser) return [];
     try {
-      const supabase = createBrowserSupabase();
-      const { data: conversations, error } = await supabase
-        .from("agent_conversations")
-        .select("id, title, updated_at, created_at")
-        .eq("household_id", householdId)
-        .order("updated_at", { ascending: false })
-        .limit(20);
-      if (error || !conversations?.length) return [];
-
-      const ids = conversations.map((c) => c.id);
-      const { data: messages } = await supabase
-        .from("agent_messages")
-        .select("id, conversation_id, role, content, created_at")
-        .in("conversation_id", ids)
-        .in("role", ["user", "assistant"])
-        .order("created_at", { ascending: true })
-        .limit(400);
+      const { conversations, messages } = await api.apiGetChatHistory(householdId);
+      if (!conversations.length) return [];
 
       return conversations.map((c) => {
         const convMessages: ChatMessage[] = (messages ?? [])
