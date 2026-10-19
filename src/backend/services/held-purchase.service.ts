@@ -19,6 +19,9 @@ export async function createHouseholdHeldPurchase(
 ) {
   const requesterRole = await getHouseholdRole(supabase, householdId, userId);
 
+  // hold_until, status and requester_role are set by the
+  // held_purchases_set_server_fields trigger from the active agreement's
+  // cooling-off duration; the client cannot shorten the hold.
   const { data, error } = await supabase
     .from("held_purchases")
     .insert({
@@ -28,9 +31,6 @@ export async function createHouseholdHeldPurchase(
       currency: input.currency,
       wallet: input.wallet,
       requester_id: userId,
-      requester_role: requesterRole,
-      status: "held",
-      hold_until: input.holdUntil,
       reason: input.reason,
     })
     .select()

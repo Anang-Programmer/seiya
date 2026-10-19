@@ -4,7 +4,6 @@ export interface CreateHeldPurchaseInput {
   currency: string;
   wallet: "shared" | "personal_a" | "personal_b";
   requesterRole: "partner_a" | "partner_b";
-  holdUntil: string;
   reason: string;
 }
 
@@ -40,9 +39,6 @@ export function validateCreateHeldPurchase(value: unknown): ValidationResult<Cre
 
   const wallet = value.wallet === "personal_a" || value.wallet === "personal_b" ? value.wallet : "shared";
   const requesterRole = value.requesterRole === "partner_b" ? "partner_b" : "partner_a";
-  const holdUntil = typeof value.holdUntil === "string" && value.holdUntil.trim()
-    ? value.holdUntil.trim()
-    : new Date(Date.now() + 8 * 3600 * 1000).toISOString();
   const reason = typeof value.reason === "string" ? value.reason.trim().slice(0, 500) : "";
 
   return {
@@ -53,7 +49,6 @@ export function validateCreateHeldPurchase(value: unknown): ValidationResult<Cre
       currency,
       wallet,
       requesterRole,
-      holdUntil,
       reason,
     },
   };

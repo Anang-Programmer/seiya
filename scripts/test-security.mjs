@@ -1,6 +1,9 @@
 /**
  * Manual test: privacy, IDOR, Dual-Key PIN, undo, bill idempotency, and plan deletion.
  *
+ * The last section locks Partner A's PIN checks for 15 minutes (DB lockout test).
+ * A rerun inside that window reports A's PIN as a warning; that is expected.
+ *
  * Run (dev server must be running):
  *   npm run test:security
  *   node --env-file=.env.local scripts/test-security.mjs
@@ -113,6 +116,18 @@ async function main() {
   checks.check(pinA && pinB, `PIN test (${TEST_PIN}) valid untuk A dan B`, { soft: true });
   const overwrite = await api("/api/auth/pin/setup", { method: "POST", cookies: cookiesB, body: { pin: "135790" } });
   checks.check(overwrite.status === 409, "PIN yang sudah ada tidak bisa ditimpa tanpa PIN lama", { detail: `status ${overwrite.status}` });
+  const userIdB = (await sbB.auth.getUser()).data.user?.id;
+  const { error: directPinWrite } = await sbB.from("user_pins").upsert({ user_id: userIdB, pin_hash: "forged" });
+  checks.check(Boolean(directPinWrite), "RLS: user_pins tidak bisa ditulis langsung", {
+    detail: directPinWrite ? directPinWrite.message : "no error returned",
+  });
+  const { error: hashRead } = await sbB.from("user_pins").select("pin_hash").eq("user_id", userIdB);
+  checks.check(Boolean(hashRead), "pin_hash tidak bisa dibaca lewat API", { detail: hashRead ? hashRead.message : "hash readable" });
+  const { error: directSetPin } = await sbB.rpc("set_user_pin", { p_pin: "135790" });
+  const stillValid = await api("/api/auth/pin/verify", { method: "POST", cookies: cookiesB, body: { pin: TEST_PIN } });
+  checks.check(!directSetPin && stillValid.status === 200, "RPC set_user_pin tanpa PIN lama tidak mengganti PIN", {
+    detail: `${directSetPin?.message ?? "rpc ok"}, verify ${stillValid.status}`,
+  });
 
   // Big shared expense → pending approval.
   const shared = walletsA.find((w) => w.wallet_type === "shared");
@@ -148,6 +163,37 @@ async function main() {
     checks.check(bad.status === 401, "approve dengan PIN salah ditolak", { detail: `status ${bad.status} ${bad.data?.message}` });
     const bypass = await api(`/api/transactions/${bigTx.id}/decision`, { method: "POST", cookies: cookiesB, body: { decision: "approved" } });
     checks.check(bypass.status === 401, "jalur /api/transactions/:id/decision juga butuh PIN", { detail: `status ${bypass.status}` });
+
+    // The same rules hold when B calls the database directly with their own session.
+    const { error: oldApprove } = await sbB.rpc("decide_household_approval", {
+      p_approval_id: approval.id,
+      p_decision: "approved",
+    });
+    checks.check(Boolean(oldApprove), "RPC langsung: decide_household_approval tanpa PIN tidak bisa dipanggil", {
+      detail: oldApprove ? `${oldApprove.code} ${oldApprove.message}` : "no error returned",
+    });
+    const { error: oldTxApprove } = await sbB.rpc("decide_simulated_transaction", {
+      p_transaction_id: bigTx.id,
+      p_decision: "approved",
+    });
+    checks.check(Boolean(oldTxApprove), "RPC langsung: decide_simulated_transaction tanpa PIN tidak bisa dipanggil", {
+      detail: oldTxApprove ? `${oldTxApprove.code} ${oldTxApprove.message}` : "no error returned",
+    });
+    const { data: rpcNoPin, error: rpcNoPinError } = await sbB.rpc("decide_household_approval_with_pin", {
+      p_approval_id: approval.id,
+      p_decision: "approved",
+    });
+    checks.check(rpcNoPin?.ok === false && rpcNoPin?.reason === "pin_required", "RPC langsung: approve tanpa PIN → pin_required", {
+      detail: rpcNoPinError ? rpcNoPinError.message : JSON.stringify(rpcNoPin),
+    });
+    const { data: rpcBadPin, error: rpcBadPinError } = await sbB.rpc("decide_simulated_transaction_with_pin", {
+      p_transaction_id: bigTx.id,
+      p_decision: "approved",
+      p_pin: WRONG_PIN,
+    });
+    checks.check(rpcBadPin?.ok === false && rpcBadPin?.reason === "invalid_pin", "RPC langsung: approve transaksi dengan PIN salah → invalid_pin", {
+      detail: rpcBadPinError ? rpcBadPinError.message : JSON.stringify(rpcBadPin),
+    });
     checks.check((await balanceOf(sbA, householdId, "shared")) === before, "saldo tetap utuh setelah percobaan gagal");
 
     if (pinB) {
@@ -205,17 +251,57 @@ async function main() {
       amount: 1_500_000,
       currency: "IDR",
       wallet: "shared",
-      holdUntil: new Date(Date.now() + 8 * 3600e3).toISOString(),
+      // A past hold end from the browser must be ignored.
+      holdUntil: new Date(Date.now() - 3600e3).toISOString(),
       reason: "QA cooling-off",
     },
   });
   const heldId = held.data?.heldPurchase?.id;
+  const heldUntil = new Date(held.data?.heldPurchase?.holdUntil ?? 0).getTime();
   checks.check(Boolean(heldId), "pembelian masuk waiting list", { detail: `status ${held.status}` });
+  checks.check(heldUntil > Date.now(), "holdUntil di masa lalu dari klien diabaikan, hold dihitung server", {
+    detail: held.data?.heldPurchase?.holdUntil ?? "none",
+  });
   if (heldId) {
     const early = await api(`/api/waiting-list/${heldId}/continue`, { method: "POST", cookies: cookiesA });
     checks.check(early.status >= 400, "continue sebelum masa hold habis ditolak", { detail: `status ${early.status} ${early.data?.message ?? ""}` });
+    const { data: moved } = await sbA
+      .from("held_purchases")
+      .update({ hold_until: new Date(Date.now() - 3600e3).toISOString() })
+      .eq("id", heldId)
+      .select("id");
+    const afterMove = await api(`/api/waiting-list/${heldId}/continue`, { method: "POST", cookies: cookiesA });
+    checks.check((moved ?? []).length === 0 && afterMove.status >= 400, "RLS: hold_until tidak bisa dimundurkan langsung", {
+      detail: `rows ${moved?.length ?? 0}, continue ${afterMove.status}`,
+    });
     const cancelHeld = await api(`/api/waiting-list/${heldId}/cancel`, { method: "POST", cookies: cookiesA });
     checks.check(cancelHeld.status === 200, "cancel purchase menghapus item tanpa memotong saldo", { detail: `status ${cancelHeld.status}` });
+  }
+
+  const userIdA = (await sbA.auth.getUser()).data.user?.id;
+  const { data: directHeld, error: directHeldError } = await sbA
+    .from("held_purchases")
+    .insert({
+      household_id: householdId,
+      title: "QA hold langsung",
+      amount: 1_500_000,
+      currency: "IDR",
+      wallet: "shared",
+      requester_id: userIdA,
+      hold_until: new Date(Date.now() - 3600e3).toISOString(),
+      status: "held",
+    })
+    .select("id, hold_until")
+    .single();
+  checks.check(Boolean(directHeld) && new Date(directHeld.hold_until).getTime() > Date.now(), "insert langsung dengan hold_until lampau tetap terkunci", {
+    detail: directHeldError ? directHeldError.message : directHeld?.hold_until,
+  });
+  if (directHeld) {
+    const { error: directContinue } = await sbA.rpc("continue_held_purchase", { p_held_id: directHeld.id });
+    checks.check(Boolean(directContinue), "continue_held_purchase langsung ditolak selama hold", {
+      detail: directContinue ? directContinue.message : "continued",
+    });
+    await api(`/api/waiting-list/${directHeld.id}/cancel`, { method: "POST", cookies: cookiesA });
   }
 
   heading("Undo transaksi");
@@ -300,6 +386,24 @@ async function main() {
   heading("Settlement");
   const settlement = await api(`/api/households/${householdId}/settlement`, { cookies: cookiesA });
   checks.check(settlement.status === 200, "settlement bisa dibaca", { detail: JSON.stringify(settlement.data).slice(0, 200) });
+
+  // Last on purpose: this locks A's PIN checks for 15 minutes.
+  heading("PIN lockout lintas request (database)");
+  const statuses = [];
+  for (let i = 0; i < 5; i += 1) {
+    const res = await api("/api/auth/pin/verify", { method: "POST", cookies: cookiesA, body: { pin: WRONG_PIN } });
+    statuses.push(res.status);
+    if (res.status === 429) break;
+  }
+  checks.check(statuses.at(-1) === 429 && statuses.slice(0, -1).every((status) => status === 401), "PIN salah ke-5 mengunci PIN A", {
+    detail: statuses.join(","),
+  });
+  const correctWhileLocked = await api("/api/auth/pin/verify", { method: "POST", cookies: cookiesA, body: { pin: TEST_PIN } });
+  checks.check(correctWhileLocked.status === 429, "PIN benar tetap ditolak selama terkunci", { detail: `status ${correctWhileLocked.status}` });
+  const { data: lockedRpc, error: lockedRpcError } = await sbA.rpc("verify_user_pin", { p_pin: TEST_PIN });
+  checks.check(lockedRpc === "locked", "kunci tersimpan di database (RPC langsung juga locked)", {
+    detail: lockedRpcError ? lockedRpcError.message : String(lockedRpc),
+  });
 
   checks.summary();
 }

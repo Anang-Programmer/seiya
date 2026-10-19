@@ -23,8 +23,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: "Login required." }, { status: 401 });
     }
 
-    // RLS only exposes the caller's own PIN hash, so only their own PIN can be checked.
-    const check = await checkUserPin(supabase, user.id, validation.data.pin);
+    // verify_user_pin only checks the caller's own PIN.
+    const check = await checkUserPin(supabase, validation.data.pin);
     if (check === "locked") {
       return NextResponse.json({ success: false, valid: false, message: PIN_LOCKED_MESSAGE }, { status: 429 });
     }

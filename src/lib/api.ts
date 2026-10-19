@@ -592,7 +592,6 @@ export const apiCreateHeldPurchase = (data: {
   currency: string;
   wallet: "shared" | "personal_a" | "personal_b";
   requesterRole: "partner_a" | "partner_b";
-  holdUntil?: string;
   reason: string;
 }) => request<{ success: true; heldPurchase: ApiHeldPurchase }>("/api/waiting-list", { body: data });
 

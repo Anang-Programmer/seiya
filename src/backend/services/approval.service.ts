@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CreateApprovalInput, ApprovalDecisionInput } from "@/backend/validators/approval";
 import { getHouseholdRole, otherPartnerRole, recordHouseholdActivity } from "./activity.service";
-import { checkUserPin, PIN_LOCKED_MESSAGE } from "./pin.service";
+import { pinFailure } from "./pin.service";
 
 export async function listHouseholdApprovals(supabase: SupabaseClient, householdId: string) {
   return supabase
@@ -127,27 +127,26 @@ export async function decideApprovalRequest(
   }
 
   // Approving moves money or deletes shared data, so it always needs the
-  // approver's PIN. Declining does not.
-  if (input.decision === "approved") {
-    if (!input.pin) {
-      return { success: false, code: "PIN_REQUIRED", message: "Enter your 6-digit security PIN to approve." };
-    }
-    const pinCheck = await checkUserPin(supabase, userId, input.pin);
-    if (pinCheck === "locked") {
-      return { success: false, code: "PIN_LOCKED", message: PIN_LOCKED_MESSAGE };
-    }
-    if (pinCheck === "invalid") {
-      return { success: false, code: "INVALID_PIN", message: "Invalid 6-digit security PIN." };
-    }
+  // approver's PIN. Declining does not. The RPC checks the PIN and the
+  // wrong-PIN lockout itself; the early return only saves a round trip.
+  if (input.decision === "approved" && !input.pin) {
+    return { success: false, code: "PIN_REQUIRED", message: "Enter your 6-digit security PIN to approve." };
   }
 
   // Status change, money movement (bill payment, expense execution), plan
   // deletion and the activity entry all happen atomically in the RPC.
-  const { error } = await supabase.rpc("decide_household_approval", {
+  const { data, error } = await supabase.rpc("decide_household_approval_with_pin", {
     p_approval_id: approvalId,
     p_decision: input.decision,
     p_reason: input.reason ?? null,
+    p_pin: input.decision === "approved" ? input.pin : null,
   });
+
+  const result = data as { ok?: boolean; reason?: string } | null;
+  if (!error && result?.ok === false) {
+    const { code, message } = pinFailure(result.reason);
+    return { success: false, code, message };
+  }
 
   if (error) {
     const code = DECISION_ERRORS[error.code ?? ""] ?? "DB_ERROR";

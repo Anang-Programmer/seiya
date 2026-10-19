@@ -392,13 +392,6 @@ function errorMessage(error: unknown, fallback = "Something went wrong. Please t
   return fallback;
 }
 
-// Next local 08:00, used as the end of the late-night cooling-off window.
-function nextMorningIso() {
-  const d = new Date();
-  if (d.getHours() >= 8) d.setDate(d.getDate() + 1);
-  d.setHours(8, 0, 0, 0);
-  return d.toISOString();
-}
 
 function nowTime(locale: string) {
   return new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
@@ -1357,7 +1350,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         currency: params.currency,
         wallet: params.wallet,
         requesterRole: currentUser,
-        holdUntil: nextMorningIso(),
         reason: decision.reason,
       });
       await refreshData();
