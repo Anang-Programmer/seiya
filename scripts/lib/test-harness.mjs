@@ -7,6 +7,7 @@
  * Everything here talks to the real API the same way a browser would: signup/signin cookies for
  * Next routes, plus a user-scoped Supabase client (RLS) for reading ids the API does not list.
  */
+import { createHash } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 
 export const BASE_URL = String(process.env.SEIYA_TEST_BASE_URL || "http://localhost:3000").replace(/\/+$/, "");
@@ -14,9 +15,19 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
 export const PASSWORD = process.env.SEIYA_TEST_PASSWORD || "SeiyaTest123!";
-// GoTrue rejects example.com-style domains, so the defaults use a normal domain.
-export const EMAIL_A = process.env.SEIYA_TEST_EMAIL_A || "seiya.test.a@gmail.com";
-export const EMAIL_B = process.env.SEIYA_TEST_EMAIL_B || "seiya.test.b@gmail.com";
+// Accounts sign in with a full name; the internal Supabase email is derived from it
+// exactly like src/backend/services/auth.service.ts does.
+export const NAME_A = process.env.SEIYA_TEST_NAME_A || "Seiya Tester A";
+export const NAME_B = process.env.SEIYA_TEST_NAME_B || "Seiya Tester B";
+const INTERNAL_EMAIL_DOMAIN = process.env.SEIYA_USERNAME_EMAIL_DOMAIN?.trim() || "users.seiya.invalid";
+
+export function usernameToEmail(fullName) {
+  const key = fullName.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase("en-US");
+  return `u-${createHash("sha256").update(key).digest("hex").slice(0, 32)}@${INTERNAL_EMAIL_DOMAIN}`;
+}
+
+export const EMAIL_A = usernameToEmail(NAME_A);
+export const EMAIL_B = usernameToEmail(NAME_B);
 const ADMIN_KEY = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 /** Internal band keys. These words must NEVER appear in a model reply. */
@@ -127,12 +138,12 @@ export async function api(path, { method = "GET", body, cookies, timeoutMs = 45_
   }
 }
 
-async function signin(email) {
-  return api("/api/auth/signin", { method: "POST", body: { email, password: PASSWORD } });
+async function signin(fullName) {
+  return api("/api/auth/signin", { method: "POST", body: { fullName, password: PASSWORD } });
 }
 
-async function signup(email, fullName) {
-  return api("/api/auth/signup", { method: "POST", body: { fullName, email, password: PASSWORD } });
+async function signup(fullName) {
+  return api("/api/auth/signup", { method: "POST", body: { fullName, password: PASSWORD } });
 }
 
 /**
@@ -149,7 +160,7 @@ export async function ensureConfirmedUsers() {
   const { data: listed, error: listError } = await admin.auth.admin.listUsers({ perPage: 200 });
   if (listError) fail(`Admin listUsers gagal: ${listError.message}`);
 
-  for (const [email, fullName] of [[EMAIL_A, "Seiya Tester A"], [EMAIL_B, "Seiya Tester B"]]) {
+  for (const [email, fullName] of [[EMAIL_A, NAME_A], [EMAIL_B, NAME_B]]) {
     const existing = (listed?.users ?? []).find((user) => user.email?.toLowerCase() === email);
     if (existing) {
       if (!existing.email_confirmed_at) {
@@ -171,10 +182,10 @@ export async function ensureConfirmedUsers() {
 
 /** Returns the Next session cookie jar for a test user. */
 export async function login(email, fullName) {
-  const first = await signin(email);
+  const first = await signin(fullName);
   if (first.status === 200) return first.cookies;
 
-  const created = await signup(email, fullName);
+  const created = await signup(fullName);
   if (created.status === 201) {
     if (created.data?.needsEmailConfirmation) {
       fail(
@@ -182,19 +193,19 @@ export async function login(email, fullName) {
           `  (a) buka inbox ${email} dan klik link konfirmasi,\n` +
           `  (b) tambahkan SUPABASE_SECRET_KEY (service role) ke .env.local supaya harness membuat/mengonfirmasi user otomatis,\n` +
           `  (c) matikan "Confirm email" sementara di Supabase Auth settings.\n` +
-          `Atau arahkan SEIYA_TEST_EMAIL_A / SEIYA_TEST_EMAIL_B + SEIYA_TEST_PASSWORD ke akun yang sudah jadi.`,
+          `Atau arahkan SEIYA_TEST_NAME_A / SEIYA_TEST_NAME_B + SEIYA_TEST_PASSWORD ke akun yang sudah jadi.`,
       );
     }
     return created.cookies;
   }
 
-  const retry = await signin(email);
+  const retry = await signin(fullName);
   if (retry.status === 200) return retry.cookies;
   fail(
     `Gagal login ${email}: signin ${first.status} ${JSON.stringify(first.data)}, signup ${created.status} ${JSON.stringify(created.data)}\n` +
       `Kemungkinan: email belum dikonfirmasi, domain email ditolak GoTrue, atau kuota email project habis.\n` +
       `Solusi: tambahkan SUPABASE_SECRET_KEY ke .env.local (harness konfirmasi user otomatis), ` +
-      `atau set SEIYA_TEST_EMAIL_A / SEIYA_TEST_EMAIL_B + SEIYA_TEST_PASSWORD ke akun yang sudah dikonfirmasi.`,
+      `atau set SEIYA_TEST_NAME_A / SEIYA_TEST_NAME_B + SEIYA_TEST_PASSWORD ke akun yang sudah dikonfirmasi.`,
   );
 }
 
@@ -239,7 +250,7 @@ const DEFAULT_RULES = {
 };
 
 export async function setOnboarding(personalization) {
-  const cookies = await login(EMAIL_A, "Seiya Tester A");
+  const cookies = await login(EMAIL_A, NAME_A);
   const result = await api("/api/onboarding", {
     method: "POST",
     cookies,
@@ -247,7 +258,7 @@ export async function setOnboarding(personalization) {
       profile: { city: "Jakarta", country: "Indonesia", preferredLanguage: "id" },
       answers: {
         childrenCategory: "none",
-        partner: { name: "Seiya Tester B", email: EMAIL_B },
+        partner: { name: NAME_B },
         partnerAwareness: "yes_supportive",
         moneyTalkFrequency: "weekly",
         moneyTalkDuration: "15_30_min",
@@ -329,7 +340,7 @@ async function ensurePartner(householdId, cookiesA, cookiesB) {
   const invited = await api("/api/households/invitations", {
     method: "POST",
     cookies: cookiesA,
-    body: { householdId, invitedEmail: EMAIL_B, invitedName: "Seiya Tester B" },
+    body: { householdId, invitedName: NAME_B },
   });
 
   if (invited.status === 409 && invited.data?.message?.toLowerCase().includes("invitation")) {
@@ -364,8 +375,8 @@ export async function setup() {
   await requireServer();
 
   const bootstrapNote = await ensureConfirmedUsers();
-  const cookiesA = await login(EMAIL_A, "Seiya Tester A");
-  const cookiesB = await login(EMAIL_B, "Seiya Tester B");
+  const cookiesA = await login(EMAIL_A, NAME_A);
+  const cookiesB = await login(EMAIL_B, NAME_B);
   const sessionA = await sbSession(EMAIL_A);
   await sbSession(EMAIL_B);
 

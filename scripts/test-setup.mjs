@@ -8,7 +8,7 @@
  * Creates (or reuses) the test accounts, household, partner membership, active finance agreement,
  * and wallets, then prints the ids. Run this first when another test script fails during setup.
  */
-import { EMAIL_A, EMAIL_B, PASSWORD, heading, report, setup } from "./lib/test-harness.mjs";
+import { NAME_A, NAME_B, PASSWORD, heading, report, setup } from "./lib/test-harness.mjs";
 
 async function main() {
   const checks = report();
@@ -16,8 +16,8 @@ async function main() {
   heading("Setup");
   const context = await setup();
   console.log(`householdId : ${context.householdId}`);
-  console.log(`akun A      : ${EMAIL_A}`);
-  console.log(`akun B      : ${EMAIL_B} (password sama: ${PASSWORD})`);
+  console.log(`akun A      : ${NAME_A}`);
+  console.log(`akun B      : ${NAME_B} (password sama: ${PASSWORD})`);
   for (const [key, value] of Object.entries(context.notes)) {
     console.log(`${key.padEnd(11)}: ${value}`);
   }

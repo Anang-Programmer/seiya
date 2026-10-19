@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CreateApprovalInput, ApprovalDecisionInput } from "@/backend/validators/approval";
 import { getHouseholdRole, otherPartnerRole, recordHouseholdActivity } from "./activity.service";
-import { verifyUserPin } from "./pin.service";
+import { checkUserPin, PIN_LOCKED_MESSAGE } from "./pin.service";
 
 export async function listHouseholdApprovals(supabase: SupabaseClient, householdId: string) {
   return supabase
@@ -126,9 +126,17 @@ export async function decideApprovalRequest(
     };
   }
 
-  if (input.pin) {
-    const pinValid = await verifyUserPin(supabase, userId, input.pin);
-    if (!pinValid) {
+  // Approving moves money or deletes shared data, so it always needs the
+  // approver's PIN. Declining does not.
+  if (input.decision === "approved") {
+    if (!input.pin) {
+      return { success: false, code: "PIN_REQUIRED", message: "Enter your 6-digit security PIN to approve." };
+    }
+    const pinCheck = await checkUserPin(supabase, userId, input.pin);
+    if (pinCheck === "locked") {
+      return { success: false, code: "PIN_LOCKED", message: PIN_LOCKED_MESSAGE };
+    }
+    if (pinCheck === "invalid") {
       return { success: false, code: "INVALID_PIN", message: "Invalid 6-digit security PIN." };
     }
   }

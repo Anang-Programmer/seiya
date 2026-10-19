@@ -5,6 +5,7 @@ import { SolarIcon } from "@/components/icons/solar";
 // Amounts here are decided on, so they stay visible in privacy mode.
 import { formatMoneyAlways as formatMoney } from "@/lib/utils";
 import type { ScannedReceipt, StatementTransaction } from "@/lib/api";
+import { parseAmount } from "@/lib/receipt-text";
 
 // Cards Seiya shows in the chat after the user attaches a bank statement (📎)
 // or a receipt photo (🖼). Nothing is saved until the user confirms on the card.
@@ -197,7 +198,7 @@ export function ReceiptDraftCard({
   const [status, setStatus] = useState<CardStatus>("idle");
   const [result, setResult] = useState("");
 
-  const parsedAmount = Number(amount);
+  const parsedAmount = parseAmount(amount) ?? NaN;
   const valid = title.trim().length > 0 && Number.isFinite(parsedAmount) && parsedAmount > 0;
   const locked = status === "busy" || status === "done";
 
@@ -240,9 +241,7 @@ export function ReceiptDraftCard({
           <span className="text-[11px] text-[#808988]">Total ({currency})</span>
           <input
             className={INPUT}
-            type="number"
-            min={0}
-            step="any"
+            type="text"
             inputMode="decimal"
             value={amount}
             disabled={locked}

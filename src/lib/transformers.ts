@@ -320,6 +320,7 @@ export function transformHeldPurchase(row: ApiHeldPurchase, locale: string): Hel
     holdUntil: Number.isNaN(until.getTime())
       ? row.holdUntilDisplay || row.holdUntil
       : formatRelativeDate(row.holdUntil, locale),
+    holdUntilAt: Number.isNaN(until.getTime()) ? undefined : until.toISOString(),
     reason: row.reason ?? "",
     createdAt: row.createdAt,
   };

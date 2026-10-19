@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { forbidUnlessMember } from "@/backend/services/membership.service";
 
 type RouteContext = { params: Promise<{ householdId: string }> };
 
@@ -23,6 +24,8 @@ export async function GET(_request: Request, context: RouteContext) {
     if (authError || !user) {
       return NextResponse.json({ success: false, message: "Login required." }, { status: 401 });
     }
+    const notMember = await forbidUnlessMember(supabase, householdId, user.id);
+    if (notMember) return notMember;
 
     const { data: conversations, error } = await supabase
       .from("agent_conversations")

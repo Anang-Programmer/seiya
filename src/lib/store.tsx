@@ -72,6 +72,8 @@ export interface HeldPurchase {
   requester: "partner_a" | "partner_b";
   status: "held" | "released" | "cancelled";
   holdUntil: string;
+  /** ISO time the cooling-off ends; drives the countdown and the Continue lock. */
+  holdUntilAt?: string;
   reason: string;
   createdAt: string;
 }
@@ -336,7 +338,6 @@ interface AppContextType {
   // Plan Management & Dual-Key Deletion
   addPlan: (newPlan: Omit<PlanItem, "id">) => Promise<PlanItem | null>;
   updatePlan: (planId: string, updated: Partial<PlanItem>) => Promise<boolean>;
-  deletePlan: (planId: string) => Promise<boolean>;
   requestDeletePlan: (
     planId: string,
     partnerAPin?: string,
@@ -345,6 +346,7 @@ interface AppContextType {
   // Approval Queue Management
   approveApprovalRequest: (approvalId: string, pin?: string) => Promise<{ ok: boolean; message?: string }>;
   declineApprovalRequest: (approvalId: string, reason?: string) => Promise<boolean>;
+  cancelApprovalRequest: (approvalId: string) => Promise<boolean>;
   // Direct chat shortcut from dashboard
   pendingDirectChat: PendingDirectChat | null;
   setPendingDirectChat: (data: PendingDirectChat | null) => void;
@@ -691,6 +693,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 requester: tx.paidBy,
                 status: "held" as const,
                 holdUntil: t.hold_until ? formatRelativeDate(t.hold_until, locale) : "Cooling-off period",
+                holdUntilAt: t.hold_until ?? undefined,
                 reason: "Cooling-off safeguard from your couple contract. Confirm after the hold ends to execute it.",
                 createdAt: t.created_at,
               };
@@ -1007,6 +1010,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const cancelApprovalRequest: AppContextType["cancelApprovalRequest"] = async (approvalId) => {
+    try {
+      await api.apiCancelApproval(approvalId);
+      notify("success", "Request cancelled.");
+      await refreshData();
+      return true;
+    } catch (error) {
+      notify("error", errorMessage(error, "Unable to cancel this request."));
+      return false;
+    }
+  };
+
   const declineApprovalRequest: AppContextType["declineApprovalRequest"] = async (approvalId, reason) => {
     const item = approvals.find((a) => a.id === approvalId);
     if (!item) return false;
@@ -1297,20 +1312,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const deletePlan: AppContextType["deletePlan"] = async (planId) => {
-    const previous = plans;
-    setPlans((prev) => prev.filter((p) => p.id !== planId));
-    try {
-      await api.apiDeletePlan(requireHousehold(), planId);
-      await refreshData();
-      return true;
-    } catch (error) {
-      setPlans(previous);
-      notify("error", errorMessage(error, "Unable to delete this goal."));
-      return false;
-    }
-  };
-
   const requestDeletePlan: AppContextType["requestDeletePlan"] = async (planId, partnerAPin, partnerBPin) => {
     try {
       const hid = requireHousehold();
@@ -1582,7 +1583,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         settleUp,
         addPlan,
         updatePlan,
-        deletePlan,
         addBill,
         editBill,
         deleteBill,
@@ -1590,6 +1590,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         requestDeletePlan,
         approveApprovalRequest,
         declineApprovalRequest,
+        cancelApprovalRequest,
         pendingDirectChat,
         setPendingDirectChat,
         proposeExpense,

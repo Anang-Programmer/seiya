@@ -110,41 +110,6 @@ export async function updateHouseholdPlan(
   return { data, error };
 }
 
-export async function deleteHouseholdPlan(
-  supabase: SupabaseClient,
-  householdId: string,
-  planId: string,
-  userId: string
-) {
-  const { data: existing } = await supabase
-    .from("plans")
-    .select("title, target_amount, currency")
-    .eq("household_id", householdId)
-    .eq("id", planId)
-    .maybeSingle();
-
-  const { error } = await supabase
-    .from("plans")
-    .delete()
-    .eq("household_id", householdId)
-    .eq("id", planId);
-
-  if (!error && existing) {
-    await supabase.from("activities").insert({
-      household_id: householdId,
-      title: `Goal Deleted: ${existing.title}`,
-      category: "Plans",
-      actor: await getHouseholdRole(supabase, householdId, userId),
-      status: "INFO",
-      amount: existing.target_amount,
-      currency: existing.currency,
-      reason: `Goal "${existing.title}" removed from household planning.`,
-    });
-  }
-
-  return { error };
-}
-
 export async function requestDeleteHouseholdPlan(
   supabase: SupabaseClient,
   householdId: string,

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { validateTransactionDecision } from "@/backend/validators/transaction";
 import { decideSimulatedTransaction } from "@/backend/services/transaction.service";
+import { checkUserPin, PIN_LOCKED_MESSAGE } from "@/backend/services/pin.service";
 
 type RouteContext = { params: Promise<{ transactionId: string }> };
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -31,7 +32,26 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ success: false, message: "Login required." }, { status: 401 });
     }
 
-    const { data, error } = await decideSimulatedTransaction(supabase, transactionId, validation.data);
+    // Same rule as /api/approvals/:id/decision: approving needs the approver's PIN.
+    if (validation.data.decision === "approved") {
+      const pinCheck = validation.data.pin ? await checkUserPin(supabase, user.id, validation.data.pin) : "invalid";
+      if (pinCheck !== "valid") {
+        return NextResponse.json(
+          {
+            success: false,
+            message: pinCheck === "locked"
+              ? PIN_LOCKED_MESSAGE
+              : validation.data.pin ? "Invalid 6-digit security PIN." : "Enter your 6-digit security PIN to approve.",
+          },
+          { status: pinCheck === "locked" ? 429 : 401 }
+        );
+      }
+    }
+
+    const { data, error } = await decideSimulatedTransaction(supabase, transactionId, {
+      decision: validation.data.decision,
+      note: validation.data.note,
+    });
     if (error) {
       console.error("[transactions/decision] RPC failed:", error);
       const map: Record<string, { status: number; message: string }> = {

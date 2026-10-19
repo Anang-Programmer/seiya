@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SolarIcon } from "@/components/icons/solar";
 import { useApp, BillItem } from "@/lib/store";
+import { parseAmount } from "@/lib/receipt-text";
 
 interface BillDialogProps {
   open: boolean;
@@ -71,7 +72,7 @@ export function BillDialog({ open, onOpenChange, billToEdit }: BillDialogProps) 
       return;
     }
 
-    const numAmount = parseFloat(amount);
+    const numAmount = parseAmount(amount) ?? NaN;
     if (isNaN(numAmount) || numAmount <= 0) {
       setError("Please enter a valid amount greater than 0.");
       return;
@@ -221,8 +222,8 @@ export function BillDialog({ open, onOpenChange, billToEdit }: BillDialogProps) 
                   Amount *
                 </label>
                 <Input
-                  type="number"
-                  step="any"
+                  type="text"
+                  inputMode="decimal"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder="e.g. 150 or 500000"

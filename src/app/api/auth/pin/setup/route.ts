@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { validateSetPin } from "@/backend/validators/pin";
-import { setUserPin } from "@/backend/services/pin.service";
+import { checkUserPin, hasUserPin, PIN_LOCKED_MESSAGE, setUserPin } from "@/backend/services/pin.service";
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -21,6 +21,24 @@ export async function POST(request: Request) {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ success: false, message: "Login required." }, { status: 401 });
+    }
+
+    // Changing an existing PIN needs the current one; otherwise anyone holding an
+    // unlocked, signed-in phone could replace the PIN and approve requests.
+    if (await hasUserPin(supabase, user.id)) {
+      const currentPin = typeof (body as { currentPin?: unknown }).currentPin === "string"
+        ? (body as { currentPin: string }).currentPin.trim()
+        : "";
+      const check = /^\d{6}$/.test(currentPin) ? await checkUserPin(supabase, user.id, currentPin) : "invalid";
+      if (check !== "valid") {
+        return NextResponse.json(
+          {
+            success: false,
+            message: check === "locked" ? PIN_LOCKED_MESSAGE : "A security PIN is already set. Enter your current PIN to change it.",
+          },
+          { status: check === "locked" ? 429 : 409 }
+        );
+      }
     }
 
     const { success } = await setUserPin(supabase, user.id, validation.data.pin);

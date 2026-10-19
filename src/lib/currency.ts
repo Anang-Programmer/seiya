@@ -79,10 +79,16 @@ export function formatMoneyAlways(
     decimals: 2,
   };
 
+  // A missing or broken number must never render as "RpNaN".
+  if (!Number.isFinite(amount)) amount = 0;
+
   try {
     const formatted = new Intl.NumberFormat(locale, {
       style: "currency",
       currency: info.code,
+      // "Rp" and "¥" instead of "IDR"/"CN¥" in English UIs. Dollar currencies keep
+      // their prefix (S$, A$) so they stay distinguishable.
+      currencyDisplay: info.code === "IDR" || info.code === "CNY" ? "narrowSymbol" : "symbol",
       minimumFractionDigits: info.decimals,
       maximumFractionDigits: info.decimals,
     }).format(amount);

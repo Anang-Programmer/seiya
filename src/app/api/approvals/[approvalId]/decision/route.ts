@@ -64,6 +64,8 @@ export async function POST(request: Request, context: RouteContext) {
         SELF_APPROVAL: 403,
         FORBIDDEN: 403,
         INVALID_PIN: 401,
+        PIN_REQUIRED: 401,
+        PIN_LOCKED: 429,
         INSUFFICIENT_BALANCE: 409,
       };
       return NextResponse.json(

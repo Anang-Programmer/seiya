@@ -166,6 +166,27 @@ function MainApp() {
     setCurrentTab(tab);
   };
 
+  // Each tab change gets a history entry so the browser Back button moves
+  // between tabs instead of leaving the app.
+  const lastTab = useRef<NavTab>("home");
+  useEffect(() => {
+    if (lastTab.current === currentTab) return;
+    lastTab.current = currentTab;
+    if (window.history.state?.seiyaTab !== currentTab) {
+      window.history.pushState({ seiyaTab: currentTab }, "");
+    }
+  }, [currentTab]);
+
+  useEffect(() => {
+    const onPopState = (event: PopStateEvent) => {
+      const tab = (event.state?.seiyaTab as NavTab | undefined) ?? "home";
+      lastTab.current = tab;
+      setCurrentTab(tab);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
   if (isLoading) {
     return <FullScreenLoader />;
   }

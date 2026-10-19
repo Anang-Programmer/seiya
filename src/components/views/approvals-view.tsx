@@ -12,7 +12,8 @@ import { ProposeExpenseDialog } from "@/components/modals/propose-expense-dialog
 import { PageHeader } from "@/components/ui/page-header";
 
 export function ApprovalsView() {
-  const { currentUser, approvals, declineRequest, reportingCurrency, locale, partnerAName, partnerBName } = useApp();
+  const { currentUser, approvals, declineRequest, cancelApprovalRequest, reportingCurrency, locale, partnerAName, partnerBName } = useApp();
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"waiting_me" | "waiting_partner" | "history">("waiting_me");
   const [selectedApproval, setSelectedApproval] = useState<ApprovalRequest | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -147,9 +148,24 @@ export function ApprovalsView() {
                   {req.status === "pending" && (
                     <div className="flex items-center gap-2">
                       {isRequester ? (
-                        <div className="flex items-center gap-1.5 text-xs text-[#C98A4F] font-medium">
-                          <SolarIcon name="clock-circle" size={14} />
-                          <span>Waiting for partner signature (Self-approval blocked)</span>
+                        <div className="flex items-center gap-3 flex-wrap justify-end">
+                          <div className="flex items-center gap-1.5 text-xs text-[#C98A4F] font-medium">
+                            <SolarIcon name="clock-circle" size={14} />
+                            <span>Waiting for your partner</span>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={cancellingId === req.id}
+                            onClick={async () => {
+                              setCancellingId(req.id);
+                              await cancelApprovalRequest(req.id);
+                              setCancellingId(null);
+                            }}
+                            className="text-xs"
+                          >
+                            {cancellingId === req.id ? "Cancelling..." : "Cancel request"}
+                          </Button>
                         </div>
                       ) : (
                         <>

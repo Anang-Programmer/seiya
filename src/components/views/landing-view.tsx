@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { SolarIcon } from "@/components/icons/solar";
 import { SeiyaLogo } from "@/components/icons/seiya-logo";
 import { Badge } from "@/components/ui/badge";
@@ -14,14 +14,33 @@ interface LandingViewProps {
 
 export function LandingView({ onEnterApp }: LandingViewProps) {
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [authMode, setAuthMode] = useState<AuthMode | null>(null);
+  const [authMode, setAuthModeState] = useState<AuthMode | null>(null);
+
+  // Opening Sign In / Create Account adds a history entry, so the browser Back
+  // button returns to this page instead of leaving the site.
+  const setAuthMode = (mode: AuthMode | null) => {
+    if (mode && !authMode) window.history.pushState({ seiyaAuth: true }, "");
+    if (!mode && authMode && window.history.state?.seiyaAuth) {
+      window.history.back();
+      return;
+    }
+    setAuthModeState(mode);
+  };
+
+  useEffect(() => {
+    const onPopState = () => {
+      if (!window.history.state?.seiyaAuth) setAuthModeState(null);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   if (authMode) {
     return (
       <AuthView
         initialMode={authMode}
         onSuccess={() => {
-          setAuthMode(null);
+          setAuthModeState(null);
           onEnterApp();
         }}
         onClose={() => setAuthMode(null)}

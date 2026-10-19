@@ -814,7 +814,7 @@ Before release, the frontend and backend developers should cross-check the exact
 
 ## 30. Manual terminal tests
 
-Five scripts in `scripts/` drive the real API (signup cookies + RLS-scoped Supabase reads) and print PASS/WARN/FAIL per assertion. They run against the dev server, not a mock, and they create real rows in the development Supabase project.
+Six scripts in `scripts/` drive the real API (sign-in cookies + RLS-scoped Supabase reads) and print PASS/WARN/FAIL per assertion. They run against the dev server, not a mock, and they create real rows in the development Supabase project.
 
 **Prerequisite:** the dev server must be running first.
 
@@ -830,18 +830,20 @@ npm run test:setup   # terminal 2 — one-shot account/household/agreement check
 | `npm run test:wellness` | Stress + crisis messages with the strongest profile applied. Asserts: no currency numbers, no tools, no emoji, no loan/product offer, professional-help pointer, no internal labels. |
 | `npm run test:expense` | `"hari ini aku habis Rp20 juta untuk liburan ke Jepang"` → `record_expense` → row in `transactions` with category `travel` and status from the active agreement (`pending_approval` above the Rp5 juta test threshold); identical resend stays a single row; a personal wallet with zero balance is never faked. |
 | `npm run test:statement` | Bank statement parsing (CSV, Excel `.xlsx`) with 0-token extraction, automatic merchant title cleaning, category mapping (`Food & Drinks`, `Shopping`, `Bills`, `Transportation`, `Income`), preview mode (`dryRun`), and atomic batch commit to Supabase. |
+| `npm run test:security` | Two-partner security pass: personal-wallet privacy (API and direct RLS), IDOR on another household (403), approve needs the approver's PIN on every route, wrong/missing PIN and self-approval rejected, PIN cannot be replaced without the current one, requester can cancel a pending request, cooling-off cannot be skipped, undo restores balance, double-click bill payment debits once, a shared goal cannot be deleted by one partner. |
 | `npm run test:chat` | Runs the three scenario scripts back to back. |
 
 All of them accept the same overrides when you do not want the defaults:
 
 ```powershell
-$env:SEIYA_TEST_EMAIL_A = "suami@gmail.com"   # akun yang SUDAH terkonfirmasi
-$env:SEIYA_TEST_EMAIL_B = "istri@gmail.com"
+$env:SEIYA_TEST_NAME_A = "Seiya Tester A"   # full name = username
+$env:SEIYA_TEST_NAME_B = "Seiya Tester B"
 $env:SEIYA_TEST_PASSWORD = "<password>"
+$env:SEIYA_TEST_PIN = "246810"             # 6-digit PIN used by test:security
 $env:SEIYA_TEST_BASE_URL = "http://localhost:3000"
 npm run test:setup
 ```
 
-**First-run account caveat (read before reporting a failure):** the harness signs up `seiya.test.a@gmail.com` / `seiya.test.b@gmail.com` with `SEIYA_TEST_PASSWORD` (default `SeiyaTest123!`). This project sends a confirmation email, so either confirm both inboxes once, or add `SUPABASE_SECRET_KEY` (service role) to `.env.local` so the harness creates and confirms both accounts itself. GoTrue rejects `example.com`-style domains, and the dev project's email quota can be exhausted (`over_email_send_rate_limit`) — in that case point the overrides above at accounts you already have. None of these secrets are read by application code, only by the scripts.
+**First-run account caveat (read before reporting a failure):** the harness signs in with full names (`Seiya Tester A` / `Seiya Tester B`) and `SEIYA_TEST_PASSWORD` (default `SeiyaTest123!`), the same way the app does. With `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` it creates both accounts already confirmed, so no email is involved. `test:security` sets the test PIN on accounts that have none yet. These values are read only by the scripts, never by application code.
 
 Each script exits non-zero when a hard assertion fails; WARN lines (tone, emoji count, length ordering) are model-dependent and are meant to be eyeballed in the printed replies.

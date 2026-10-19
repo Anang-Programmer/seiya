@@ -343,8 +343,8 @@ export const apiUndoTransaction = (transactionId: string) =>
 export const apiExecuteHeldTransaction = (transactionId: string) =>
   request<{ success: true; message: string }>(`/api/transactions/${transactionId}/execute`, { method: "POST" });
 
-export const apiDecideTransaction =(transactionId: string, decision: "approved" | "rejected", note?: string) =>
-  request(`/api/transactions/${transactionId}/decision`, { body: { decision, note: note ?? null } });
+export const apiDecideTransaction = (transactionId: string, decision: "approved" | "rejected", note?: string, pin?: string) =>
+  request(`/api/transactions/${transactionId}/decision`, { body: { decision, note: note ?? null, ...(pin ? { pin } : {}) } });
 
 // ---------------------------------------------------------------------------
 // Bills
@@ -429,6 +429,9 @@ export const apiDecideApproval = (
     body: { decision, ...(pin ? { pin } : {}), ...(reason ? { reason } : {}) },
   });
 
+export const apiCancelApproval = (approvalId: string) =>
+  request<{ success: true; status: string; message: string }>(`/api/approvals/${approvalId}/cancel`, { method: "POST" });
+
 // ---------------------------------------------------------------------------
 // Plans & goals
 // ---------------------------------------------------------------------------
@@ -460,9 +463,6 @@ export const apiUpdatePlan = (hid: string, planId: string, data: Partial<PlanInp
     method: "PATCH",
     body: data,
   });
-
-export const apiDeletePlan = (hid: string, planId: string) =>
-  request(`/api/households/${hid}/plans/${planId}`, { method: "DELETE" });
 
 export const apiRequestDeletePlan = (hid: string, planId: string, partnerAPin?: string, partnerBPin?: string) =>
   request<{ success: true; requiresApproval?: boolean; message?: string }>(

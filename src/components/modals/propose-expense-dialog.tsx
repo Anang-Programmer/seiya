@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { SolarIcon, SolarIconName } from "@/components/icons/solar";
 import { useApp } from "@/lib/store";
 import { SUPPORTED_CURRENCIES } from "@/lib/currency";
+import { parseAmount } from "@/lib/receipt-text";
 // Amounts here are decided on, so they stay visible in privacy mode.
 import { formatMoneyAlways as formatMoney } from "@/lib/utils";
 
@@ -94,7 +95,8 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
     }
   }, [open, defaultTitle, reportingCurrency]);
 
-  const numAmount = parseFloat(amount) || 0;
+  // Accepts "150.000", "150,000" and "12.50" alike.
+  const numAmount = parseAmount(amount) ?? 0;
 
   // Split calculation
   const splitBreakdown = useMemo(() => {
@@ -194,7 +196,7 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
   };
 
   const handleAddAmount = (addVal: number) => {
-    const current = parseFloat(amount) || 0;
+    const current = parseAmount(amount) ?? 0;
     setAmount((current + addVal).toString());
   };
 
@@ -352,8 +354,8 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
                 </label>
                 <div className="relative">
                   <input
-                    type="number"
-                    step="any"
+                    type="text"
+                    inputMode="decimal"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     placeholder="0.00"

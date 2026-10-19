@@ -67,9 +67,11 @@ const AGENT_TURN_TIMEOUT_MS = 32_000;
 const MAX_TOOL_CALLS_PER_TURN = 3;
 const MAX_HISTORY_MESSAGES = 6;
 const MAX_HISTORY_CHARS = 5_200;
-const MAX_OUTPUT_TOKENS_TOOL_PASS = 240;
-const MAX_OUTPUT_TOKENS_FINAL = 220;
-const MAX_OUTPUT_TOKENS_NO_TOOLS = 240;
+// Indonesian and Chinese replies use far more tokens per sentence than English,
+// so the caps leave room for a complete short answer.
+const MAX_OUTPUT_TOKENS_TOOL_PASS = 320;
+const MAX_OUTPUT_TOKENS_FINAL = 420;
+const MAX_OUTPUT_TOKENS_NO_TOOLS = 380;
 
 // Keep instructions short and stable: they are sent on every model call.
 const SYSTEM_PROMPT = `You are Seiya, an AI financial companion for couples and households. Respond warmly, concisely, concretely, and in the user's preferred language.
@@ -94,8 +96,24 @@ function utcDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function normalizeAssistantText(text: string): string {
-  return text.trim().slice(0, 6_000);
+// Internal profile labels that must never reach the user.
+const INTERNAL_LABELS = /\b(?:spendthrift|tightwad|unconflicted)(?:[-\s]+(?:tightwad|spendthrift))?\b/gi;
+
+function stoppedAtTokenLimit(finishReason: string | undefined): boolean {
+  return /^(length|max_tokens|max_output_tokens)$/i.test(finishReason ?? "");
+}
+
+/** Drops a sentence the model was cut off in the middle of. */
+function trimToLastSentence(text: string): string {
+  let end = -1;
+  for (const match of text.matchAll(/[.!?](?=\s|$)|[。！？]/g)) end = (match.index ?? 0) + 1;
+  return end > text.length * 0.4 ? text.slice(0, end) : text;
+}
+
+function normalizeAssistantText(text: string, finishReason?: string): string {
+  let reply = text.trim().slice(0, 6_000);
+  if (stoppedAtTokenLimit(finishReason)) reply = trimToLastSentence(reply);
+  return reply.replace(INTERNAL_LABELS, "your money style").trim();
 }
 
 function safeFallbackMessage(): string {
@@ -294,7 +312,7 @@ function finalResult(
 ): RunSeiyaAgentResult {
   const aggregated = aggregateUsage(completedResults);
   return {
-    message: normalizeAssistantText(message) || safeFallbackMessage(),
+    message: normalizeAssistantText(message, result.finishReason) || safeFallbackMessage(),
     provider: result.provider,
     model: result.model,
     latencyMs: Date.now() - turnStartedAt,

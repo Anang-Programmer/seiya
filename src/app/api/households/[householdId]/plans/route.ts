@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { validateCreatePlan } from "@/backend/validators/plan";
 import { listHouseholdPlans, createHouseholdPlan } from "@/backend/services/plan.service";
+import { forbidUnlessMember } from "@/backend/services/membership.service";
 
 type RouteContext = { params: Promise<{ householdId: string }> };
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -18,6 +19,8 @@ export async function GET(_request: Request, context: RouteContext) {
     if (authError || !user) {
       return NextResponse.json({ success: false, message: "Login required." }, { status: 401 });
     }
+    const notMember = await forbidUnlessMember(supabase, householdId, user.id);
+    if (notMember) return notMember;
 
     const { data: plans, error } = await listHouseholdPlans(supabase, householdId);
     if (error) {

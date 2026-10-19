@@ -4,7 +4,6 @@ import { validateUpdatePlan } from "@/backend/validators/plan";
 import {
   getHouseholdPlan,
   updateHouseholdPlan,
-  deleteHouseholdPlan,
 } from "@/backend/services/plan.service";
 
 type RouteContext = { params: Promise<{ householdId: string; planId: string }> };
@@ -111,27 +110,5 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 }
 
-export async function DELETE(_request: Request, context: RouteContext) {
-  const { householdId, planId } = await context.params;
-  if (!UUID_PATTERN.test(householdId) || !UUID_PATTERN.test(planId)) {
-    return NextResponse.json({ success: false, message: "Invalid parameters." }, { status: 400 });
-  }
-
-  try {
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ success: false, message: "Login required." }, { status: 401 });
-    }
-
-    const { error } = await deleteHouseholdPlan(supabase, householdId, planId, user.id);
-    if (error) {
-      return NextResponse.json({ success: false, message: "Unable to delete goal." }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true, message: "Goal deleted successfully." });
-  } catch (error) {
-    console.error("[plans/delete] Unexpected error:", error);
-    return NextResponse.json({ success: false, message: "An unexpected error occurred." }, { status: 500 });
-  }
-}
+// No DELETE: a shared goal is removed only with both partners, through
+// POST ./request-delete (dual PIN in person, or a PLAN_DELETE approval).
