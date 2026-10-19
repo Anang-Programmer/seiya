@@ -7,6 +7,7 @@ import { SeiyaIcon } from "@/components/icons/seiya-logo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useApp, Transaction } from "@/lib/store";
+import { dashboardLocale, greetingParts, longDate, type GreetingParts } from "@/lib/greeting";
 import { ApprovalDialog } from "@/components/modals/approval-dialog";
 import { TransactionDetailDialog } from "@/components/modals/transaction-detail-dialog";
 import { ApprovalDeck } from "@/components/cards/approval-deck";
@@ -181,25 +182,23 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
     walletsReady,
     partnerProfile,
     hideAmounts,
+    household,
   } = useApp();
 
   const activeName = currentUser === "partner_a" ? partnerAName : partnerBName;
-  const [formattedDate, setFormattedDate] = useState<string>("");
-
+  // Greeting and date follow the household's country and the device clock;
+  // refreshed every minute so "morning" turns into "afternoon" on its own.
+  const headerLocale = dashboardLocale(household?.country, locale);
+  const [header, setHeader] = useState<{ parts: GreetingParts; date: string } | null>(null);
   useEffect(() => {
-    try {
-      const now = new Date();
-      const formatted = new Intl.DateTimeFormat(locale || "en-US", {
-        weekday: "long",
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      }).format(now);
-      setFormattedDate(formatted);
-    } catch {
-      setFormattedDate(new Date().toDateString());
-    }
-  }, [locale]);
+    const update = () => setHeader({ parts: greetingParts(headerLocale), date: longDate(headerLocale) });
+    const first = window.setTimeout(update, 0);
+    const timer = window.setInterval(update, 60_000);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(timer);
+    };
+  }, [headerLocale]);
 
   const [selectedApproval, setSelectedApproval] = useState<any>(null);
   const [approvalModalOpen, setApprovalModalOpen] = useState(false);
@@ -379,11 +378,14 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pt-1 sm:pt-4 pb-2">
         <div>
           <h2 className="text-2xl sm:text-3xl lg:text-[34px] font-serif text-[#2a2b2f] font-normal tracking-tight leading-tight">
-            Good morning, <span className="font-semibold text-[#B45529]">{activeName}</span>
+            {header ? header.parts.greeting : " "}
+            {header?.parts.separator}
+            <span className="font-semibold text-[#B45529]">{activeName}</span>
+            {header?.parts.suffix}
           </h2>
           <div className="flex items-center gap-2 text-xs sm:text-sm text-[#808988] mt-1 font-medium">
             <SolarIcon name="calendar" size={14} className="text-[#B45529]/80 shrink-0" />
-            <span suppressHydrationWarning>{formattedDate || "Thursday, October 15, 2026"}</span>
+            <span lang={headerLocale}>{header?.date ?? " "}</span>
           </div>
         </div>
 
