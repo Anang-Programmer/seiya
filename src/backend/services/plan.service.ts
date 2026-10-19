@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CreatePlanInput, UpdatePlanInput } from "@/backend/validators/plan";
+import { getHouseholdRole, otherPartnerRole, type PartnerRole } from "./activity.service";
 
 export async function listHouseholdPlans(supabase: SupabaseClient, householdId: string) {
   return supabase
@@ -50,7 +51,7 @@ export async function createHouseholdPlan(
       household_id: householdId,
       title: `New Goal Added: ${input.title}`,
       category: "Plan",
-      actor: "partner_a",
+      actor: await getHouseholdRole(supabase, householdId, userId),
       status: "INFO",
       amount: input.targetAmount,
       currency: input.currency,
@@ -65,7 +66,8 @@ export async function updateHouseholdPlan(
   supabase: SupabaseClient,
   householdId: string,
   planId: string,
-  input: UpdatePlanInput
+  input: UpdatePlanInput,
+  userId: string
 ) {
   const payload: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
@@ -97,7 +99,7 @@ export async function updateHouseholdPlan(
       household_id: householdId,
       title: `Goal Adjusted: ${data.title}`,
       category: "Plan",
-      actor: "partner_a",
+      actor: await getHouseholdRole(supabase, householdId, userId),
       status: "INFO",
       amount: data.target_amount,
       currency: data.currency,
@@ -108,7 +110,12 @@ export async function updateHouseholdPlan(
   return { data, error };
 }
 
-export async function deleteHouseholdPlan(supabase: SupabaseClient, householdId: string, planId: string) {
+export async function deleteHouseholdPlan(
+  supabase: SupabaseClient,
+  householdId: string,
+  planId: string,
+  userId: string
+) {
   const { data: existing } = await supabase
     .from("plans")
     .select("title, target_amount, currency")
@@ -127,7 +134,7 @@ export async function deleteHouseholdPlan(supabase: SupabaseClient, householdId:
       household_id: householdId,
       title: `Goal Deleted: ${existing.title}`,
       category: "Plans",
-      actor: "partner_a",
+      actor: await getHouseholdRole(supabase, householdId, userId),
       status: "INFO",
       amount: existing.target_amount,
       currency: existing.currency,
@@ -151,24 +158,61 @@ export async function requestDeleteHouseholdPlan(
     return { success: false, message: "Goal not found." };
   }
 
-  if (partnerAPin && partnerBPin && partnerAPin.length === 6 && partnerBPin.length === 6) {
-    await deleteHouseholdPlan(supabase, householdId, planId);
-    await supabase.from("activities").insert({
-      household_id: householdId,
-      title: `Goal Dissolved: ${plan.title}`,
-      category: "Plans",
-      actor: "partner_a",
-      status: "ALLOW",
-      amount: plan.target_amount,
-      currency: plan.currency,
-      reason: `Both partners entered their cryptographic PINs to confirm goal dissolution.`,
+  if (partnerAPin && partnerBPin) {
+    // Both PINs are checked against user_pins inside the RPC, which also
+    // deletes the goal and records the activity atomically.
+    const { data, error } = await supabase.rpc("dual_key_delete_household_plan", {
+      p_household_id: householdId,
+      p_plan_id: planId,
+      p_partner_a_pin: partnerAPin,
+      p_partner_b_pin: partnerBPin,
     });
+
+    if (error) {
+      return {
+        success: false,
+        message: error.code === "P0002" ? "Goal not found." : error.message || "Unable to dissolve this goal.",
+      };
+    }
+
+    const result = data as { ok?: boolean; reason?: string } | null;
+    if (!result?.ok) {
+      return {
+        success: false,
+        code: result?.reason === "locked" ? "PIN_LOCKED" : "INVALID_PIN",
+        message: result?.reason === "locked"
+          ? "Too many incorrect PIN attempts. Try again in 15 minutes."
+          : "One or both security PINs are incorrect.",
+      };
+    }
+
     return { success: true, requiresApproval: false, message: "Goal dissolved via Dual-Key consensus." };
+  }
+
+  const requesterRole: PartnerRole = await getHouseholdRole(supabase, householdId, userId);
+
+  const { data: existingApproval } = await supabase
+    .from("approvals")
+    .select("*")
+    .eq("household_id", householdId)
+    .eq("type", "PLAN_DELETE")
+    .eq("target_id", planId)
+    .eq("status", "pending")
+    .limit(1)
+    .maybeSingle();
+
+  if (existingApproval) {
+    return {
+      success: true,
+      requiresApproval: true,
+      approval: existingApproval,
+      message: "Approval request already waiting for your partner.",
+    };
   }
 
   const { data: members } = await supabase
     .from("household_members")
-    .select("user_id, role")
+    .select("user_id")
     .eq("household_id", householdId)
     .eq("status", "active");
 
@@ -183,9 +227,9 @@ export async function requestDeleteHouseholdPlan(
       currency: plan.currency,
       wallet: "shared",
       requester_id: userId,
-      requester_role: "partner_a",
+      requester_role: requesterRole,
       approver_id: partner?.user_id ?? null,
-      approver_role: "partner_b",
+      approver_role: otherPartnerRole(requesterRole),
       status: "pending",
       reason: `Request to dissolve collaborative goal "${plan.title}". Requires partner dual-key PIN signature.`,
       category: "Plans",
@@ -204,7 +248,7 @@ export async function requestDeleteHouseholdPlan(
     household_id: householdId,
     title: `Goal Deletion Proposed: ${plan.title}`,
     category: "Plans",
-    actor: "partner_a",
+    actor: requesterRole,
     status: "NEED_APPROVAL",
     amount: plan.target_amount,
     currency: plan.currency,

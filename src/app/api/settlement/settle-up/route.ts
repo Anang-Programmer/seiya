@@ -28,7 +28,7 @@ export async function POST() {
       return NextResponse.json({ success: false, message: "No active household found." }, { status: 404 });
     }
 
-    const { data, error } = await settleUpHousehold(supabase, householdId);
+    const { data, error } = await settleUpHousehold(supabase, householdId, user.id);
     if (error || !data) {
       return NextResponse.json({ success: false, message: "Unable to complete settlement." }, { status: 500 });
     }

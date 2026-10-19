@@ -18,7 +18,7 @@ export async function POST(_request: Request, context: RouteContext) {
       return NextResponse.json({ success: false, message: "Login required." }, { status: 401 });
     }
 
-    const { data, error } = await settleUpHousehold(supabase, householdId);
+    const { data, error } = await settleUpHousehold(supabase, householdId, user.id);
     if (error || !data) {
       return NextResponse.json({ success: false, message: "Unable to complete settlement." }, { status: 500 });
     }

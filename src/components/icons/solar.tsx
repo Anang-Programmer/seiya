@@ -56,7 +56,9 @@ export type SolarIconName =
   | "volume-loud"
   | "volume-cross"
   | "soundwave"
-  | "phone-hangup";
+  | "phone-hangup"
+  | "eye"
+  | "eye-closed";
 
 interface SolarIconProps extends React.SVGProps<SVGSVGElement> {
   name: SolarIconName;
@@ -624,6 +626,22 @@ export function SolarIcon({
         <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
           <path d="M16 10c.83 0 1.5-.67 1.5-1.5 0-3.31-2.69-6-6-6s-6 2.69-6 6c0 .83.67 1.5 1.5 1.5h1.2c.4 0 .76-.23.92-.6l.72-1.68c.17-.4.07-.86-.24-1.16l-.8-.8c.7-.72 1.6-1.16 2.7-1.16s2 .44 2.7 1.16l-.8.8c-.31.3-.41.76-.24 1.16l.72 1.68c.16.37.52.6.92.6H16z" />
           <line x1="3" y1="21" x2="21" y2="21" />
+        </svg>
+      );
+    case "eye":
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+          <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
+      );
+    case "eye-closed":
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+          <path d="M3 3l18 18" />
+          <path d="M10.6 6.1A9.8 9.8 0 0 1 12 6c6 0 9.5 6 9.5 6a17.3 17.3 0 0 1-2.9 3.6" />
+          <path d="M6.4 7.3C3.8 9 2.5 12 2.5 12S6 18.5 12 18.5c1.6 0 3-.4 4.2-1" />
+          <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
         </svg>
       );
     default:

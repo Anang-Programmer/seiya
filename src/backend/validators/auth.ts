@@ -1,12 +1,11 @@
-
+// Seiya accounts sign in with their full name as a unique username.
 export type SignUpInput = {
   fullName: string;
-  email: string;
   password: string;
 };
 
 export type SignInInput = {
-  email: string;
+  fullName: string;
   password: string;
 };
 
@@ -22,19 +21,18 @@ function isObject(value: unknown): value is Record<string, unknown> {
   );
 }
 
-function normalizeEmail(value: unknown): string | null {
+/**
+ * Normalizes a full name for use as a username: Unicode NFKC, trimmed,
+ * inner whitespace collapsed. Returns null when it is not acceptable.
+ */
+export function normalizeFullName(value: unknown): string | null {
   if (typeof value !== "string") return null;
-
-  const email = value.trim().toLowerCase();
-
-  if (
-    email.length > 254 ||
-    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-  ) {
+  const name = value.normalize("NFKC").trim().replace(/\s+/g, " ");
+  // eslint-disable-next-line no-control-regex
+  if (name.length < 2 || name.length > 100 || /[\u0000-\u001f\u007f]/.test(name)) {
     return null;
   }
-
-  return email;
+  return name;
 }
 
 export function validateSignUp(
@@ -44,24 +42,15 @@ export function validateSignUp(
     return { ok: false, message: "Invalid request body." };
   }
 
-  const fullName =
-    typeof value.fullName === "string"
-      ? value.fullName.trim()
-      : "";
-
-  const email = normalizeEmail(value.email);
+  const fullName = normalizeFullName(value.fullName);
   const password =
     typeof value.password === "string" ? value.password : "";
 
-  if (!fullName || fullName.length > 100) {
+  if (!fullName) {
     return {
       ok: false,
-      message: "Name is required and must be at most 100 characters.",
+      message: "Name must be between 2 and 100 characters.",
     };
-  }
-
-  if (!email) {
-    return { ok: false, message: "Please provide a valid email." };
   }
 
   if (password.length < 8 || password.length > 128) {
@@ -73,7 +62,7 @@ export function validateSignUp(
 
   return {
     ok: true,
-    data: { fullName, email, password },
+    data: { fullName, password },
   };
 }
 
@@ -84,19 +73,19 @@ export function validateSignIn(
     return { ok: false, message: "Invalid request body." };
   }
 
-  const email = normalizeEmail(value.email);
+  const fullName = normalizeFullName(value.fullName);
   const password =
     typeof value.password === "string" ? value.password : "";
 
-  if (!email || !password || password.length > 128) {
+  if (!fullName || !password || password.length > 128) {
     return {
       ok: false,
-      message: "Please provide a valid email and password.",
+      message: "Please provide your full name and password.",
     };
   }
 
   return {
     ok: true,
-    data: { email, password },
+    data: { fullName, password },
   };
 }

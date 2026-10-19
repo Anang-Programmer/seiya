@@ -1,7 +1,7 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { signInWithEmail } from "@/backend/services/auth.service";
+import { signInWithUsername } from "@/backend/services/auth.service";
 import { validateSignIn } from "@/backend/validators/auth";
 
 export async function POST(request: Request) {
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
 
   try {
     const supabase = await createClient();
-    const { data, error } = await signInWithEmail(
+    const { data, error } = await signInWithUsername(
       supabase,
       validation.data
     );
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           success: false,
-          message: "Email or password is incorrect, or sign-in is unavailable.",
+          message: "Name or password is incorrect.",
         },
         { status: 401 }
       );
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
       message: "Signed in successfully.",
       user: {
         id: data.user.id,
-        email: data.user.email,
+        fullName: data.user.user_metadata?.full_name ?? validation.data.fullName,
       },
     });
   } catch (error) {

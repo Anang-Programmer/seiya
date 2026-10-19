@@ -70,31 +70,20 @@ export async function GET() {
         .eq("id", member.household_id)
         .maybeSingle();
 
-      const { data: partnerMember } = await supabase
-        .from("household_members")
-        .select("user_id, role")
-        .eq("household_id", member.household_id)
-        .neq("user_id", user.id)
-        .eq("status", "active")
-        .maybeSingle();
-
-      let partnerProfile = null;
-      if (partnerMember?.user_id) {
-        const { data: pProfile } = await supabase
-          .from("profiles")
-          .select("id, full_name")
-          .eq("id", partnerMember.user_id)
-          .maybeSingle();
-        partnerProfile = pProfile;
-      }
+      // Profiles are private per user; get_household_partner returns only the
+      // partner's id, role and name to active members of the same household.
+      const { data: partnerRow } = await supabase.rpc("get_household_partner", {
+        p_household_id: member.household_id,
+      });
+      const partner = partnerRow as { user_id: string; role: string; full_name: string | null } | null;
 
       householdData = household ? {
         ...household,
         myRole: member.role,
-        partner: partnerProfile ? {
-          userId: partnerProfile.id,
-          fullName: partnerProfile.full_name,
-          role: partnerMember?.role,
+        partner: partner?.user_id ? {
+          userId: partner.user_id,
+          fullName: partner.full_name,
+          role: partner.role,
         } : null,
       } : null;
     }

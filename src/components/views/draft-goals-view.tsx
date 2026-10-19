@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { formatMoney } from "@/lib/utils";
+// Amounts here are decided on, so they stay visible in privacy mode.
+import { formatMoneyAlways as formatMoney } from "@/lib/utils";
 import { SolarIcon } from "@/components/icons/solar";
 import { SeiyaIcon } from "@/components/icons/seiya-logo";
 import { Badge } from "@/components/ui/badge";

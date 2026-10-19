@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CreateApprovalInput, ApprovalDecisionInput } from "@/backend/validators/approval";
-import { recordHouseholdActivity } from "./activity.service";
+import { getHouseholdRole, otherPartnerRole, recordHouseholdActivity } from "./activity.service";
 import { verifyUserPin } from "./pin.service";
 
 export async function listHouseholdApprovals(supabase: SupabaseClient, householdId: string) {
@@ -17,6 +17,27 @@ export async function createHouseholdApproval(
   userId: string,
   input: CreateApprovalInput
 ) {
+  // request_simulated_transaction already queues an approval for every pending
+  // expense; a second request for the same transaction returns that row.
+  if (input.type === "EXPENSE" && input.targetId) {
+    const { data: existing } = await supabase
+      .from("approvals")
+      .select("*")
+      .eq("household_id", householdId)
+      .eq("type", "EXPENSE")
+      .eq("target_id", input.targetId)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) {
+      return { data: existing, error: null };
+    }
+  }
+
+  const requesterRole = await getHouseholdRole(supabase, householdId, userId);
+  const approverRole = otherPartnerRole(requesterRole);
   const expiresInHours = input.expiresInHours || 24;
   const expiresAt = new Date(Date.now() + expiresInHours * 3600 * 1000).toISOString();
 
@@ -29,8 +50,8 @@ export async function createHouseholdApproval(
       currency: input.currency,
       wallet: input.wallet,
       requester_id: userId,
-      requester_role: input.requesterRole,
-      approver_role: input.approverRole,
+      requester_role: requesterRole,
+      approver_role: approverRole,
       category: input.category,
       type: input.type,
       target_id: input.targetId || null,
@@ -47,7 +68,7 @@ export async function createHouseholdApproval(
     await recordHouseholdActivity(supabase, householdId, {
       title: `Approval Requested: ${input.title}`,
       category: input.category || "Approval Request",
-      actor: input.requesterRole,
+      actor: requesterRole,
       status: "NEED_APPROVAL",
       amount: input.amount,
       currency: input.currency,
@@ -57,6 +78,13 @@ export async function createHouseholdApproval(
 
   return { data, error };
 }
+
+const DECISION_ERRORS: Record<string, string> = {
+  P0002: "P0002",
+  "22023": "22023",
+  "42501": "FORBIDDEN",
+  P1001: "INSUFFICIENT_BALANCE",
+};
 
 export async function decideApprovalRequest(
   supabase: SupabaseClient,
@@ -74,6 +102,16 @@ export async function decideApprovalRequest(
 
   if (fetchError || !item) {
     return { success: false, code: "P0002", message: "Approval request not found." };
+  }
+
+  // A linked expense decided through /api/transactions/:id/decision has
+  // already moved this row; repeating the same decision is a no-op.
+  if (item.status === input.decision) {
+    return {
+      success: true,
+      status: item.status,
+      message: input.decision === "approved" ? "Request approved and executed successfully." : "Request declined.",
+    };
   }
 
   if (item.status !== "pending") {
@@ -95,107 +133,25 @@ export async function decideApprovalRequest(
     }
   }
 
-  const newStatus = input.decision === "approved" ? "approved" : "declined";
-
-  const { error: updateError } = await supabase
-    .from("approvals")
-    .update({
-      status: newStatus,
-      approver_id: userId,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", approvalId);
-
-  if (updateError) {
-    return { success: false, code: "DB_ERROR", message: "Failed to update approval status." };
-  }
-
-  if (newStatus === "approved") {
-    if (item.type === "BILL" || item.category === "Bills") {
-      if (item.target_id) {
-        await supabase
-          .from("bills")
-          .update({ status: "paid", updated_at: new Date().toISOString() })
-          .eq("household_id", householdId)
-          .eq("id", item.target_id);
-      }
-      if (item.wallet === "shared") {
-        const { data: sharedWallet } = await supabase
-          .from("wallets")
-          .select("id, simulated_balance")
-          .eq("household_id", householdId)
-          .eq("wallet_type", "shared")
-          .maybeSingle();
-
-        if (sharedWallet) {
-          await supabase
-            .from("wallets")
-            .update({
-              simulated_balance: Math.max(0, Number(sharedWallet.simulated_balance) - Number(item.amount)),
-            })
-            .eq("id", sharedWallet.id);
-        }
-      }
-    } else if (item.type === "PLAN_DELETE" || item.category === "Plans") {
-      if (item.target_id) {
-        await supabase
-          .from("plans")
-          .delete()
-          .eq("household_id", householdId)
-          .eq("id", item.target_id);
-      }
-    } else if (item.type === "EXPENSE" || item.category === "Expenses") {
-      if (item.wallet === "shared") {
-        const { data: sharedWallet } = await supabase
-          .from("wallets")
-          .select("id, simulated_balance")
-          .eq("household_id", householdId)
-          .eq("wallet_type", "shared")
-          .maybeSingle();
-
-        if (sharedWallet) {
-          await supabase
-            .from("wallets")
-            .update({
-              simulated_balance: Math.max(0, Number(sharedWallet.simulated_balance) - Number(item.amount)),
-            })
-            .eq("id", sharedWallet.id);
-        }
-      }
-    }
-
-    await recordHouseholdActivity(supabase, householdId, {
-      title: `${item.title} Approved & Executed`,
-      category: item.category || "Approval",
-      actor: item.approver_role || "partner_b",
-      status: "ALLOW",
-      amount: item.amount,
-      currency: item.currency,
-      reason: `Dual-Key signature verified. Action executed.`,
-    });
-
-    return { success: true, status: "approved", message: "Request approved and executed successfully." };
-  }
-
-  if (item.type === "BILL" || item.category === "Bills") {
-    if (item.target_id) {
-      await supabase
-        .from("bills")
-        .update({ status: "upcoming", updated_at: new Date().toISOString() })
-        .eq("household_id", householdId)
-        .eq("id", item.target_id);
-    }
-  }
-
-  await recordHouseholdActivity(supabase, householdId, {
-    title: `${item.title} Declined`,
-    category: item.category || "Approval",
-    actor: item.approver_role || "partner_b",
-    status: "DENY",
-    amount: item.amount,
-    currency: item.currency,
-    reason: input.reason || "Action rejected under mutual veto power.",
+  // Status change, money movement (bill payment, expense execution), plan
+  // deletion and the activity entry all happen atomically in the RPC.
+  const { error } = await supabase.rpc("decide_household_approval", {
+    p_approval_id: approvalId,
+    p_decision: input.decision,
+    p_reason: input.reason ?? null,
   });
 
-  return { success: true, status: "declined", message: "Request declined." };
+  if (error) {
+    const code = DECISION_ERRORS[error.code ?? ""] ?? "DB_ERROR";
+    const message = code === "INSUFFICIENT_BALANCE"
+      ? "Insufficient shared wallet balance to execute this request."
+      : code === "DB_ERROR"
+        ? "Failed to update approval status."
+        : error.message || "Unable to decide this request.";
+    return { success: false, code, message };
+  }
+
+  return input.decision === "approved"
+    ? { success: true, status: "approved", message: "Request approved and executed successfully." }
+    : { success: true, status: "declined", message: "Request declined." };
 }

@@ -1,3 +1,5 @@
+import { validateFinanceRules, type FinanceRules } from "./finance-rules";
+
 
 export const CHILDREN_CATEGORIES = [
   "none",
@@ -117,8 +119,66 @@ export type OnboardingInput = {
       commStyle: ValueOf<typeof COMM_STYLES> | null;
       permaGoal: ValueOf<typeof PERMA_GOALS> | null;
     };
+    /**
+     * Couple-contract terms this partner settled on the AI recommendation page.
+     * The first partner to finish has their terms proposed once both are connected.
+     */
+    contractPreferences?: { rules: FinanceRules };
+    /** Recent expenses typed in during onboarding (used for personalization). */
+    recentExpenses?: RecentExpense[];
+    /** The transaction-history step was finished (saved or skipped). */
+    historyCompleted?: boolean;
+    /** Raw profiling answers (short strings/numbers) used to personalize recommendations. */
+    profiling?: Record<string, string | number | string[]>;
   };
 };
+
+export type RecentExpense = {
+  merchant: string;
+  amount: number;
+  category: string;
+  date: string | null;
+};
+
+const MAX_RECENT_EXPENSES = 20;
+
+// Keeps only short, flat profiling values; anything else is dropped.
+function sanitizeProfiling(value: unknown): Record<string, string | number | string[]> | null {
+  if (!isObject(value)) return null;
+  const out: Record<string, string | number | string[]> = {};
+  for (const [key, raw] of Object.entries(value).slice(0, 40)) {
+    if (!/^[A-Za-z][A-Za-z0-9_]{0,40}$/.test(key)) continue;
+    if (typeof raw === "string") out[key] = raw.trim().slice(0, 300);
+    else if (typeof raw === "number" && Number.isFinite(raw)) out[key] = raw;
+    else if (Array.isArray(raw)) {
+      out[key] = raw.filter((v): v is string => typeof v === "string").slice(0, 12).map((v) => v.trim().slice(0, 80));
+    }
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+function validateRecentExpenses(value: unknown): RecentExpense[] | null | undefined {
+  if (value === undefined || value === null) return null;
+  if (!Array.isArray(value) || value.length > MAX_RECENT_EXPENSES) return undefined;
+  const result: RecentExpense[] = [];
+  for (const item of value) {
+    if (!isObject(item)) return undefined;
+    const merchant = typeof item.merchant === "string" ? item.merchant.trim() : "";
+    const category = typeof item.category === "string" ? item.category.trim() : "";
+    const amount = item.amount;
+    const date = optionalText(item.date, 40);
+    if (
+      !merchant || merchant.length > 120 ||
+      !category || category.length > 60 ||
+      typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0 || amount > 999_999_999_999 ||
+      date === undefined
+    ) {
+      return undefined;
+    }
+    result.push({ merchant, amount, category, date });
+  }
+  return result;
+}
 
 export type ValidationResult =
   | { ok: true; data: OnboardingInput }
@@ -361,7 +421,20 @@ export function validateOnboarding(
     return { ok: false, message: "Invalid personalization choice." };
   }
 
-  const { partner: _partner, ...rest } = answers;
+  let contractPreferences: { rules: FinanceRules } | undefined;
+  if (answers.contractPreferences !== undefined && answers.contractPreferences !== null) {
+    const prefs = answers.contractPreferences;
+    const rules = validateFinanceRules(isObject(prefs) ? prefs.rules : undefined);
+    if (!rules.ok) {
+      return { ok: false, message: `Invalid contract preferences: ${rules.message}` };
+    }
+    contractPreferences = { rules: rules.data };
+  }
+
+  const recentExpenses = validateRecentExpenses(answers.recentExpenses);
+  if (recentExpenses === undefined) {
+    return { ok: false, message: "Invalid recent expenses." };
+  }
 
   return {
     ok: true,
@@ -395,6 +468,10 @@ export function validateOnboarding(
           commStyle,
           permaGoal,
         },
+        ...(contractPreferences ? { contractPreferences } : {}),
+        ...(recentExpenses && recentExpenses.length ? { recentExpenses } : {}),
+        ...(answers.historyCompleted === true ? { historyCompleted: true } : {}),
+        ...(sanitizeProfiling(answers.profiling) ? { profiling: sanitizeProfiling(answers.profiling)! } : {}),
       },
     },
   };

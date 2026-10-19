@@ -5,7 +5,6 @@ import type {
   UpdateBillInput,
   UpsertBudgetInput,
 } from "@/backend/validators/bill-budget";
-import { recordHouseholdActivity } from "./activity.service";
 
 export async function createHouseholdBill(supabase: SupabaseClient, householdId: string, input: CreateBillInput) {
   return supabase.rpc("create_household_bill", {
@@ -26,53 +25,30 @@ export async function updateHouseholdBill(
   billId: string,
   input: UpdateBillInput
 ) {
-  const payload: Record<string, unknown> = {
-    updated_at: new Date().toISOString(),
-  };
+  const changes: Record<string, unknown> = {};
 
-  if (input.title !== undefined) payload.title = input.title;
-  if (input.payee !== undefined) payload.payee = input.payee;
-  if (input.amount !== undefined) payload.amount = input.amount;
-  if (input.currency !== undefined) payload.currency = input.currency;
-  if (input.dueDate !== undefined) payload.due_date = input.dueDate;
-  if (input.recurrence !== undefined) payload.recurrence = input.recurrence;
-  if (input.status !== undefined) payload.status = input.status;
-  if (input.notes !== undefined) payload.notes = input.notes;
+  if (input.title !== undefined) changes.title = input.title;
+  if (input.payee !== undefined) changes.payee = input.payee;
+  if (input.amount !== undefined) changes.amount = input.amount;
+  if (input.currency !== undefined) changes.currency = input.currency;
+  if (input.dueDate !== undefined) changes.due_date = input.dueDate;
+  if (input.recurrence !== undefined) changes.recurrence = input.recurrence;
+  if (input.status !== undefined) changes.status = input.status;
+  if (input.notes !== undefined) changes.notes = input.notes;
 
-  return supabase
-    .from("bills")
-    .update(payload)
-    .eq("household_id", householdId)
-    .eq("id", billId)
-    .select()
-    .single();
+  return supabase.rpc("update_household_bill", {
+    p_household_id: householdId,
+    p_bill_id: billId,
+    p_changes: changes,
+  });
 }
 
 export async function deleteHouseholdBill(supabase: SupabaseClient, householdId: string, billId: string) {
-  const { data: bill } = await supabase
-    .from("bills")
-    .select("title, amount, currency")
-    .eq("household_id", householdId)
-    .eq("id", billId)
-    .maybeSingle();
-
-  const { error } = await supabase
-    .from("bills")
-    .delete()
-    .eq("household_id", householdId)
-    .eq("id", billId);
-
-  if (!error && bill) {
-    await recordHouseholdActivity(supabase, householdId, {
-      title: `Bill Deleted: ${bill.title}`,
-      category: "Bills",
-      actor: "partner_a",
-      status: "INFO",
-      amount: bill.amount,
-      currency: bill.currency,
-      reason: `Recurring bill "${bill.title}" was removed.`,
-    });
-  }
+  // The RPC also records the "Bill Deleted" activity with the caller's role.
+  const { error } = await supabase.rpc("delete_household_bill", {
+    p_household_id: householdId,
+    p_bill_id: billId,
+  });
 
   return { error };
 }
@@ -80,69 +56,31 @@ export async function deleteHouseholdBill(supabase: SupabaseClient, householdId:
 export async function requestPayHouseholdBill(
   supabase: SupabaseClient,
   householdId: string,
-  userId: string,
   billId: string
 ) {
-  const { data: bill, error: billError } = await supabase
-    .from("bills")
-    .select("*")
-    .eq("household_id", householdId)
-    .eq("id", billId)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc("request_household_bill_confirmation", {
+    p_household_id: householdId,
+    p_bill_id: billId,
+  });
 
-  if (billError || !bill) {
-    return { success: false, message: "Bill not found." };
+  if (error) {
+    return {
+      success: false,
+      code: error.code,
+      message: error.code === "P0002"
+        ? "Bill not found."
+        : error.code === "22023"
+          ? error.message || "Bill is not eligible for payment confirmation."
+          : "Unable to request payment confirmation.",
+    };
   }
 
-  await supabase
-    .from("bills")
-    .update({ status: "pending_approval", updated_at: new Date().toISOString() })
-    .eq("household_id", householdId)
-    .eq("id", billId);
-
-  const { data: members } = await supabase
-    .from("household_members")
-    .select("user_id")
-    .eq("household_id", householdId)
-    .eq("status", "active");
-
-  const partner = (members ?? []).find((m) => m.user_id !== userId);
-
-  const { data: approval, error: apprError } = await supabase
-    .from("approvals")
-    .insert({
-      household_id: householdId,
-      title: `${bill.title} - Payment Confirmation`,
-      amount: bill.amount,
-      currency: bill.currency,
-      wallet: "shared",
-      requester_id: userId,
-      requester_role: "partner_a",
-      approver_id: partner?.user_id ?? null,
-      approver_role: "partner_b",
-      status: "pending",
-      reason: `Bill marked as paid. Requires partner confirmation to settle from shared wallet.`,
-      category: "Bills",
-      type: "BILL",
-      target_id: billId,
-      expires_in_hours: 24,
-    })
-    .select()
-    .single();
-
-  if (!apprError) {
-    await recordHouseholdActivity(supabase, householdId, {
-      title: `Payment Confirmation Requested: ${bill.title}`,
-      category: "Bills",
-      actor: "partner_a",
-      status: "NEED_APPROVAL",
-      amount: bill.amount,
-      currency: bill.currency,
-      reason: `Marked as paid. Dispatched to partner for confirmation.`,
-    });
-  }
-
-  return { success: !apprError, approval, message: "Payment confirmation requested from partner." };
+  const payload = data as { approval?: unknown } | null;
+  return {
+    success: true,
+    approval: payload?.approval ?? null,
+    message: "Payment confirmation requested from partner.",
+  };
 }
 
 export async function analyzeHouseholdBills(supabase: SupabaseClient, householdId: string) {

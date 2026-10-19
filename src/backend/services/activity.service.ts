@@ -44,3 +44,29 @@ export async function recordHouseholdActivity(
     .select()
     .single();
 }
+
+export type PartnerRole = "partner_a" | "partner_b";
+
+// The household owner is partner_a; the invited partner is partner_b.
+export async function getHouseholdRole(
+  supabase: SupabaseClient,
+  householdId: string,
+  userId: string
+): Promise<PartnerRole> {
+  const { data } = await supabase
+    .from("household_members")
+    .select("role")
+    .eq("household_id", householdId)
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .maybeSingle();
+
+  return data?.role === "owner" ? "partner_a" : "partner_b";
+}
+
+export function otherPartnerRole(role: PartnerRole): PartnerRole {
+  return role === "partner_a" ? "partner_b" : "partner_a";
+}
+
+// Supabase RPC errors carry the SQLSTATE in `code` and the RAISE text in `message`.
+export type RpcError = { code?: string; message?: string } | null;

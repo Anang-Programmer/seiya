@@ -1,7 +1,7 @@
 ﻿import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
-import { recordHouseholdActivity } from "@/backend/services/activity.service";
+import { getHouseholdRole, recordHouseholdActivity } from "@/backend/services/activity.service";
 
 async function getActiveHouseholdId(supabase: SupabaseClient, userId: string): Promise<string | null> {
   const { data } = await supabase
@@ -43,6 +43,18 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, message: "Unable to load transactions." }, { status: 500 });
     }
 
+    const [{ data: members }, { data: wallets }] = await Promise.all([
+      supabase.from("household_members").select("user_id, role").eq("household_id", householdId),
+      supabase.from("wallets").select("id, wallet_type, owner_user_id").eq("household_id", householdId),
+    ]);
+    const roleOf = new Map((members ?? []).map((m) => [m.user_id, m.role === "owner" ? "partner_a" : "partner_b"]));
+    const walletOf = new Map(
+      (wallets ?? []).map((w) => [
+        w.id,
+        w.wallet_type === "shared" ? "shared" : roleOf.get(w.owner_user_id) === "partner_b" ? "personal_b" : "personal_a",
+      ])
+    );
+
     const transactions = (rows ?? []).map((t) => {
       const isExpense = t.transaction_type === "expense";
       const rawAmount = Number(t.amount);
@@ -54,8 +66,8 @@ export async function GET(request: Request) {
         amount,
         currency: t.currency || "IDR",
         category: t.category || "Others",
-        wallet: "shared",
-        paidBy: "partner_a",
+        wallet: walletOf.get(t.wallet_id) ?? "shared",
+        paidBy: roleOf.get(t.created_by) ?? "partner_a",
         date: new Date(t.created_at).toLocaleDateString("en-US", {
           day: "numeric",
           month: "short",
@@ -73,6 +85,24 @@ export async function GET(request: Request) {
   }
 }
 
+const ENGINE_ERRORS: Record<string, { status: number; message: string }> = {
+  "42501": { status: 403, message: "You are not allowed to perform this transaction." },
+  P0002: { status: 404, message: "Household or wallet not found." },
+  "22023": { status: 409, message: "Household, wallet, or active finance agreement is not ready for this transaction." },
+  P1001: { status: 409, message: "Insufficient available simulated balance." },
+  P1002: { status: 409, message: "The active finance agreement has invalid transaction settings." },
+  P1003: { status: 409, message: "Idempotency key was already used for a different request." },
+};
+
+const ACTIVITY_STATUS: Record<string, "ALLOW" | "NEED_APPROVAL" | "HOLD"> = {
+  executed: "ALLOW",
+  pending_approval: "NEED_APPROVAL",
+  on_hold: "HOLD",
+};
+
+// Records through request_simulated_transaction so the couple rules, the
+// balance reservation and the settlement trigger all apply. The payer is the
+// signed-in member; the split comes from the active finance agreement.
 export async function POST(request: Request) {
   let body: Record<string, unknown>;
   try {
@@ -94,108 +124,92 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: "No active household found." }, { status: 404 });
     }
 
-    const title = typeof body.title === "string" ? body.title.trim() : "Transaction";
-    const amount = typeof body.amount === "number" ? body.amount : 0;
-    const currency = typeof body.currency === "string" ? body.currency.trim().toUpperCase() : "IDR";
-    const category = typeof body.category === "string" ? body.category.trim() : "Others";
+    const title = typeof body.title === "string" && body.title.trim() ? body.title.trim() : "Transaction";
+    const amount = typeof body.amount === "number" && Number.isFinite(body.amount) ? body.amount : 0;
+    const category = typeof body.category === "string" && body.category.trim() ? body.category.trim() : "Others";
     const wallet = body.wallet === "personal_a" || body.wallet === "personal_b" ? body.wallet : "shared";
-    const paidBy = body.paidBy === "partner_b" ? "partner_b" : "partner_a";
 
-    const { data: sharedWallet } = await supabase
+    if (amount === 0) {
+      return NextResponse.json({ success: false, message: "Amount must not be zero." }, { status: 400 });
+    }
+
+    const paidBy = await getHouseholdRole(supabase, householdId, user.id);
+    if (wallet !== "shared" && wallet !== (paidBy === "partner_a" ? "personal_a" : "personal_b")) {
+      return NextResponse.json(
+        { success: false, message: "You cannot use another member's personal wallet." },
+        { status: 403 }
+      );
+    }
+
+    const walletQuery = supabase
       .from("wallets")
-      .select("id, simulated_balance")
+      .select("id")
       .eq("household_id", householdId)
-      .eq("wallet_type", "shared")
+      .eq("status", "active")
+      .eq("wallet_type", wallet === "shared" ? "shared" : "personal");
+    const { data: targetWallet } = await (wallet === "shared" ? walletQuery : walletQuery.eq("owner_user_id", user.id))
+      .limit(1)
       .maybeSingle();
 
-    const targetWalletId = sharedWallet?.id || null;
+    if (!targetWallet) {
+      return NextResponse.json({ success: false, message: "Wallet not found." }, { status: 404 });
+    }
+
     const isExpense = amount < 0;
-    const absAmount = Math.abs(amount);
+    const absAmount = Math.round(Math.abs(amount) * 100) / 100;
 
-    const idempotencyKey = `tx-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const { data, error } = await supabase.rpc("request_simulated_transaction", {
+      p_household_id: householdId,
+      p_wallet_id: targetWallet.id,
+      p_transaction_type: isExpense ? "expense" : "income",
+      p_category: category.slice(0, 80),
+      p_description: title.slice(0, 250),
+      p_amount: absAmount,
+      p_idempotency_key: `tx-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    });
 
-    const { data: newTx, error: txError } = await supabase
-      .from("transactions")
-      .insert({
-        household_id: householdId,
-        wallet_id: targetWalletId,
-        created_by: user.id,
-        transaction_type: isExpense ? "expense" : "income",
-        category,
-        description: title,
-        amount: absAmount,
-        currency,
-        status: "executed",
-        idempotency_key: idempotencyKey,
-      })
-      .select()
-      .single();
+    if (error) {
+      const mapped = ENGINE_ERRORS[error.code ?? ""];
+      return NextResponse.json(
+        { success: false, message: mapped?.message ?? "Failed to record transaction." },
+        { status: mapped?.status ?? 500 }
+      );
+    }
 
-    if (txError) {
+    const tx = (data as { transaction?: { id: string; status: string; currency: string; created_at: string } } | null)
+      ?.transaction;
+    if (!tx) {
       return NextResponse.json({ success: false, message: "Failed to record transaction." }, { status: 500 });
-    }
-
-    if (targetWalletId && sharedWallet) {
-      const balanceDelta = isExpense ? -absAmount : absAmount;
-      await supabase
-        .from("wallets")
-        .update({
-          simulated_balance: Number(sharedWallet.simulated_balance) + balanceDelta,
-        })
-        .eq("id", targetWalletId);
-    }
-
-    const splitRatio = typeof body.splitRatio === "object" && body.splitRatio !== null
-      ? (body.splitRatio as Record<string, unknown>)
-      : null;
-
-    if (splitRatio && isExpense) {
-      const splitB = Number(splitRatio.partnerB) || 50;
-      const splitA = Number(splitRatio.partnerA) || 50;
-      const bOwes = paidBy === "partner_a" ? (absAmount * splitB) / 100 : 0;
-      const aOwes = paidBy === "partner_b" ? (absAmount * splitA) / 100 : 0;
-
-      const { data: curSettlement } = await supabase
-        .from("household_settlements")
-        .select("*")
-        .eq("household_id", householdId)
-        .maybeSingle();
-
-      if (curSettlement) {
-        await supabase
-          .from("household_settlements")
-          .update({
-            partner_b_owes_a: Number(curSettlement.partner_b_owes_a) + bOwes,
-            partner_a_owes_b: Number(curSettlement.partner_a_owes_b) + aOwes,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("household_id", householdId);
-      }
     }
 
     await recordHouseholdActivity(supabase, householdId, {
       title,
       category,
       actor: paidBy,
-      status: "ALLOW",
+      status: ACTIVITY_STATUS[tx.status] ?? "INFO",
       amount: absAmount,
-      currency,
+      currency: tx.currency,
       reason: `Transaction recorded to ${wallet}.`,
     });
 
     return NextResponse.json({
       success: true,
-      message: "Transaction recorded successfully.",
+      message: tx.status === "executed"
+        ? "Transaction recorded successfully."
+        : tx.status === "pending_approval"
+          ? "Transaction is waiting for partner approval."
+          : "Transaction is on hold according to the household rules.",
       transaction: {
-        id: newTx.id,
+        id: tx.id,
         title,
-        amount,
-        currency,
+        amount: isExpense ? -absAmount : absAmount,
+        currency: tx.currency,
         category,
         wallet,
         paidBy,
         date: "Just now",
-        timestamp: newTx.created_at,
+        timestamp: tx.created_at,
+        status: tx.status,
       },
     }, { status: 201 });
   } catch (error) {

@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { formatMoney } from "@/lib/utils";
+// Amounts here are decided on, so they stay visible in privacy mode.
+import { formatMoneyAlways as formatMoney } from "@/lib/utils";
 import { SolarIcon } from "@/components/icons/solar";
 import { Button } from "@/components/ui/button";
 import { useApp, ApprovalRequest } from "@/lib/store";
@@ -221,12 +222,12 @@ export function ApprovalDeck({ onViewAll, onSelectApproval }: ApprovalDeckProps)
             : "Please enter your 6-digit security PIN to authorize this request."
         }
         actionLabel="Verify PIN & Authorize"
-        onSuccess={() => {
-          if (activeItemForPin) {
-            approveApprovalRequest(activeItemForPin.id, "123456");
-            setActiveItemForPin(null);
-          }
+        onVerify={async (pin) => {
+          if (!activeItemForPin) return "This request is no longer available.";
+          const result = await approveApprovalRequest(activeItemForPin.id, pin);
+          return result.ok ? null : result.message || "Unable to approve this request.";
         }}
+        onSuccess={() => setActiveItemForPin(null)}
       />
     </div>
   );

@@ -79,7 +79,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ success: false, message: "Login required." }, { status: 401 });
     }
 
-    const { data: plan, error } = await updateHouseholdPlan(supabase, householdId, planId, validation.data);
+    const { data: plan, error } = await updateHouseholdPlan(supabase, householdId, planId, validation.data, user.id);
     if (error) {
       return NextResponse.json({ success: false, message: "Unable to update goal." }, { status: 500 });
     }
@@ -124,7 +124,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
       return NextResponse.json({ success: false, message: "Login required." }, { status: 401 });
     }
 
-    const { error } = await deleteHouseholdPlan(supabase, householdId, planId);
+    const { error } = await deleteHouseholdPlan(supabase, householdId, planId, user.id);
     if (error) {
       return NextResponse.json({ success: false, message: "Unable to delete goal." }, { status: 500 });
     }

@@ -24,6 +24,16 @@ export function BillsView() {
     sendChatMessage,
   } = useApp();
 
+  const duplicateBillGroups = Object.values(
+    bills
+      .filter((b) => b.status !== "paid")
+      .reduce<Record<string, { key: string; title: string; count: number }>>((acc, bill) => {
+        const key = bill.title.trim().toLowerCase();
+        acc[key] = { key, title: bill.title, count: (acc[key]?.count ?? 0) + 1 };
+        return acc;
+      }, {})
+  ).filter((g) => g.count > 1);
+
   const [selectedApproval, setSelectedApproval] = useState<any>(null);
   const [approvalModalOpen, setApprovalModalOpen] = useState(false);
   const [billModalOpen, setBillModalOpen] = useState(false);
@@ -149,43 +159,38 @@ export function BillsView() {
         </div>
       </div>
 
-      {/* Bill Anomalies Banner */}
-      <div className="space-y-3">
-        {/* Anomaly 1: Duplicate streaming */}
-        <div className="p-5 rounded-[12px] bg-[#fcf5e8] shadow-xs flex items-start gap-3.5">
-          <div className="p-2.5 rounded-full bg-[#fef9ef] text-[#C98A4F] shrink-0">
-            <SolarIcon name="danger-triangle" size={20} />
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold text-[#C98A4F]">Anomaly Detected: Duplicate Streaming</h4>
-              <Badge variant="hold">Review Suggested</Badge>
+      {/* Bill Anomalies Banner (bills sharing the same title) */}
+      {duplicateBillGroups.length > 0 && (
+        <div className="space-y-3">
+          {duplicateBillGroups.map((group) => (
+            <div key={group.key} className="p-5 rounded-[12px] bg-[#fcf5e8] shadow-xs flex items-start gap-3.5">
+              <div className="p-2.5 rounded-full bg-[#fef9ef] text-[#C98A4F] shrink-0">
+                <SolarIcon name="danger-triangle" size={20} />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-[#C98A4F]">Anomaly Detected: Possible Duplicate</h4>
+                  <Badge variant="hold">Review Suggested</Badge>
+                </div>
+                <p className="text-xs text-[#515151] mt-1 leading-relaxed">
+                  &ldquo;{group.title}&rdquo; appears {group.count} times in your upcoming bills. Check whether you are paying for the same service twice.
+                </p>
+              </div>
             </div>
-            <p className="text-xs text-[#515151] mt-1 leading-relaxed">
-              Netflix Premium is scheduled on the shared wallet, but an individual subscription is already active on a personal card.
-            </p>
-          </div>
+          ))}
         </div>
-
-        {/* Anomaly 2: Price increase 15% */}
-        <div className="p-5 rounded-[12px] bg-[#fbf0eb] shadow-xs flex items-start gap-3.5">
-          <div className="p-2.5 rounded-full bg-[#fef9ef] text-[#B45529] shrink-0">
-            <SolarIcon name="info-circle" size={20} />
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold text-[#B45529]">Price Increase: Home Internet Fiber +15%</h4>
-              <Badge variant="neutral">Price Spike</Badge>
-            </div>
-            <p className="text-xs text-[#515151] mt-1 leading-relaxed">
-              Bill increased by 15% compared to last month due to expired promotional discount bundle.
-            </p>
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* Bills List */}
       <div className="space-y-3">
+        {bills.length === 0 && (
+          <div className="p-6 rounded-[12px] bg-[#f5eee1] text-center space-y-1">
+            <p className="text-sm font-serif text-[#2a2b2f]">No bills yet</p>
+            <p className="text-xs text-[#515151]">
+              Add your recurring household bills so Seiya can remind you both before they are due.
+            </p>
+          </div>
+        )}
         {bills.map((bill) => {
           const isDueSoon = bill.daysRemaining <= 3 && bill.status !== "paid";
           const isPending = bill.status === "pending_approval";

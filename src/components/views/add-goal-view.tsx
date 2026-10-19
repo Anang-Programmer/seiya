@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useApp, PlanItem } from "@/lib/store";
 import { SUPPORTED_CURRENCIES } from "@/lib/currency";
-import { formatMoney, formatMoneyConverted } from "@/lib/utils";
+// Amounts here are decided on, so they stay visible in privacy mode.
+import { formatMoneyAlways as formatMoney, formatMoneyConvertedAlways as formatMoneyConverted } from "@/lib/utils";
 
 interface AddGoalViewProps {
   onBack: () => void;
@@ -35,6 +36,7 @@ export function AddGoalView({ onBack, onGoalCreated }: AddGoalViewProps) {
 
   // Form State
   const [title, setTitle] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const [category, setCategory] = useState("Travel");
   const [targetAmount, setTargetAmount] = useState<number | string>(10000);
   const [currentAmount, setCurrentAmount] = useState<number | string>(1500);
@@ -112,9 +114,9 @@ export function AddGoalView({ onBack, onGoalCreated }: AddGoalViewProps) {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim() || isSaving) return;
 
     const targetNum = Number(targetAmount) || 0;
     const currentNum = Number(currentAmount) || 0;
@@ -124,7 +126,8 @@ export function AddGoalView({ onBack, onGoalCreated }: AddGoalViewProps) {
       ? assumptions.trim()
       : `Planned monthly allocation of ${formatMoney(monthlyTotal, currency, locale)}. ${partnerBName} ${activeSplitB}% (${formatMoney(partnerBAmount, currency, locale)}), ${partnerAName} ${activeSplitA}% (${formatMoney(partnerAAmount, currency, locale)}). ${requireDualKey ? "Dual-Key required for milestone releases." : "Autonomous contributions."}`;
 
-    const createdPlan = addPlan({
+    setIsSaving(true);
+    const createdPlan = await addPlan({
       title: title.trim(),
       category,
       targetAmount: targetNum,
@@ -140,6 +143,10 @@ export function AddGoalView({ onBack, onGoalCreated }: AddGoalViewProps) {
       status: initialStatus,
       assumptions: defaultAssumptions,
     });
+
+    setIsSaving(false);
+    // On failure the store surfaces the error; keep the form open for a retry.
+    if (!createdPlan) return;
 
     if (onGoalCreated) {
       onGoalCreated(createdPlan);

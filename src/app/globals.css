@@ -21,6 +21,7 @@
   --font-serif: var(--font-serif), 'Lora', Georgia, serif;
   --font-sans: var(--font-inter), Inter, ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-serif), 'Lora', Georgia, serif;
+  --font-jakarta: var(--font-plus-jakarta), 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
 }
 
 :root {

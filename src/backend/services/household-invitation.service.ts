@@ -37,7 +37,10 @@ export async function createHouseholdInvitation(
     "create_household_invitation",
     {
       p_household_id: input.householdId,
-      p_invited_email: input.invitedEmail,
+      // invited_email is required by the table; without a real address use a
+      // unique, undeliverable placeholder (acceptance is token-based).
+      p_invited_email:
+        input.invitedEmail ?? `invite-${randomBytes(12).toString("hex")}@invites.seiya.invalid`,
       p_invited_name: input.invitedName,
       p_token_hash: tokenHash,
     }

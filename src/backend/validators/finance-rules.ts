@@ -9,6 +9,7 @@ export type FinanceRules = {
   approval: {
     requirePartnerApprovalAboveThreshold: boolean;
     sharedWalletThreshold: number;
+    approveEverySharedPurchase?: boolean;
   };
   coolingOff: {
     enabled: boolean;
@@ -72,6 +73,7 @@ export function validateFinanceRules(
 
   let requirePartnerApprovalAboveThreshold = true;
   let sharedWalletThreshold = 500000;
+  let approveEverySharedPurchase: boolean | undefined;
 
   if (hasNested && isObject(raw.approval)) {
     const app = raw.approval as Record<string, unknown>;
@@ -83,6 +85,12 @@ export function validateFinanceRules(
     }
     requirePartnerApprovalAboveThreshold = app.requirePartnerApprovalAboveThreshold;
     sharedWalletThreshold = app.sharedWalletThreshold;
+    if (app.approveEverySharedPurchase !== undefined) {
+      if (typeof app.approveEverySharedPurchase !== "boolean") {
+        return { ok: false, message: "Invalid approveEverySharedPurchase." };
+      }
+      approveEverySharedPurchase = app.approveEverySharedPurchase;
+    }
   } else if (raw.newThreshold !== undefined || raw.approvalThreshold !== undefined) {
     const t = raw.newThreshold !== undefined ? raw.newThreshold : raw.approvalThreshold;
     if (!isAmount(t)) return { ok: false, message: "Invalid approval threshold." };
@@ -90,6 +98,11 @@ export function validateFinanceRules(
     if (typeof raw.approveEveryShared === "boolean") {
       requirePartnerApprovalAboveThreshold = true;
     }
+  }
+
+  if (approveEverySharedPurchase === undefined) {
+    const flat = raw.approveEverySharedPurchase ?? raw.approveEveryShared;
+    if (typeof flat === "boolean") approveEverySharedPurchase = flat;
   }
 
   let coolingOffEnabled = true;
@@ -126,6 +139,7 @@ export function validateFinanceRules(
       approval: {
         requirePartnerApprovalAboveThreshold,
         sharedWalletThreshold,
+        ...(approveEverySharedPurchase !== undefined ? { approveEverySharedPurchase } : {}),
       },
       coolingOff: {
         enabled: coolingOffEnabled,

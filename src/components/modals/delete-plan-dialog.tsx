@@ -5,7 +5,8 @@ import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogContent, Di
 import { Button } from "@/components/ui/button";
 import { SolarIcon } from "@/components/icons/solar";
 import { useApp, PlanItem } from "@/lib/store";
-import { formatMoney } from "@/lib/utils";
+// Amounts here are decided on, so they stay visible in privacy mode.
+import { formatMoneyAlways as formatMoney } from "@/lib/utils";
 
 interface DeletePlanDialogProps {
   plan: PlanItem | null;
@@ -30,7 +31,7 @@ export function DeletePlanDialog({ plan, open, onOpenChange, onDeleted }: Delete
   const otherPartnerName = currentUser === "partner_a" ? partnerBName : partnerAName;
   const currency = plan.currency || reportingCurrency;
 
-  const handleDualPinSubmit = (e: React.FormEvent) => {
+  const handleDualPinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -44,43 +45,41 @@ export function DeletePlanDialog({ plan, open, onOpenChange, onDeleted }: Delete
     }
 
     setIsProcessing(true);
-    setTimeout(() => {
-      const res = requestDeletePlan(plan.id, partnerAPin, partnerBPin);
-      setIsProcessing(false);
+    const res = await requestDeletePlan(plan.id, partnerAPin, partnerBPin);
+    setIsProcessing(false);
 
-      if (res.success) {
-        setSuccessMsg(`Consensus reached! Goal "${plan.title}" has been dissolved with mutual consent.`);
-        setTimeout(() => {
-          onOpenChange(false);
-          setSuccessMsg("");
-          setPartnerAPin("");
-          setPartnerBPin("");
-          if (onDeleted) onDeleted();
-        }, 1200);
-      } else {
-        setError("Invalid PIN verification. Please check your credentials.");
-      }
-    }, 800);
+    if (res.success) {
+      setSuccessMsg(`Consensus reached! Goal "${plan.title}" has been dissolved with mutual consent.`);
+      setTimeout(() => {
+        onOpenChange(false);
+        setSuccessMsg("");
+        setPartnerAPin("");
+        setPartnerBPin("");
+        if (onDeleted) onDeleted();
+      }, 1200);
+    } else {
+      setError(res.message || "Invalid PIN verification. Please check your credentials.");
+    }
   };
 
-  const handleSendRequest = () => {
+  const handleSendRequest = async () => {
     setIsProcessing(true);
     setError("");
 
-    setTimeout(() => {
-      const res = requestDeletePlan(plan.id);
-      setIsProcessing(false);
+    const res = await requestDeletePlan(plan.id);
+    setIsProcessing(false);
 
-      if (res.success) {
-        setSuccessMsg(
-          `Deletion request dispatched to ${otherPartnerName}'s dashboard for partner PIN confirmation.`
-        );
-        setTimeout(() => {
-          onOpenChange(false);
-          setSuccessMsg("");
-        }, 1500);
-      }
-    }, 600);
+    if (res.success) {
+      setSuccessMsg(
+        `Deletion request dispatched to ${otherPartnerName}'s dashboard for partner PIN confirmation.`
+      );
+      setTimeout(() => {
+        onOpenChange(false);
+        setSuccessMsg("");
+      }, 1500);
+    } else {
+      setError(res.message || "Unable to send the deletion request.");
+    }
   };
 
   return (

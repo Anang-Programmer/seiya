@@ -47,7 +47,7 @@ export function SeiyaVideoAvatar({
     >
       <video
         ref={videoRef}
-        src="/ask-seiya/curiousseiya.mp4?v=clean"
+        src="/ask-seiya/curiousseiya_clean.mp4"
         autoPlay
         loop
         muted

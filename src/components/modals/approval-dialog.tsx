@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { formatMoney, formatMoneyConverted } from "@/lib/utils";
+// Amounts here are decided on, so they stay visible in privacy mode.
+import { formatMoneyAlways as formatMoney, formatMoneyConvertedAlways as formatMoneyConverted } from "@/lib/utils";
 import { SolarIcon } from "@/components/icons/solar";
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -412,7 +413,7 @@ export function ApprovalDialog({ request, open, onOpenChange }: ApprovalDialogPr
               <div>
                 <span className="font-semibold block">You created this request</span>
                 <span className="text-[11px] text-amber-800">
-                  Dual-Key protocol prevents self-approval. Switch persona to <strong>{approverName}</strong> to sign and approve.
+                  Dual-Key protocol prevents self-approval. <strong>{approverName}</strong> signs this from their own account.
                 </span>
               </div>
             </div>

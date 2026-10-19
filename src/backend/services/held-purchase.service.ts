@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CreateHeldPurchaseInput } from "@/backend/validators/held-purchase";
-import { recordHouseholdActivity } from "./activity.service";
+import { getHouseholdRole, recordHouseholdActivity } from "./activity.service";
 
 export async function listHouseholdHeldPurchases(supabase: SupabaseClient, householdId: string) {
   return supabase
@@ -17,6 +17,8 @@ export async function createHouseholdHeldPurchase(
   userId: string,
   input: CreateHeldPurchaseInput
 ) {
+  const requesterRole = await getHouseholdRole(supabase, householdId, userId);
+
   const { data, error } = await supabase
     .from("held_purchases")
     .insert({
@@ -26,7 +28,7 @@ export async function createHouseholdHeldPurchase(
       currency: input.currency,
       wallet: input.wallet,
       requester_id: userId,
-      requester_role: input.requesterRole,
+      requester_role: requesterRole,
       status: "held",
       hold_until: input.holdUntil,
       reason: input.reason,
@@ -38,7 +40,7 @@ export async function createHouseholdHeldPurchase(
     await recordHouseholdActivity(supabase, householdId, {
       title: `Expense Held by Safeguard: ${input.title}`,
       category: "Safeguard",
-      actor: input.requesterRole,
+      actor: requesterRole,
       status: "HOLD",
       amount: input.amount,
       currency: input.currency,
@@ -49,123 +51,46 @@ export async function createHouseholdHeldPurchase(
   return { data, error };
 }
 
+const CONTINUE_ERRORS: Record<string, string> = {
+  P0002: "Held purchase not found.",
+  "42501": "Only the member who requested this purchase can continue it.",
+  P1001: "Insufficient available simulated balance.",
+  P1002: "The active finance agreement has invalid transaction settings.",
+};
+
+// The RPC releases the hold and records the expense in the ledger: executed
+// directly (ALLOW) or as a pending transaction queued for the partner
+// (NEED_APPROVAL). Callers must not record the expense a second time.
 export async function continueHouseholdHeldPurchase(
   supabase: SupabaseClient,
-  householdId: string,
-  userId: string,
   heldId: string
 ) {
-  const { data: item, error: findError } = await supabase
-    .from("held_purchases")
-    .select("*")
-    .eq("household_id", householdId)
-    .eq("id", heldId)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc("continue_held_purchase", { p_held_id: heldId });
 
-  if (findError || !item) {
-    return { success: false, message: "Held purchase not found." };
+  if (error) {
+    return {
+      success: false,
+      code: error.code,
+      message: CONTINUE_ERRORS[error.code ?? ""] ?? (error.code === "22023" ? error.message : "Unable to continue this purchase."),
+    };
   }
 
-  const { data: ruleRow } = await supabase
-    .from("household_finance_rules")
-    .select("rules")
-    .eq("household_id", householdId)
-    .eq("status", "active")
-    .order("version", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const payload = data as { outcome?: string; transaction?: unknown; approval?: unknown } | null;
 
-  const rules = (ruleRow?.rules && typeof ruleRow.rules === "object"
-    ? (ruleRow.rules as Record<string, unknown>)
-    : {}) as {
-    approval?: { sharedWalletThreshold?: unknown; requirePartnerApprovalAboveThreshold?: unknown };
-  };
-  const threshold = Number(rules?.approval?.sharedWalletThreshold) || 500000;
-  const requireApproval = Boolean(rules?.approval?.requirePartnerApprovalAboveThreshold ?? true);
-
-  if (item.wallet === "shared" && requireApproval && Number(item.amount) >= threshold) {
-    await supabase.from("held_purchases").delete().eq("id", heldId);
-
-    const { data: members } = await supabase
-      .from("household_members")
-      .select("user_id")
-      .eq("household_id", householdId)
-      .eq("status", "active");
-
-    const partner = (members ?? []).find((m) => m.user_id !== userId);
-
-    const { data: approval } = await supabase
-      .from("approvals")
-      .insert({
-        household_id: householdId,
-        title: item.title,
-        amount: item.amount,
-        currency: item.currency,
-        wallet: item.wallet,
-        requester_id: userId,
-        requester_role: item.requester_role || "partner_a",
-        approver_id: partner?.user_id ?? null,
-        approver_role: item.requester_role === "partner_a" ? "partner_b" : "partner_a",
-        status: "pending",
-        reason: "User confirmed held item; secondary gateway check routed to partner approval.",
-        category: "Expenses",
-        type: "EXPENSE",
-        expires_in_hours: 24,
-      })
-      .select()
-      .single();
-
-    await recordHouseholdActivity(supabase, householdId, {
-      title: `Approval Dispatched: ${item.title}`,
-      category: "Safeguard",
-      actor: item.requester_role || "partner_a",
-      status: "NEED_APPROVAL",
-      amount: item.amount,
-      currency: item.currency,
-      reason: "Held purchase confirmed by user and forwarded for partner consent.",
-    });
-
+  if (payload?.outcome === "NEED_APPROVAL") {
     return {
       success: true,
       outcome: "NEED_APPROVAL",
-      approval,
+      approval: payload.approval ?? null,
+      transaction: payload.transaction ?? null,
       message: "Held purchase routed to partner approval.",
     };
   }
 
-  await supabase.from("held_purchases").delete().eq("id", heldId);
-
-  if (item.wallet === "shared") {
-    const { data: sharedWallet } = await supabase
-      .from("wallets")
-      .select("id, simulated_balance")
-      .eq("household_id", householdId)
-      .eq("wallet_type", "shared")
-      .maybeSingle();
-
-    if (sharedWallet) {
-      await supabase
-        .from("wallets")
-        .update({
-          simulated_balance: Math.max(0, Number(sharedWallet.simulated_balance) - Number(item.amount)),
-        })
-        .eq("id", sharedWallet.id);
-    }
-  }
-
-  await recordHouseholdActivity(supabase, householdId, {
-    title: `${item.title} Confirmed after Cooldown`,
-    category: "Safeguard",
-    actor: item.requester_role || "partner_a",
-    status: "ALLOW",
-    amount: item.amount,
-    currency: item.currency,
-    reason: "Secondary confirmation verified through cooling-off gateway.",
-  });
-
   return {
     success: true,
     outcome: "ALLOW",
+    transaction: payload?.transaction ?? null,
     message: "Purchase confirmed and debited after cooling-off review.",
   };
 }
@@ -193,7 +118,7 @@ export async function cancelHouseholdHeldPurchase(
     await recordHouseholdActivity(supabase, householdId, {
       title: `Held Purchase Cancelled: ${item?.title || "Item"}`,
       category: "Safeguard",
-      actor: "partner_a",
+      actor: await getHouseholdRole(supabase, householdId, userId),
       status: "INFO",
       reason: "Cancelled by user after cooling-off review.",
     });

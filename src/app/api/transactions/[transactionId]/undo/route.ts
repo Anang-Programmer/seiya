@@ -36,8 +36,10 @@ export async function POST(_request: Request, context: RouteContext) {
       return NextResponse.json({ success: false, message: "No active household found." }, { status: 404 });
     }
 
-    const result = await undoSimulatedTransaction(supabase, householdId, transactionId);
-    return NextResponse.json(result, { status: result.success ? 200 : 400 });
+    const result = await undoSimulatedTransaction(supabase, transactionId);
+    const statusMap: Record<string, number> = { NOT_FOUND: 404, FORBIDDEN: 403, DB_ERROR: 500 };
+    const status = "code" in result ? statusMap[result.code] ?? 400 : 200;
+    return NextResponse.json(result, { status });
   } catch (error) {
     console.error("[transactions/undo] Unexpected error:", error);
     return NextResponse.json({ success: false, message: "An unexpected error occurred." }, { status: 500 });

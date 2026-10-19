@@ -4,13 +4,17 @@ import React, { useState, useRef, useEffect } from "react";
 import dynamic from "next/dynamic";
 import type { OrbSignal } from "orb-ui";
 import { SolarIcon } from "@/components/icons/solar";
+import { RichText } from "@/components/ui/rich-text";
 import { SeiyaIcon } from "@/components/icons/seiya-logo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SeiyaVideoAvatar } from "@/components/ui/seiya-video-avatar";
 import { ActionCard, PlanCard, ClarificationCard } from "@/components/cards/domain-cards";
-import { formatMoneyConverted } from "@/lib/utils";
 import { useApp, ChatMessage } from "@/lib/store";
+import { apiCommitStatement, apiPreviewStatement, apiScanReceipt, type StatementTransaction } from "@/lib/api";
+import { ReceiptDraftCard, StatementPreviewCard, type ReceiptConfirmation } from "@/components/cards/attachment-cards";
+import { readReceiptOnDevice } from "@/lib/receipt-ocr";
+import { formatRelativeDate } from "@/lib/transformers";
 
 const Orb = dynamic(() => import("orb-ui").then((mod) => mod.Orb), {
   ssr: false,
@@ -29,6 +33,19 @@ const orangeCloudTheme = {
 };
 
 
+type ScannedReceiptLike = {
+  merchant: string | null;
+  total: number | null;
+  currency: string | null;
+  date: string | null;
+  category: "Food & Drinks" | "Shopping" | "Bills" | "Transportation" | "Health" | "Social" | "Others";
+};
+
+// Unique ids for messages and chats created on this device.
+function newLocalId(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
 interface ChatSession {
   id: string;
   title: string;
@@ -43,192 +60,351 @@ interface ChatSession {
 export function ChatView() {
   const {
     currentUser,
-    chatMessages: initialStoreMessages,
     sendChatMessage,
+    loadChatHistory,
+    householdId,
     partnerAName,
     partnerBName,
     reportingCurrency,
     locale,
     pendingDirectChat,
     setPendingDirectChat,
+    partnerProfile,
+    refreshData,
+    proposeExpense,
+    household,
   } = useApp();
 
   const activeName = currentUser === "partner_a" ? partnerAName : partnerBName;
-  const partnerName = currentUser === "partner_a" ? partnerBName : partnerAName;
+  // Until the partner joins, the store only has a "Partner B" placeholder.
+  const partnerName = partnerProfile
+    ? currentUser === "partner_a" ? partnerBName : partnerAName
+    : "your partner";
 
-  // Initial Seeded Sessions for Chat History
-  const [sessions, setSessions] = useState<ChatSession[]>([
-    {
-      id: "session-1",
-      title: "Can we afford all bills this month?",
-      timestamp: "Today, 14:29",
-      dateGroup: "Today",
-      mode: "shared",
-      isShared: true,
-      creatorRole: "partner_a",
-      messages: initialStoreMessages.length > 0 ? initialStoreMessages : [
-        {
-          id: "msg-1",
-          sender: "seiya",
-          text: "Hello! I'm Seiya, your financial co-pilot. I operate under your Couple Contract to help you make money decisions together. How can I help you both today?",
-          timestamp: "09:00",
-        },
-        {
-          id: "msg-2",
-          sender: "user",
-          userRole: "partner_a",
-          text: "Can we afford all bills this month?",
-          timestamp: "14:29",
-        },
-        {
-          id: "msg-3",
-          sender: "seiya",
-          text: "Under your Couple Contract, I can record expenses, clarify budgets, analyze affordability, and safeguard mutual funds. How would you like to proceed?",
-          timestamp: "14:29",
-        },
-      ],
-    },
-    {
-      id: "session-2",
-      title: "Kyoto Trip Savings Plan",
-      timestamp: "Yesterday, 16:40",
-      dateGroup: "Yesterday",
-      mode: "shared",
-      isShared: true,
-      creatorRole: "partner_a",
-      messages: [
-        {
-          id: "msg-k1",
-          sender: "user",
-          userRole: "partner_a",
-          text: "We want to save $15,000 for our trip to Kyoto in 10 months.",
-          timestamp: "16:40",
-        },
-        {
-          id: "msg-k2",
-          sender: "seiya",
-          text: "I've structured a mutual milestone for your Kyoto vacation. Based on your 60:40 Couple Contract split ratio, here is the recommended monthly funding plan:",
-          timestamp: "16:40",
-          cardType: "PLAN",
-          cardData: {
-            title: "Kyoto Vacation Fund",
-            targetAmount: 15000,
-            currency: "USD",
-            currentAmount: 2500,
-            horizon: "10 months (July 2027)",
-            monthlyTarget: 1250,
-            split: "60% Taylor ($750) : 40% Alex ($500)",
-            fundingWallet: "Shared Savings",
-            assumptions: "Includes flight estimates, traditional ryokan lodging, and daily shared meal budgets.",
-          },
-        },
-      ],
-    },
-    {
-      id: "session-3",
-      title: "Dinner Bistro Split ($85)",
-      timestamp: "Yesterday, 19:10",
-      dateGroup: "Yesterday",
-      mode: "shared",
-      isShared: true,
-      creatorRole: "partner_a",
-      messages: [
-        {
-          id: "msg-d1",
-          sender: "user",
-          userRole: "partner_a",
-          text: "Paid $85 for dinner together, I paid.",
-          timestamp: "19:10",
-        },
-        {
-          id: "msg-d2",
-          sender: "seiya",
-          text: "Checked against Couple Contract rules: standard expense within agreed single-signer limit ($500). Recorded with 60:40 split ratio.",
-          timestamp: "19:10",
-          cardType: "ACTION_ALLOW",
-          cardData: {
-            title: "Dinner together",
-            category: "Food & Drinks",
-            amount: 85,
-            currency: "USD",
-            wallet: "shared",
-            paidBy: partnerAName,
-            partnerBOwesA: 51,
-          },
-        },
-      ],
-    },
-    {
-      id: "session-4",
-      title: "Annual Home Insurance ($1,200)",
-      timestamp: "11 Oct 2026",
-      dateGroup: "Previous",
-      mode: "shared",
-      isShared: true,
-      creatorRole: "partner_a",
-      messages: [
-        {
-          id: "msg-i1",
-          sender: "user",
-          userRole: "partner_a",
-          text: "Pay for annual home insurance $1,200 from shared wallet.",
-          timestamp: "10:15",
-        },
-        {
-          id: "msg-i2",
-          sender: "seiya",
-          text: "This payment exceeds your agreed $500 threshold and requires mutual authorization from Taylor before funds are disbursed.",
-          timestamp: "10:15",
-          cardType: "ACTION_NEED_APPROVAL",
-          cardData: {
-            title: "Annual Home Insurance",
-            amount: 1200,
-            currency: "USD",
-            wallet: "shared",
-            reason: "Amount exceeds agreed USD 500 threshold. Both keys required.",
-          },
-        },
-      ],
-    },
-    {
-      id: "session-5",
-      title: "Flash-Sale TV ($1,400) Hold",
-      timestamp: "08 Oct 2026",
-      dateGroup: "Previous",
-      mode: "personal",
-      isShared: false,
-      creatorRole: "partner_a",
-      messages: [
-        {
-          id: "msg-f1",
-          sender: "user",
-          userRole: "partner_a",
-          text: "Checkout flash-sale TV for $1,400 from the shared wallet.",
-          timestamp: "23:40",
-        },
-        {
-          id: "msg-f2",
-          sender: "seiya",
-          text: "Late-night promotional checkout triggered during cooling-off hours (23:00 - 08:00). Placed on an 8-hour hold to prevent impulse purchases.",
-          timestamp: "23:40",
-          cardType: "ACTION_HOLD",
-          cardData: {
-            title: "Flash-Sale TV",
-            amount: 1400,
-            currency: "USD",
-            wallet: "shared",
-            reason: "Late-night impulse safeguard active until 08:00 tomorrow.",
-          },
-        },
-      ],
-    },
-  ]);
+  // First message of a new conversation.
+  const introFor = (isShared: boolean) =>
+    isShared
+      ? `Hi ${activeName} and ${partnerName}! This is a **shared chat**: you both see everything here, and Seiya's suggestions follow your **Seiya's Promise**.`
+      : `Hi ${activeName}! This is your **private chat** with Seiya, and only you can see it. Ask about your spending, plans, or anything on your mind. When you're ready, tap **Share with ${partnerName}** to bring it into your shared space.`;
+
+  // Conversations live in Supabase; new ones are added as the user chats.
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
 
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+
+  const appendToSession = (sessionId: string, message: ChatMessage) => {
+    setSessions((prev) =>
+      prev.map((session) =>
+        session.id === sessionId ? { ...session, messages: [...session.messages, message] } : session
+      )
+    );
+  };
+
+  // ---------------------------------------------------------------------------
+  // Attachments: 📎 bank statement (preview -> import) and 🖼 receipt photo
+  // (read -> confirm -> record through the normal expense rules).
+  // ---------------------------------------------------------------------------
+  const statementInputRef = useRef<HTMLInputElement>(null);
+  const receiptInputRef = useRef<HTMLInputElement>(null);
+  const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+  const baseCurrency = household?.baseCurrency ?? reportingCurrency;
+  const nowTime = () => new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+
+  const seiyaNote = (text: string, extra: Partial<ChatMessage> = {}): ChatMessage => ({
+    id: newLocalId("msg"),
+    sender: "seiya",
+    text,
+    timestamp: nowTime(),
+    ...extra,
+  });
+
+  // Posts the user's attachment line into the open chat, starting a chat if needed.
+  const postUserAttachment = (label: string): string => {
+    const userMsg: ChatMessage = {
+      id: newLocalId("msg"),
+      sender: "user",
+      userRole: currentUser,
+      text: label,
+      timestamp: nowTime(),
+    };
+    if (activeSessionId) {
+      appendToSession(activeSessionId, userMsg);
+      return activeSessionId;
+    }
+    const id = newLocalId("session");
+    const isShared = newChatMode === "shared";
+    setSessions((prev) => [
+      {
+        id,
+        title: label.length > 32 ? label.slice(0, 32) + "..." : label,
+        timestamp: "Just now",
+        dateGroup: "Today",
+        mode: newChatMode,
+        isShared,
+        creatorRole: currentUser,
+        messages: [seiyaNote(introFor(isShared)), userMsg],
+      },
+      ...prev,
+    ]);
+    setActiveSessionId(id);
+    return id;
+  };
+
+  const friendlyError = (error: unknown, fallback: string) => {
+    const message = error instanceof Error && error.message ? error.message : fallback;
+    if (/not active yet|no active (shared|personal) wallet/i.test(message)) {
+      return "Your wallets open after you and your partner agree on Seiya's Promise. Try again once it's active.";
+    }
+    return message;
+  };
+
+  // Attachments wait in the composer until Send, so the user can add a note.
+  type AttachmentKind = "statement" | "receipt";
+  type WalletChoice = "shared" | "personal";
+  const [pendingAttachment, setPendingAttachment] = useState<{ file: File; hint: AttachmentKind; previewUrl: string | null } | null>(null);
+  const [processingLabel, setProcessingLabel] = useState<string | null>(null);
+
+  const isImageFile = (f: File) => f.type.startsWith("image/") || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name);
+  const isSheetFile = (f: File) => /\.(csv|xlsx|xls)$/i.test(f.name);
+  const isPdfFile = (f: File) => f.type === "application/pdf" || /\.pdf$/i.test(f.name);
+
+  const stageAttachment = (file: File, hint: AttachmentKind) => {
+    setPendingAttachment((prev) => {
+      if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+      return { file, hint, previewUrl: isImageFile(file) ? URL.createObjectURL(file) : null };
+    });
+  };
+  const clearAttachment = () =>
+    setPendingAttachment((prev) => {
+      if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+      return null;
+    });
+
+  // "masuk shared ya" / "pribadi" in the note preselects the wallet on the card.
+  const walletFromNote = (note: string): WalletChoice | undefined =>
+    /\b(shared|bersama|berdua|patungan|joint)\b/i.test(note)
+      ? "shared"
+      : /\b(pribadi|personal|sendiri|private)\b/i.test(note)
+        ? "personal"
+        : undefined;
+
+  const processStatement = async (sessionId: string, file: File, wallet: WalletChoice | undefined, rethrow = false) => {
+    if (!householdId) return;
+    setProcessingLabel("Reading your statement…");
+    try {
+      const res = await apiPreviewStatement(householdId, file);
+      appendToSession(
+        sessionId,
+        seiyaNote(
+          `I found **${res.extractedCount} transaction${res.extractedCount === 1 ? "" : "s"}** in your statement. Check them below and choose which wallet to import them into. Nothing is saved until you confirm.`,
+          { cardType: "STATEMENT_PREVIEW", cardData: { fileName: res.fileName || file.name, transactions: res.transactions, defaultWallet: wallet } }
+        )
+      );
+    } catch (error) {
+      if (rethrow) throw error;
+      appendToSession(sessionId, seiyaNote(friendlyError(error, "I couldn't read that statement. Please try another file.")));
+    }
+  };
+
+  const postReceiptDraft = (sessionId: string, receipt: ScannedReceiptLike, note: string, wallet: WalletChoice | undefined) => {
+    const missing = receipt.total === null ? " I couldn't read the total, so please type it in." : "";
+    appendToSession(
+      sessionId,
+      seiyaNote(`Here's what I read from your receipt. Check the details, then tap **Record expense**.${missing}`, {
+        cardType: "RECEIPT_DRAFT",
+        cardData: { ...receipt, merchant: receipt.merchant ?? (note ? note.slice(0, 80) : null), defaultWallet: wallet },
+      })
+    );
+  };
+
+  const processReceiptPdf = async (sessionId: string, file: File, note: string, wallet: WalletChoice | undefined, rethrow = false) => {
+    if (!householdId) return;
+    setProcessingLabel("Reading your receipt…");
+    try {
+      const res = await apiScanReceipt(householdId, file, file.name);
+      postReceiptDraft(sessionId, res.receipt, note, wallet);
+    } catch (error) {
+      if (rethrow) throw error;
+      appendToSession(sessionId, seiyaNote(friendlyError(error, "I couldn't read that receipt.")));
+    }
+  };
+
+  // Photos: on-device OCR first (no AI tokens); the vision model is only a fallback.
+  const processReceiptImage = async (sessionId: string, file: File, note: string, wallet: WalletChoice | undefined) => {
+    if (!householdId) return;
+    let image: Blob;
+    try {
+      image = await shrinkImage(file);
+    } catch {
+      appendToSession(sessionId, seiyaNote("I couldn't open that photo. Please take it again as a JPG or PNG."));
+      return;
+    }
+    setProcessingLabel("Reading your receipt on this device…");
+    try {
+      const { fields } = await readReceiptOnDevice(image);
+      if (fields.total !== null) {
+        postReceiptDraft(sessionId, fields, note, wallet);
+        return;
+      }
+    } catch (error) {
+      console.warn("[receipt] on-device OCR unavailable:", error instanceof Error ? error.message : error);
+    }
+    if (image.size > MAX_UPLOAD_BYTES) {
+      appendToSession(sessionId, seiyaNote("That photo is larger than **4 MB**. Please crop it to just the receipt."));
+      return;
+    }
+    setProcessingLabel("Taking a closer look at your receipt…");
+    try {
+      const res = await apiScanReceipt(householdId, image, "receipt.jpg");
+      postReceiptDraft(sessionId, res.receipt, note, wallet);
+    } catch (error) {
+      appendToSession(sessionId, seiyaNote(friendlyError(error, "I couldn't read that receipt. Try a sharper, well-lit photo.")));
+    }
+  };
+
+  const sendAttachment = async (noteRaw: string) => {
+    const attachment = pendingAttachment;
+    if (!attachment || !householdId) return;
+    const { file, hint } = attachment;
+    const note = noteRaw.trim();
+    clearAttachment();
+    setInputText("");
+
+    const sessionId = postUserAttachment(`${isImageFile(file) ? "🖼" : "📎"} ${file.name}${note ? `\n${note}` : ""}`);
+    const wallet = walletFromNote(note);
+
+    if (!isImageFile(file) && file.size > MAX_UPLOAD_BYTES) {
+      appendToSession(sessionId, seiyaNote("That file is larger than **4 MB**. Please export a shorter period (for example one month) and try again."));
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      if (isImageFile(file)) {
+        await processReceiptImage(sessionId, file, note, wallet);
+      } else if (isSheetFile(file)) {
+        await processStatement(sessionId, file, wallet);
+      } else if (isPdfFile(file)) {
+        // A PDF can be either; try the button's intent first, then the other.
+        const order: AttachmentKind[] = hint === "receipt" ? ["receipt", "statement"] : ["statement", "receipt"];
+        let lastError: unknown = null;
+        for (const kind of order) {
+          try {
+            if (kind === "statement") await processStatement(sessionId, file, wallet, true);
+            else await processReceiptPdf(sessionId, file, note, wallet, true);
+            return;
+          } catch (error) {
+            lastError = error;
+          }
+        }
+        appendToSession(sessionId, seiyaNote(friendlyError(lastError, "I couldn't find a statement or a receipt in this PDF.")));
+      } else {
+        appendToSession(
+          sessionId,
+          seiyaNote("I can read **bank statements** (PDF, Excel or CSV) and **receipts** (a photo or a PDF e-receipt). Please attach one of those.")
+        );
+      }
+    } finally {
+      setIsProcessing(false);
+      setProcessingLabel(null);
+    }
+  };
+
+  const importStatement = async (sessionId: string | null, transactions: StatementTransaction[], walletType: "shared" | "personal") => {
+    if (!householdId) throw new Error("No household found.");
+    try {
+      const res = await apiCommitStatement(householdId, { transactions, walletType, paidBy: currentUser });
+      void refreshData();
+      const count = res.importedCount ?? transactions.length;
+      const where = walletType === "shared" ? "your shared wallet" : "your personal wallet";
+      if (sessionId) appendToSession(sessionId, seiyaNote(`Done! I imported **${count} transaction${count === 1 ? "" : "s"}** into ${where}. You'll see them in Activity and in your monthly overview.`));
+      return `Imported ${count} transaction${count === 1 ? "" : "s"} into ${where}.`;
+    } catch (error) {
+      throw new Error(friendlyError(error, "Import failed. Please try again."));
+    }
+  };
+
+  // Phone photos are large; shrink to ~1600 px JPEG before upload.
+  const shrinkImage = async (file: File): Promise<Blob> => {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    return await new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Couldn't prepare the photo."))), "image/jpeg", 0.85)
+    );
+  };
+
+  const recordReceipt = async (sessionId: string | null, draft: ReceiptConfirmation) => {
+    try {
+      const res = await proposeExpense({
+        title: draft.title,
+        amount: draft.amount,
+        currency: draft.currency,
+        category: draft.category,
+        wallet: draft.wallet === "shared" ? "shared" : currentUser === "partner_a" ? "personal_a" : "personal_b",
+        notes: draft.date ? `Receipt dated ${draft.date}` : "From a receipt photo",
+        receiptName: "receipt.jpg",
+      });
+      const amountText = new Intl.NumberFormat(locale, { style: "currency", currency: draft.currency, maximumFractionDigits: 2 }).format(draft.amount);
+      const text =
+        res.outcome === "ALLOW"
+          ? `Recorded **${amountText}** at ${draft.title}.`
+          : res.outcome === "NEED_APPROVAL"
+            ? `**${amountText}** at ${draft.title} is above your agreed limit, so I sent it to ${partnerName} for approval.`
+            : `**${amountText}** at ${draft.title} is on hold until tomorrow morning (cooling-off). You can continue or cancel it in Waiting List.`;
+      if (sessionId) appendToSession(sessionId, seiyaNote(text));
+      return text.replace(/\*\*/g, "");
+    } catch (error) {
+      throw new Error(friendlyError(error, "Couldn't record this expense. Please try again."));
+    }
+  };
+
+  // Restore saved conversations for this household.
+  useEffect(() => {
+    let cancelled = false;
+    loadChatHistory().then((history) => {
+      if (cancelled || history.length === 0) return;
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      setSessions((prev) => {
+        const known = new Set(prev.map((s) => s.id));
+        const restored: ChatSession[] = history
+          .filter((h) => !known.has(`history-${h.conversationId}`))
+          .map((h) => {
+            const updated = new Date(h.updatedAt).getTime();
+            const dateGroup: ChatSession["dateGroup"] =
+              updated >= startOfToday.getTime()
+                ? "Today"
+                : updated >= startOfToday.getTime() - 86_400_000
+                ? "Yesterday"
+                : "Previous";
+            return {
+              id: `history-${h.conversationId}`,
+              title: h.title,
+              timestamp: formatRelativeDate(h.updatedAt, locale),
+              dateGroup,
+              mode: "personal",
+              isShared: false,
+              creatorRole: currentUser,
+              messages: h.messages,
+            };
+          });
+        return [...prev, ...restored];
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [householdId]); // eslint-disable-line react-hooks/exhaustive-deps
   const [newChatMode, setNewChatMode] = useState<"personal" | "shared">("personal");
   const [historyFilter, setHistoryFilter] = useState<"all" | "shared" | "private">("all");
   const [showHistory, setShowHistory] = useState<boolean>(false);
   const [inputText, setInputText] = useState("");
+  const hasComposerContent = Boolean(inputText.trim() || pendingAttachment);
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeMenuSessionId, setActiveMenuSessionId] = useState<string | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -323,12 +499,9 @@ export function ChatView() {
     if (pendingDirectChat) {
       const mode = pendingDirectChat.mode || "personal";
       const isShared = mode === "shared";
-      const partnerName = currentUser === "partner_a" ? partnerBName : partnerAName;
       const newSessionId = `session-${Date.now()}`;
 
-      const introText = isShared
-        ? `Hello ${activeName} & ${partnerName}! You are in a **Shared Conversation**. Decisions and ideas discussed here are visible to both partners in your Couple Space and bound by your Couple Contract.`
-        : `Hello ${activeName}! This is your **Personal Private Conversation**. You can consult freely about personal spending, ideas, or questions. Whenever you're ready, click "Share with ${partnerName}" to bring it to your Couple Space.`;
+      const introText = introFor(isShared);
 
       let fullUserText = pendingDirectChat.message.trim();
       if (pendingDirectChat.attachedFileName) {
@@ -373,9 +546,13 @@ export function ChatView() {
       }
       setIsProcessing(true);
 
-      sendChatMessage(fullUserText).finally(() => {
-        setIsProcessing(false);
-      });
+      sendChatMessage(fullUserText, { sessionKey: newSessionId })
+        .then((reply) => {
+          if (reply) appendToSession(newSessionId, reply);
+        })
+        .finally(() => {
+          setIsProcessing(false);
+        });
 
       setToastMessage(
         isShared
@@ -398,7 +575,6 @@ export function ChatView() {
     if (typeof window !== "undefined" && window.innerWidth < 768) {
       setShowHistory(false);
     }
-    const partnerName = currentUser === "partner_a" ? partnerBName : partnerAName;
     setToastMessage(
       mode === "shared"
         ? `Ready for Shared Conversation with ${partnerName}`
@@ -438,7 +614,6 @@ export function ChatView() {
     const targetSession = sessions.find((s) => s.id === sessionId);
     if (!targetSession) return;
     const nextShared = !targetSession.isShared;
-    const partnerName = currentUser === "partner_a" ? partnerBName : partnerAName;
 
     setSessions((prev) =>
       prev.map((s) => (s.id === sessionId ? { ...s, isShared: nextShared } : s))
@@ -446,15 +621,15 @@ export function ChatView() {
 
     setToastMessage(
       nextShared
-        ? `Shared with ${partnerName}! Pinned to Couple Space.`
-        : `Conversation unshared from Couple Space.`
+        ? `Shared with ${partnerName}.`
+        : `This chat is private again.`
     );
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const handleSend = async (textToSend?: string) => {
+  const handleSend = async (textToSend?: string): Promise<ChatMessage | null> => {
     const text = textToSend || inputText;
-    if (!text.trim()) return;
+    if (!text.trim()) return null;
 
     setInputText("");
     setIsProcessing(true);
@@ -467,14 +642,14 @@ export function ChatView() {
       timestamp: new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
     };
 
+    const targetSessionId = activeSessionId ?? `session-${Date.now()}`;
+
     // If currently in Neutral state (activeSessionId === null), auto-create a new conversation session
     if (!activeSessionId) {
-      const newSessionId = `session-${Date.now()}`;
+      const newSessionId = targetSessionId;
       const isShared = newChatMode === "shared";
       const title = text.length > 32 ? text.slice(0, 32) + "..." : text;
-      const introText = isShared
-        ? `Hello ${activeName} & ${partnerName}! You are in a **Shared Conversation**. Decisions and ideas discussed here are visible to both partners in your Couple Space and bound by your Couple Contract.`
-        : `Hello ${activeName}! This is your **Personal Private Conversation**. You can consult freely about personal spending, ideas, or questions. Whenever you're ready, click "Share with ${partnerName}" to bring it to your Couple Space.`;
+      const introText = introFor(isShared);
 
       const newSession: ChatSession = {
         id: newSessionId,
@@ -518,13 +693,14 @@ export function ChatView() {
       );
     }
 
-    // Call store handler to execute any side-effects (e.g. transactions, approvals, plans)
-    await sendChatMessage(text);
-
-    // Simulate "Checking rules..." delay before returning gateway confirmation
-    setTimeout(() => {
+    // Seiya's AI backend answers (and may record expenses through its tools).
+    try {
+      const reply = await sendChatMessage(text, { sessionKey: targetSessionId });
+      if (reply) appendToSession(targetSessionId, reply);
+      return reply;
+    } finally {
       setIsProcessing(false);
-    }, 900);
+    }
   };
 
   // Speech Synthesis Helper for Voice Chat
@@ -632,21 +808,10 @@ export function ChatView() {
     if (!queryText.trim()) return;
     setHasVoiceTranscribed(true);
     setLiveVoiceTranscript("");
-    await handleSend(queryText);
+    const reply = await handleSend(queryText);
 
-    // Speak intelligent tailored reply matching couple financials
-    const lower = queryText.toLowerCase();
-    let reply = "";
-    if (lower.includes("bill") || lower.includes("afford")) {
-      reply = `All regular bills this month are within agreed limits. You have sufficient liquidity in your shared pool.`;
-    } else if (lower.includes("lunch") || lower.includes("dinner") || lower.includes("food") || lower.includes("paid")) {
-      reply = `Logged your meal expense with standard 60 to 40 ratio! Both wallets have been adjusted.`;
-    } else if (lower.includes("kyoto") || lower.includes("trip") || lower.includes("savings")) {
-      reply = `Your Kyoto trip goal is progressing nicely! Target is 15,000 dollars in 10 months.`;
-    } else {
-      reply = `Under your Couple Contract, all rules and balances have been checked and approved!`;
-    }
-    speakVoiceText(reply);
+    // Read Seiya's actual answer aloud.
+    if (reply?.text) speakVoiceText(reply.text);
   };
 
   // Manage voice mode lifecycle
@@ -669,40 +834,15 @@ export function ChatView() {
     }
   }, [isVoiceChatActive, isVoiceMuted]);
 
+  // Safe starters: questions only. Nothing here records or proposes a transaction.
   const quickPrompts = [
-    {
-      label: `Lunch ${formatMoneyConverted(45, "USD", reportingCurrency, locale)} (ALLOW)`,
-      text: `Paid ${formatMoneyConverted(45, "USD", reportingCurrency, locale)} for lunch together, I paid.`,
-    },
-    {
-      label: `Groceries ${formatMoneyConverted(120, "USD", reportingCurrency, locale)} (Clarify)`,
-      text: `Monthly groceries ${formatMoneyConverted(120, "USD", reportingCurrency, locale)}.`,
-    },
-    {
-      label: `Correct to ${formatMoneyConverted(38, "USD", reportingCurrency, locale)} (Edit)`,
-      text: `Actually, it was ${formatMoneyConverted(38, "USD", reportingCurrency, locale)}.`,
-    },
-    {
-      label: `Shared Flights ${formatMoneyConverted(650, "USD", reportingCurrency, locale)} (Approval)`,
-      text: `Pay for shared flight tickets ${formatMoneyConverted(650, "USD", reportingCurrency, locale)}.`,
-    },
-    {
-      label: `Flash-Sale TV ${formatMoneyConverted(1400, "USD", reportingCurrency, locale)} (HOLD)`,
-      text: `Checkout flash-sale TV for ${formatMoneyConverted(1400, "USD", reportingCurrency, locale)} from the shared wallet.`,
-    },
-    {
-      label: `External Transfer ${formatMoneyConverted(2500, "USD", reportingCurrency, locale)} (DENY)`,
-      text: `Transfer ${formatMoneyConverted(2500, "USD", reportingCurrency, locale)} to an external personal account now.`,
-    },
-    {
-      label: `Kyoto Trip ${formatMoneyConverted(15000, "USD", reportingCurrency, locale)} (Plan)`,
-      text: `We want to save ${formatMoneyConverted(15000, "USD", reportingCurrency, locale)} for our trip to Kyoto in 10 months.`,
-    },
-    { label: "Check Due Bills (Cash-flow)", text: "Can we afford all bills this month?" },
-    {
-      label: `New Laptop ${formatMoneyConverted(2000, "USD", reportingCurrency, locale)} (Affordability)`,
-      text: `Can we afford a new laptop for ${formatMoneyConverted(2000, "USD", reportingCurrency, locale)}?`,
-    },
+    { label: "Our balances", text: "How much is in our shared wallet and my personal wallet?" },
+    { label: "Bills due", text: "Which bills are due this month?" },
+    { label: "Budget check", text: "How is our budget doing this month?" },
+    { label: "Log an expense", text: "I want to log a shared expense." },
+    { label: "Plan a goal", text: "Help us plan savings for a shared goal." },
+    { label: "Our rules", text: "What did we agree in Seiya's Promise?" },
+    { label: "Money talk tips", text: "How can we talk about money without arguing?" },
   ];
 
   return (
@@ -845,7 +985,7 @@ export function ChatView() {
                       ? "bg-[#fef9ef] text-[#B45529] shadow-xs"
                       : "text-[#515151] hover:text-[#B45529]"
                   }`}
-                  title="Filter to Shared conversations synced with partner"
+                  title="Chats shared with your partner"
                 >
                   <SolarIcon name="users-group-rounded" size={11} />
                   <span>Shared</span>
@@ -868,7 +1008,7 @@ export function ChatView() {
                       ? "bg-[#fef9ef] text-[#734a1a] shadow-xs"
                       : "text-[#515151] hover:text-[#734a1a]"
                   }`}
-                  title="Filter to Private personal conversations"
+                  title="Chats only you can see"
                 >
                   <SolarIcon name="lock-keyhole" size={10} />
                   <span>Private</span>
@@ -902,8 +1042,8 @@ export function ChatView() {
                   </p>
                   <p className="text-[11px] text-[#808988] leading-relaxed max-w-[200px] mx-auto">
                     {historyFilter === "shared"
-                      ? "Start a new shared conversation or share an existing chat with your partner."
-                      : "All of your conversations are currently shared in Couple Space."}
+                      ? "Start a shared chat, or share one of your private chats."
+                      : "All your chats are shared with your partner."}
                   </p>
                   <button
                     type="button"
@@ -986,7 +1126,7 @@ export function ChatView() {
                                   <p className="truncate text-xs leading-snug font-medium">{session.title}</p>
                                   {session.isShared ? (
                                     <span
-                                      title="Shared with partner in Couple Space"
+                                      title="Shared with your partner"
                                       className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-[#B45529] bg-[#fbf0eb] px-1.5 py-0.5 rounded-full shrink-0 border border-[#B45529]/20"
                                     >
                                       <SolarIcon name="users-group-rounded" size={9} />
@@ -1097,7 +1237,7 @@ export function ChatView() {
             <div className="p-3 border-t border-[#d1c9bf]/30 bg-[#f8f3e9] flex items-center justify-between text-[11px] text-[#515151]">
               <span className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#2d5232]" />
-                <span>Synced with Couple Space</span>
+                <span>Saved to your account</span>
               </span>
               <span className="font-mono text-[10px] text-[#808988]">
                 {filteredSessions.length} {historyFilter === "all" ? "chats" : `${historyFilter} ${filteredSessions.length === 1 ? "chat" : "chats"}`}
@@ -1129,7 +1269,7 @@ export function ChatView() {
 
             <div className="min-w-0">
               <h3 className="text-sm font-serif font-normal text-[#2a2b2f] leading-tight truncate">
-                {activeSession?.title || "New Consultation"}
+                {activeSession?.title || "New chat"}
               </h3>
               {isVoiceChatActive ? (
                 <div className="flex items-center gap-1.5 text-[11px] text-[#B45529] font-medium mt-0.5 animate-in fade-in-0">
@@ -1139,7 +1279,7 @@ export function ChatView() {
               ) : isProcessing ? (
                 <div className="flex items-center gap-1.5 text-[11px] text-[#B45529] font-medium mt-0.5 animate-in fade-in-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#B45529] animate-ping" />
-                  <span>Analyzing rules & balances...</span>
+                  <span>{processingLabel ?? "Checking your rules and balances…"}</span>
                 </div>
               ) : null}
             </div>
@@ -1153,10 +1293,10 @@ export function ChatView() {
                 size="sm"
                 onClick={() => handleToggleShare(activeSession.id)}
                 className={`h-7 px-2.5 rounded-full text-[11px] font-semibold gap-1 shadow-2xs ${isVoiceChatActive ? "text-[#B45529] border-[#B45529]/40 bg-[#1c1b1a] hover:bg-[#2a170f]" : "text-[#B45529] border-[#B45529]/30 hover:bg-[#B45529] hover:text-[#fef9ef]"}`}
-                title={`Share this conversation with ${currentUser === "partner_a" ? partnerBName : partnerAName}`}
+                title={`Share this chat with ${partnerName}`}
               >
                 <SolarIcon name="users-group-rounded" size={13} />
-                <span className="hidden sm:inline">Share with {currentUser === "partner_a" ? partnerBName : partnerAName}</span>
+                <span className="hidden sm:inline">Share with {partnerName}</span>
                 <span className="sm:hidden">Share</span>
               </Button>
             )}
@@ -1164,7 +1304,7 @@ export function ChatView() {
             {activeSession && activeSession.isShared && (
               <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border ${isVoiceChatActive ? "text-[#78c282] bg-[#162519] border-[#2d5232]/50" : "text-[#2d5232] bg-[#edf3ec] border-[#2d5232]/20"}`}>
                 <SolarIcon name="users-group-rounded" size={12} />
-                <span className="hidden sm:inline">Shared with {currentUser === "partner_a" ? partnerBName : partnerAName}</span>
+                <span className="hidden sm:inline">Shared with {partnerName}</span>
                 <span className="sm:hidden">Shared</span>
               </span>
             )}
@@ -1204,7 +1344,7 @@ export function ChatView() {
                 How can I help you today, {activeName}?
               </h2>
               <p className="text-xs sm:text-sm text-[#515151] leading-relaxed max-w-md mb-6">
-                I am Seiya, your AI financial co-pilot operating under your Couple Contract. Ask any question or propose a transaction to start a new chat automatically.
+                I&apos;m Seiya, the money co-pilot for the two of you. Ask about your spending, bills, or plans, and a new chat starts automatically.
               </p>
 
               {/* Mode switch for the next conversation */}
@@ -1219,7 +1359,7 @@ export function ChatView() {
                   }`}
                 >
                   <SolarIcon name="user" size={13} />
-                  <span>Personal (Private)</span>
+                  <span>Private</span>
                 </button>
                 <button
                   type="button"
@@ -1235,51 +1375,26 @@ export function ChatView() {
                 </button>
               </div>
 
-              {/* Starter prompts */}
+              {/* Starter prompts (questions only; nothing is recorded until you give an amount) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full text-left">
-                <button
-                  onClick={() => handleSend("Can we afford all bills this month?")}
-                  className="p-3 rounded-[14px] bg-[#fef9ef] hover:bg-[#fffdf9] border border-[#d1c9bf]/50 hover:border-[#B45529]/40 text-xs text-[#2a2b2f] shadow-2xs transition-all cursor-pointer group"
-                >
-                  <div className="flex items-center gap-2 font-semibold text-[#B45529] mb-1">
-                    <SolarIcon name="calendar" size={15} />
-                    <span>Affordability Check</span>
-                  </div>
-                  <span className="text-[11px] text-[#515151]">Can we afford all upcoming bills this month?</span>
-                </button>
-
-                <button
-                  onClick={() => handleSend("Paid $45 for lunch together, I paid.")}
-                  className="p-3 rounded-[14px] bg-[#fef9ef] hover:bg-[#fffdf9] border border-[#d1c9bf]/50 hover:border-[#B45529]/40 text-xs text-[#2a2b2f] shadow-2xs transition-all cursor-pointer group"
-                >
-                  <div className="flex items-center gap-2 font-semibold text-[#B45529] mb-1">
-                    <SolarIcon name="receipt" size={15} />
-                    <span>Log an Expense</span>
-                  </div>
-                  <span className="text-[11px] text-[#515151]">Paid $45 for lunch together, I paid.</span>
-                </button>
-
-                <button
-                  onClick={() => handleSend("We want to save $15,000 for our trip to Kyoto in 10 months.")}
-                  className="p-3 rounded-[14px] bg-[#fef9ef] hover:bg-[#fffdf9] border border-[#d1c9bf]/50 hover:border-[#B45529]/40 text-xs text-[#2a2b2f] shadow-2xs transition-all cursor-pointer group"
-                >
-                  <div className="flex items-center gap-2 font-semibold text-[#B45529] mb-1">
-                    <SolarIcon name="chart" size={15} />
-                    <span>Create Savings Plan</span>
-                  </div>
-                  <span className="text-[11px] text-[#515151]">Save $15,000 for Kyoto in 10 months.</span>
-                </button>
-
-                <button
-                  onClick={() => handleSend("Pay for annual home insurance $1,200 from shared wallet.")}
-                  className="p-3 rounded-[14px] bg-[#fef9ef] hover:bg-[#fffdf9] border border-[#d1c9bf]/50 hover:border-[#B45529]/40 text-xs text-[#2a2b2f] shadow-2xs transition-all cursor-pointer group"
-                >
-                  <div className="flex items-center gap-2 font-semibold text-[#B45529] mb-1">
-                    <SolarIcon name="shield-check" size={15} />
-                    <span>Propose Large Expense</span>
-                  </div>
-                  <span className="text-[11px] text-[#515151]">Propose $1,200 annual home insurance.</span>
-                </button>
+                {[
+                  { icon: "calendar", title: "Bills this month", text: "Which bills are due this month, and can we cover them?" },
+                  { icon: "receipt", title: "Log an expense", text: "I want to log a shared expense." },
+                  { icon: "chart", title: "Plan a savings goal", text: "Help us plan savings for a shared goal." },
+                  { icon: "shield-check", title: "Our agreement", text: "What did we agree in Seiya's Promise?" },
+                ].map((card) => (
+                  <button
+                    key={card.title}
+                    onClick={() => handleSend(card.text)}
+                    className="p-3 rounded-[14px] bg-[#fef9ef] hover:bg-[#fffdf9] border border-[#d1c9bf]/50 hover:border-[#B45529]/40 text-xs text-[#2a2b2f] shadow-2xs transition-all cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-2 font-semibold text-[#B45529] mb-1">
+                      <SolarIcon name={card.icon as "calendar"} size={15} />
+                      <span>{card.title}</span>
+                    </div>
+                    <span className="text-[11px] text-[#515151]">{card.text}</span>
+                  </button>
+                ))}
               </div>
             </div>
           )}
@@ -1303,7 +1418,11 @@ export function ChatView() {
                       : "bg-[#fef9ef] text-[#2a2b2f] rounded-tl-xs shadow-2xs border border-[#e5dcd0]/70"
                   }`}
                 >
-                  <p className="whitespace-pre-line">{msg.text}</p>
+                  {msg.sender === "seiya" ? (
+                    <RichText text={msg.text} />
+                  ) : (
+                    <p className="whitespace-pre-line">{msg.text}</p>
+                  )}
                 </div>
 
                 {/* Timestamp */}
@@ -1320,7 +1439,7 @@ export function ChatView() {
                     currency={msg.cardData.currency || reportingCurrency}
                     category={msg.cardData.category}
                     wallet={msg.cardData.wallet}
-                    reason="Validated against couple budget and contract split."
+                    reason="Checked against your budget and Seiya's Promise."
                     details={msg.cardData}
                   />
                 )}
@@ -1383,6 +1502,27 @@ export function ChatView() {
                     onSelect={(opt) => handleSend(opt)}
                   />
                 )}
+
+                {msg.cardType === "STATEMENT_PREVIEW" && msg.cardData && (
+                  <StatementPreviewCard
+                    fileName={msg.cardData.fileName}
+                    transactions={msg.cardData.transactions}
+                    locale={locale}
+                    partnerName={partnerName}
+                    defaultWallet={msg.cardData.defaultWallet}
+                    onImport={(walletType) => importStatement(activeSessionId, msg.cardData.transactions, walletType)}
+                  />
+                )}
+
+                {msg.cardType === "RECEIPT_DRAFT" && msg.cardData && (
+                  <ReceiptDraftCard
+                    receipt={msg.cardData}
+                    fallbackCurrency={baseCurrency}
+                    partnerName={partnerName}
+                    defaultWallet={msg.cardData.defaultWallet}
+                    onRecord={(draft) => recordReceipt(activeSessionId, draft)}
+                  />
+                )}
               </div>
             </div>
           ))}
@@ -1395,7 +1535,7 @@ export function ChatView() {
               </div>
               <div className="p-3.5 rounded-[20px] bg-[#fef9ef] rounded-tl-xs flex items-center gap-2.5 text-xs text-[#515151] shadow-2xs">
                 <span className="w-2 h-2 rounded-full bg-[#B45529] animate-ping" />
-                <span className="font-medium text-[#2a2b2f]">Checking rules & balances...</span>
+                <span className="font-medium text-[#2a2b2f]">{processingLabel ?? "Checking your rules and balances…"}</span>
               </div>
             </div>
           )}
@@ -1491,23 +1631,47 @@ export function ChatView() {
                 : "opacity-100 translate-y-0 relative visible"
             }`}
           >
-            {/* Action buttons: Attach File & Image */}
+            {/* Attachments: 📎 bank statement, 🖼 receipt photo */}
             <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+              <input
+                ref={statementInputRef}
+                type="file"
+                accept=".pdf,.csv,.xlsx,.xls,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (file) stageAttachment(file, "statement");
+                }}
+              />
+              <input
+                ref={receiptInputRef}
+                type="file"
+                accept="image/*,application/pdf,.pdf"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (file) stageAttachment(file, "receipt");
+                }}
+              />
               <button
                 type="button"
-                onClick={() => handleSend("Here is my invoice document. Please analyze and log it.")}
-                className="p-1.5 sm:p-2 rounded-full text-[#808988] hover:text-[#B45529] hover:bg-[#ece3d3] transition-colors cursor-pointer"
-                title="Attach document or PDF"
-                aria-label="Attach file"
+                onClick={() => statementInputRef.current?.click()}
+                disabled={isProcessing || !householdId}
+                className="p-1.5 sm:p-2 rounded-full text-[#808988] hover:text-[#B45529] hover:bg-[#ece3d3] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Import a bank statement (PDF, Excel or CSV)"
+                aria-label="Import a bank statement"
               >
                 <SolarIcon name="paperclip" size={17} />
               </button>
               <button
                 type="button"
-                onClick={() => handleSend("Here is our receipt photo. Can you split this expense?")}
-                className="p-1.5 sm:p-2 rounded-full text-[#808988] hover:text-[#B45529] hover:bg-[#ece3d3] transition-colors cursor-pointer"
-                title="Upload receipt photo or image"
-                aria-label="Attach image"
+                onClick={() => receiptInputRef.current?.click()}
+                disabled={isProcessing || !householdId}
+                className="p-1.5 sm:p-2 rounded-full text-[#808988] hover:text-[#B45529] hover:bg-[#ece3d3] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Scan a receipt (photo or PDF)"
+                aria-label="Scan a receipt photo"
               >
                 <SolarIcon name="image" size={17} />
               </button>
@@ -1517,42 +1681,77 @@ export function ChatView() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                handleSend();
+                if (pendingAttachment) void sendAttachment(inputText);
+                else handleSend();
               }}
-              className="flex-1 min-w-0"
+              className="flex-1 min-w-0 flex flex-col gap-1.5"
             >
+              {pendingAttachment && (
+                <div className="flex items-center gap-2 self-start max-w-full pl-1.5 pr-1 py-1 rounded-[14px] bg-white border border-[#e5dcd0] shadow-2xs">
+                  {pendingAttachment.previewUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={pendingAttachment.previewUrl} alt="" className="w-9 h-9 rounded-[8px] object-cover shrink-0" />
+                  ) : (
+                    <span className="w-9 h-9 rounded-[8px] bg-[#fbf0eb] text-[#B45529] flex items-center justify-center shrink-0">
+                      <SolarIcon name={isPdfFile(pendingAttachment.file) || isSheetFile(pendingAttachment.file) ? "paperclip" : "image"} size={16} />
+                    </span>
+                  )}
+                  <span className="min-w-0">
+                    <span className="block truncate text-[11px] sm:text-xs font-semibold text-[#2a2b2f] max-w-[180px] sm:max-w-[280px]">
+                      {pendingAttachment.file.name}
+                    </span>
+                    <span className="block text-[10px] text-[#808988]">
+                      {isImageFile(pendingAttachment.file) ? "Receipt photo" : isSheetFile(pendingAttachment.file) ? "Bank statement" : "PDF"} ·{" "}
+                      {(pendingAttachment.file.size / 1024 < 1024
+                        ? `${Math.max(1, Math.round(pendingAttachment.file.size / 1024))} KB`
+                        : `${(pendingAttachment.file.size / 1024 / 1024).toFixed(1)} MB`)}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={clearAttachment}
+                    className="p-1 rounded-full text-[#808988] hover:text-[#a34426] hover:bg-[#f5eee1] cursor-pointer"
+                    aria-label="Remove attachment"
+                    title="Remove"
+                  >
+                    <SolarIcon name="close-circle" size={16} />
+                  </button>
+                </div>
+              )}
               <input
                 type="text"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                placeholder={`Ask Seiya as ${activeName}...`}
+                placeholder={pendingAttachment ? "Add a note (optional), then press Send" : "Message Seiya…"}
                 className="w-full px-3 sm:px-4 py-2 sm:py-2.5 rounded-full bg-[#fef9ef] border border-[#d1c9bf] text-xs sm:text-sm text-[#2a2b2f] placeholder-[#808988] focus:outline-none focus:ring-2 focus:ring-[#B45529]/20 transition-all shadow-2xs"
               />
             </form>
 
-            {/* Unified Dynamic Voice Chat & Send Action Button */}
+            {/* Unified Dynamic Voice Chat & Send Action Button (sends text and/or the attachment) */}
             <button
               type="button"
               disabled={isProcessing}
               onClick={() => {
-                if (inputText.trim()) {
+                if (pendingAttachment) {
+                  void sendAttachment(inputText);
+                } else if (inputText.trim()) {
                   handleSend();
                 } else {
                   setIsVoiceChatActive(true);
                 }
               }}
               className={`h-9 sm:h-10 shrink-0 flex items-center justify-center transition-all duration-300 ease-in-out cursor-pointer group select-none ${
-                inputText.trim()
+                hasComposerContent
                   ? "px-3.5 sm:px-5 rounded-[40px] bg-[#B45529] hover:bg-[#9a451e] border border-transparent text-[#fef9ef] shadow-xs active:scale-95"
                   : "w-9 sm:w-10 px-0 rounded-full bg-[#fbf0eb] hover:bg-[#f6e1d7] border border-[#B45529]/35 text-[#B45529] shadow-2xs hover:shadow-xs active:scale-95"
               }`}
-              title={inputText.trim() ? "Send message" : "Start Voice Chat with Seiya"}
-              aria-label={inputText.trim() ? "Send message" : "Start Voice Chat with Seiya"}
+              title={hasComposerContent ? "Send message" : "Start Voice Chat with Seiya"}
+              aria-label={hasComposerContent ? "Send message" : "Start Voice Chat with Seiya"}
             >
               <div className="relative flex items-center justify-center">
                 <span
                   className={`flex items-center justify-center transition-all duration-300 ease-in-out ${
-                    inputText.trim()
+                    hasComposerContent
                       ? "opacity-0 scale-50 max-w-0 overflow-hidden pointer-events-none"
                       : "opacity-100 scale-100 max-w-[40px]"
                   }`}
@@ -1565,7 +1764,7 @@ export function ChatView() {
                 </span>
                 <span
                   className={`flex items-center gap-1.5 transition-all duration-300 ease-in-out overflow-hidden ${
-                    inputText.trim()
+                    hasComposerContent
                       ? "opacity-100 scale-100 max-w-[100px]"
                       : "opacity-0 scale-50 max-w-0 pointer-events-none"
                   }`}

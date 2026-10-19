@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { formatMoney, formatMoneyConverted, cn } from "@/lib/utils";
+// Amounts here are decided on, so they stay visible in privacy mode.
+import { formatMoneyAlways as formatMoney, formatMoneyConvertedAlways as formatMoneyConverted, cn } from "@/lib/utils";
 import { SolarIcon } from "@/components/icons/solar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -164,9 +165,10 @@ export function ActionCard({
               variant="outline"
               size="sm"
               disabled={undone}
-              onClick={() => {
-                if (details.txId) undoTransaction(details.txId);
-                setUndone(true);
+              onClick={async () => {
+                if (details.txId && (await undoTransaction(details.txId))) {
+                  setUndone(true);
+                }
               }}
               className="text-xs"
             >
@@ -251,7 +253,7 @@ export function PlanCard({
   onAdjust,
   onDelete,
 }: PlanCardProps) {
-  const { reportingCurrency, locale } = useApp();
+  const { reportingCurrency, locale, verifySecurityPin } = useApp();
   const planCurrency = currency || reportingCurrency;
   const [activeStatus, setActiveStatus] = useState(status);
   const [showPinModal, setShowPinModal] = useState(false);
@@ -402,6 +404,7 @@ export function PlanCard({
         title="Approve & Activate Goal"
         description="Dual-Key signature requires 6-digit security PIN confirmation to activate this milestone."
         actionLabel="Verify PIN & Activate"
+        onVerify={verifySecurityPin}
         onSuccess={() => {
           setActiveStatus("Active");
           if (onApprovePlan) onApprovePlan();

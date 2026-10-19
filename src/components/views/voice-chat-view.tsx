@@ -5,7 +5,8 @@ import { SolarIcon } from "@/components/icons/solar";
 import { SeiyaIcon } from "@/components/icons/seiya-logo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatMoneyConverted } from "@/lib/utils";
+// Amounts here are decided on, so they stay visible in privacy mode.
+import { formatMoneyConvertedAlways as formatMoneyConverted } from "@/lib/utils";
 import { ChatMessage } from "@/lib/store";
 
 interface VoiceChatViewProps {

@@ -109,6 +109,8 @@ export function Header({
     transactions,
     plans,
     locale,
+    hideAmounts,
+    toggleHideAmounts,
   } = useApp();
 
   const [showNotifications, setShowNotifications] = useState(false);
@@ -275,6 +277,22 @@ export function Header({
             <kbd className="hidden md:inline-flex items-center px-1.5 py-0.5 text-[9px] font-mono font-bold text-[#808988] bg-[#fef9ef] border border-[#d1c9bf]/70 rounded shadow-2xs">
               ⌘K
             </kbd>
+          </button>
+
+          {/* Privacy: show / hide every money amount (remembered on this device) */}
+          <button
+            type="button"
+            onClick={toggleHideAmounts}
+            aria-pressed={hideAmounts}
+            aria-label={hideAmounts ? "Show amounts" : "Hide amounts"}
+            title={hideAmounts ? "Show amounts" : "Hide amounts"}
+            className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all cursor-pointer shrink-0 shadow-2xs ${
+              hideAmounts
+                ? "bg-[#B45529] border-[#B45529] text-white hover:bg-[#9c4820]"
+                : "bg-[#f5eee1] border-[#d1c9bf]/40 text-[#515151] hover:bg-[#ece3d3] hover:text-[#B45529]"
+            }`}
+          >
+            <SolarIcon name={hideAmounts ? "eye-closed" : "eye"} size={16} />
           </button>
 
           {/* Reporting Currency Selector Dropdown */}
