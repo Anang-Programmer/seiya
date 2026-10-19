@@ -152,7 +152,16 @@ export interface ChatMessage {
   userRole?: UserRole;
   text: string;
   timestamp: string;
-  cardType?: "TRANSACTION" | "ACTION_ALLOW" | "ACTION_NEED_APPROVAL" | "ACTION_HOLD" | "ACTION_DENY" | "PLAN" | "CLARIFICATION";
+  cardType?:
+    | "TRANSACTION"
+    | "ACTION_ALLOW"
+    | "ACTION_NEED_APPROVAL"
+    | "ACTION_HOLD"
+    | "ACTION_DENY"
+    | "PLAN"
+    | "CLARIFICATION"
+    | "STATEMENT_PREVIEW"
+    | "RECEIPT_DRAFT";
   cardData?: any;
 }
 

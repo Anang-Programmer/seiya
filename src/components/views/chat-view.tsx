@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { SeiyaVideoAvatar } from "@/components/ui/seiya-video-avatar";
 import { ActionCard, PlanCard, ClarificationCard } from "@/components/cards/domain-cards";
 import { useApp, ChatMessage } from "@/lib/store";
+import { apiCommitStatement, apiPreviewStatement, apiScanReceipt, type StatementTransaction } from "@/lib/api";
+import { ReceiptDraftCard, StatementPreviewCard, type ReceiptConfirmation } from "@/components/cards/attachment-cards";
 import { formatRelativeDate } from "@/lib/transformers";
 
 const Orb = dynamic(() => import("orb-ui").then((mod) => mod.Orb), {
@@ -29,6 +31,11 @@ const orangeCloudTheme = {
   },
 };
 
+
+// Unique ids for messages and chats created on this device.
+function newLocalId(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
 
 interface ChatSession {
   id: string;
@@ -54,6 +61,9 @@ export function ChatView() {
     pendingDirectChat,
     setPendingDirectChat,
     partnerProfile,
+    refreshData,
+    proposeExpense,
+    household,
   } = useApp();
 
   const activeName = currentUser === "partner_a" ? partnerAName : partnerBName;
@@ -79,6 +89,182 @@ export function ChatView() {
         session.id === sessionId ? { ...session, messages: [...session.messages, message] } : session
       )
     );
+  };
+
+  // ---------------------------------------------------------------------------
+  // Attachments: 📎 bank statement (preview -> import) and 🖼 receipt photo
+  // (read -> confirm -> record through the normal expense rules).
+  // ---------------------------------------------------------------------------
+  const statementInputRef = useRef<HTMLInputElement>(null);
+  const receiptInputRef = useRef<HTMLInputElement>(null);
+  const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+  const baseCurrency = household?.baseCurrency ?? reportingCurrency;
+  const nowTime = () => new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+
+  const seiyaNote = (text: string, extra: Partial<ChatMessage> = {}): ChatMessage => ({
+    id: newLocalId("msg"),
+    sender: "seiya",
+    text,
+    timestamp: nowTime(),
+    ...extra,
+  });
+
+  // Posts the user's attachment line into the open chat, starting a chat if needed.
+  const postUserAttachment = (label: string): string => {
+    const userMsg: ChatMessage = {
+      id: newLocalId("msg"),
+      sender: "user",
+      userRole: currentUser,
+      text: label,
+      timestamp: nowTime(),
+    };
+    if (activeSessionId) {
+      appendToSession(activeSessionId, userMsg);
+      return activeSessionId;
+    }
+    const id = newLocalId("session");
+    const isShared = newChatMode === "shared";
+    setSessions((prev) => [
+      {
+        id,
+        title: label.length > 32 ? label.slice(0, 32) + "..." : label,
+        timestamp: "Just now",
+        dateGroup: "Today",
+        mode: newChatMode,
+        isShared,
+        creatorRole: currentUser,
+        messages: [seiyaNote(introFor(isShared)), userMsg],
+      },
+      ...prev,
+    ]);
+    setActiveSessionId(id);
+    return id;
+  };
+
+  const friendlyError = (error: unknown, fallback: string) => {
+    const message = error instanceof Error && error.message ? error.message : fallback;
+    if (/not active yet|no active (shared|personal) wallet/i.test(message)) {
+      return "Your wallets open after you and your partner agree on Seiya's Promise. Try again once it's active.";
+    }
+    return message;
+  };
+
+  const handleStatementFile = async (file: File) => {
+    if (!householdId) return;
+    const sessionId = postUserAttachment(`📎 ${file.name}`);
+    if (!/\.(pdf|csv|xlsx|xls)$/i.test(file.name)) {
+      appendToSession(sessionId, seiyaNote("I can read bank statements as **PDF**, **Excel** (.xlsx/.xls) or **CSV** files. Please attach one of those."));
+      return;
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      appendToSession(sessionId, seiyaNote("That file is larger than **4 MB**. Please export a shorter period (for example one month) and try again."));
+      return;
+    }
+    setIsProcessing(true);
+    try {
+      const res = await apiPreviewStatement(householdId, file);
+      appendToSession(
+        sessionId,
+        seiyaNote(
+          `I found **${res.extractedCount} transaction${res.extractedCount === 1 ? "" : "s"}** in your statement. Check them below and choose which wallet to import them into. Nothing is saved until you confirm.`,
+          { cardType: "STATEMENT_PREVIEW", cardData: { fileName: res.fileName || file.name, transactions: res.transactions } }
+        )
+      );
+    } catch (error) {
+      appendToSession(sessionId, seiyaNote(friendlyError(error, "I couldn't read that statement. Please try another file.")));
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const importStatement = async (sessionId: string | null, transactions: StatementTransaction[], walletType: "shared" | "personal") => {
+    if (!householdId) throw new Error("No household found.");
+    try {
+      const res = await apiCommitStatement(householdId, { transactions, walletType, paidBy: currentUser });
+      void refreshData();
+      const count = res.importedCount ?? transactions.length;
+      const where = walletType === "shared" ? "your shared wallet" : "your personal wallet";
+      if (sessionId) appendToSession(sessionId, seiyaNote(`Done! I imported **${count} transaction${count === 1 ? "" : "s"}** into ${where}. You'll see them in Activity and in your monthly overview.`));
+      return `Imported ${count} transaction${count === 1 ? "" : "s"} into ${where}.`;
+    } catch (error) {
+      throw new Error(friendlyError(error, "Import failed. Please try again."));
+    }
+  };
+
+  // Phone photos are large; shrink to ~1600 px JPEG before upload.
+  const shrinkImage = async (file: File): Promise<Blob> => {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    return await new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Couldn't prepare the photo."))), "image/jpeg", 0.85)
+    );
+  };
+
+  const handleReceiptImage = async (file: File) => {
+    if (!householdId) return;
+    const sessionId = postUserAttachment("🖼 Receipt photo");
+    if (!file.type.startsWith("image/")) {
+      appendToSession(sessionId, seiyaNote("Please attach a photo of the receipt (JPG, PNG or WebP)."));
+      return;
+    }
+    setIsProcessing(true);
+    try {
+      let image: Blob;
+      try {
+        image = await shrinkImage(file);
+      } catch {
+        appendToSession(sessionId, seiyaNote("I couldn't open that photo. Please take it again as a JPG or PNG."));
+        return;
+      }
+      if (image.size > MAX_UPLOAD_BYTES) {
+        appendToSession(sessionId, seiyaNote("That photo is still larger than **4 MB**. Please crop it to just the receipt."));
+        return;
+      }
+      const res = await apiScanReceipt(householdId, image, "receipt.jpg");
+      const r = res.receipt;
+      const missing = r.total === null ? " I couldn't read the total, so please type it in." : "";
+      appendToSession(
+        sessionId,
+        seiyaNote(`Here's what I read from your receipt. Check the details, then tap **Record expense**.${missing}`, {
+          cardType: "RECEIPT_DRAFT",
+          cardData: r,
+        })
+      );
+    } catch (error) {
+      appendToSession(sessionId, seiyaNote(friendlyError(error, "I couldn't read that receipt. Try a sharper, well-lit photo.")));
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const recordReceipt = async (sessionId: string | null, draft: ReceiptConfirmation) => {
+    try {
+      const res = await proposeExpense({
+        title: draft.title,
+        amount: draft.amount,
+        currency: draft.currency,
+        category: draft.category,
+        wallet: draft.wallet === "shared" ? "shared" : currentUser === "partner_a" ? "personal_a" : "personal_b",
+        notes: draft.date ? `Receipt dated ${draft.date}` : "From a receipt photo",
+        receiptName: "receipt.jpg",
+      });
+      const amountText = new Intl.NumberFormat(locale, { style: "currency", currency: draft.currency, maximumFractionDigits: 2 }).format(draft.amount);
+      const text =
+        res.outcome === "ALLOW"
+          ? `Recorded **${amountText}** at ${draft.title}.`
+          : res.outcome === "NEED_APPROVAL"
+            ? `**${amountText}** at ${draft.title} is above your agreed limit, so I sent it to ${partnerName} for approval.`
+            : `**${amountText}** at ${draft.title} is on hold until tomorrow morning (cooling-off). You can continue or cancel it in Waiting List.`;
+      if (sessionId) appendToSession(sessionId, seiyaNote(text));
+      return text.replace(/\*\*/g, "");
+    } catch (error) {
+      throw new Error(friendlyError(error, "Couldn't record this expense. Please try again."));
+    }
   };
 
   // Restore saved conversations for this household.
@@ -1219,6 +1405,25 @@ export function ChatView() {
                     onSelect={(opt) => handleSend(opt)}
                   />
                 )}
+
+                {msg.cardType === "STATEMENT_PREVIEW" && msg.cardData && (
+                  <StatementPreviewCard
+                    fileName={msg.cardData.fileName}
+                    transactions={msg.cardData.transactions}
+                    locale={locale}
+                    partnerName={partnerName}
+                    onImport={(walletType) => importStatement(activeSessionId, msg.cardData.transactions, walletType)}
+                  />
+                )}
+
+                {msg.cardType === "RECEIPT_DRAFT" && msg.cardData && (
+                  <ReceiptDraftCard
+                    receipt={msg.cardData}
+                    fallbackCurrency={baseCurrency}
+                    partnerName={partnerName}
+                    onRecord={(draft) => recordReceipt(activeSessionId, draft)}
+                  />
+                )}
               </div>
             </div>
           ))}
@@ -1327,6 +1532,52 @@ export function ChatView() {
                 : "opacity-100 translate-y-0 relative visible"
             }`}
           >
+            {/* Attachments: 📎 bank statement, 🖼 receipt photo */}
+            <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+              <input
+                ref={statementInputRef}
+                type="file"
+                accept=".pdf,.csv,.xlsx,.xls,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (file) void handleStatementFile(file);
+                }}
+              />
+              <input
+                ref={receiptInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (file) void handleReceiptImage(file);
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => statementInputRef.current?.click()}
+                disabled={isProcessing || !householdId}
+                className="p-1.5 sm:p-2 rounded-full text-[#808988] hover:text-[#B45529] hover:bg-[#ece3d3] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Import a bank statement (PDF, Excel or CSV)"
+                aria-label="Import a bank statement"
+              >
+                <SolarIcon name="paperclip" size={17} />
+              </button>
+              <button
+                type="button"
+                onClick={() => receiptInputRef.current?.click()}
+                disabled={isProcessing || !householdId}
+                className="p-1.5 sm:p-2 rounded-full text-[#808988] hover:text-[#B45529] hover:bg-[#ece3d3] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Scan a receipt photo"
+                aria-label="Scan a receipt photo"
+              >
+                <SolarIcon name="image" size={17} />
+              </button>
+            </div>
+
             {/* Chat Textformfield */}
             <form
               onSubmit={(e) => {

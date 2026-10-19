@@ -610,3 +610,61 @@ export const apiGetOnboarding = () => request<{ success: true; profile: unknown;
 
 export const apiImportStatement = (hid: string, formData: FormData) =>
   request(`/api/households/${hid}/statement-import`, { formData });
+
+// ---------------------------------------------------------------------------
+// Chat attachments: bank statements (preview, then import) and receipt photos
+// ---------------------------------------------------------------------------
+
+export type StatementCategory =
+  | "Food & Drinks"
+  | "Shopping"
+  | "Bills"
+  | "Transportation"
+  | "Health"
+  | "Social"
+  | "Others"
+  | "Income";
+
+export interface StatementTransaction {
+  date: string;
+  title: string;
+  rawDescription?: string;
+  amount: number;
+  type: "expense" | "income";
+  category: StatementCategory;
+  currency: string;
+}
+
+/** Reads a PDF/Excel/CSV statement without saving anything. */
+export const apiPreviewStatement = (hid: string, file: File) => {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("dryRun", "true");
+  fd.append("useAi", "false");
+  return request<{ success: true; fileName: string; extractedCount: number; transactions: StatementTransaction[] }>(
+    `/api/households/${hid}/statement-import`,
+    { formData: fd }
+  );
+};
+
+/** Saves previewed statement rows into a wallet. */
+export const apiCommitStatement = (
+  hid: string,
+  body: { transactions: StatementTransaction[]; walletType: "shared" | "personal"; paidBy: "partner_a" | "partner_b" }
+) =>
+  request<{ success: true; importedCount: number; message: string }>(`/api/households/${hid}/statement-import`, { body });
+
+export interface ScannedReceipt {
+  merchant: string | null;
+  total: number | null;
+  currency: string | null;
+  date: string | null;
+  category: Exclude<StatementCategory, "Income">;
+}
+
+/** Reads a receipt photo into a draft expense; nothing is recorded. */
+export const apiScanReceipt = (hid: string, image: Blob, fileName: string) => {
+  const fd = new FormData();
+  fd.append("file", image, fileName);
+  return request<{ success: true; receipt: ScannedReceipt }>(`/api/households/${hid}/receipt-scan`, { formData: fd });
+};
