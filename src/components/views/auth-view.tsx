@@ -47,27 +47,6 @@ import {
 // Screen-jumping review tools are only available when explicitly enabled.
 const DEMO_SIMULATION_ENABLED = process.env.NEXT_PUBLIC_ENABLE_DEMO_SIMULATION === "true";
 
-const WECHAT_ERRORS: Record<string, string> = {
-  denied: "WeChat sign-in was cancelled.",
-  state: "The WeChat sign-in expired. Please try again.",
-  exchange: "WeChat couldn't confirm your account. Please try again.",
-  profile: "WeChat couldn't confirm your account. Please try again.",
-  session: "Seiya couldn't start your session after WeChat. Please try again.",
-  not_configured: "WeChat sign-in isn't available yet.",
-  open_in_wechat: "To continue with WeChat, open seiya.web.id inside the WeChat app.",
-};
-
-function WeChatLogo({ size = 20 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        fill="#07C160"
-        d="M9.1 3.5C4.9 3.5 1.5 6.3 1.5 9.8c0 2 1.1 3.8 2.9 5l-.7 2.3 2.6-1.4c.9.3 1.8.4 2.8.4h.6a5.6 5.6 0 0 1-.2-1.5c0-3.4 3.3-6.1 7.3-6.1h.6c-.7-2.9-3.9-5-7.6-5zM6.6 8.6a.95.95 0 1 1 0-1.9.95.95 0 0 1 0 1.9zm5 0a.95.95 0 1 1 0-1.9.95.95 0 0 1 0 1.9zm10.9 6c0-2.9-2.9-5.2-6.4-5.2s-6.4 2.3-6.4 5.2 2.9 5.2 6.4 5.2c.7 0 1.4-.1 2.1-.3l2 1.1-.5-1.9c1.7-1 2.8-2.4 2.8-4.1zm-8.6-.8a.8.8 0 1 1 0-1.6.8.8 0 0 1 0 1.6zm4.4 0a.8.8 0 1 1 0-1.6.8.8 0 0 1 0 1.6z"
-      />
-    </svg>
-  );
-}
-
 // Rounds converted preset amounts to two significant digits (e.g. 7,834,120 -> 7,800,000).
 function niceRound(value: number) {
   if (!Number.isFinite(value) || value <= 0) return 0;
@@ -127,35 +106,7 @@ export function AuthView({
   // Form states (Login & Register)
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
-  // A failed WeChat sign-in comes back as /?wechat_error=<reason>.
-  const [authError, setAuthError] = useState(() => {
-    if (typeof window === "undefined") return "";
-    const reason = new URLSearchParams(window.location.search).get("wechat_error");
-    return reason ? WECHAT_ERRORS[reason] ?? WECHAT_ERRORS.session : "";
-  });
-  const [wechatEnabled, setWechatEnabled] = useState(false);
-  // Only the in-app WeChat login is set up: show how to reach it.
-  const [wechatOpenInApp, setWechatOpenInApp] = useState(false);
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.has("wechat_error")) {
-      params.delete("wechat_error");
-      const rest = params.toString();
-      window.history.replaceState(null, "", window.location.pathname + (rest ? `?${rest}` : ""));
-    }
-    let cancelled = false;
-    fetch("/api/auth/wechat", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : { enabled: false }))
-      .then((d: { enabled?: boolean; openInWechat?: boolean }) => {
-        if (cancelled) return;
-        setWechatEnabled(Boolean(d.enabled));
-        setWechatOpenInApp(Boolean(d.openInWechat));
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const [authError, setAuthError] = useState("");
   const [authNotice, setAuthNotice] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -1615,35 +1566,6 @@ export function AuthView({
                         : "Create an account"}
                   </button>
                 </div>
-
-                {/* Continue with WeChat: signs in, or creates the account on first use */}
-                {(wechatEnabled || wechatOpenInApp) && (
-                  <div className="space-y-3 pt-1">
-                    <div className="flex items-center gap-3 text-xs text-[#a3abaa]">
-                      <span className="h-px flex-1 bg-[#e8dfd5]" />
-                      <span>or</span>
-                      <span className="h-px flex-1 bg-[#e8dfd5]" />
-                    </div>
-                    {wechatEnabled ? (
-                      <a
-                        href="/api/auth/wechat/start"
-                        className="w-full py-3.5 px-6 rounded-full border border-[#d1c9bf] bg-white hover:bg-[#f6fbf8] hover:border-[#07C160]/50 text-[#2a2b2f] font-serif text-base flex items-center justify-center gap-2.5 transition-all shadow-2xs cursor-pointer"
-                      >
-                        <WeChatLogo />
-                        <span>Continue with WeChat</span>
-                      </a>
-                    ) : (
-                      <div className="w-full py-3 px-5 rounded-[20px] border border-dashed border-[#07C160]/40 bg-[#f6fbf8] text-[#2a2b2f] flex items-start gap-2.5">
-                        <WeChatLogo />
-                        <p className="text-xs sm:text-sm leading-relaxed">
-                          <span className="font-semibold">Continue with WeChat</span> works inside the WeChat app. Send{" "}
-                          <span className="font-semibold">seiya.web.id</span> to yourself in WeChat, open it there, and tap the
-                          button.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
 
                 {/* Switch between Login and Register */}
                 <div className="text-center pt-2">

@@ -80,8 +80,6 @@ Put values in `.env.local` locally and in Vercel → Project → Settings → En
 | Variable | Default | Description |
 |---|---|---|
 | `APP_BASE_URL` | `http://localhost:3000` | Base for invitation links and the OpenRouter `HTTP-Referer`. Production: `https://seiya.web.id`. |
-| `WECHAT_MP_APP_ID`, `WECHAT_MP_APP_SECRET` | empty | WeChat login **inside the WeChat app** (Official Account web authorization; the free sandbox test account works). Server only. See section 6. |
-| `WECHAT_APP_ID`, `WECHAT_APP_SECRET` | empty | WeChat **QR login in any browser** (Open Platform Website Application, paid verification). Server only. See section 6. |
 | `NEXT_PUBLIC_ENABLE_DEMO_SIMULATION` | `false` | Shows a screen switcher in the auth/onboarding flow for design review. Keep `false` in production. |
 
 ### AI provider keys (server only, secret)
@@ -141,38 +139,13 @@ Production runs on Vercel project **seiya** with the domain **seiya.web.id** (an
 4. Domain: the registrar (IDwebhost) points the nameservers to `ns1.vercel-dns.com` and `ns2.vercel-dns.com`; Vercel then serves DNS, `www`, and the HTTPS certificate. If you ever move DNS back to the registrar, use the records shown in Vercel → Settings → Domains instead.
 5. Supabase → Authentication → URL Configuration: set the Site URL to `https://seiya.web.id` (sign-in uses name + password, so this only matters for future email links).
 
-### WeChat login (optional)
-
-Google is blocked in mainland China, so Seiya offers "Continue with WeChat" on the login and register screens. Supabase has no WeChat provider, so the server runs the OAuth exchange (`/api/auth/wechat/start` → WeChat → `/api/auth/wechat/callback`), creates the account on first use (`wx-<hash>@users.seiya.invalid`, name from the WeChat nickname) and starts a normal Supabase session. A random `state` cookie protects against login CSRF; the AppSecret never reaches the browser. The browser decides which WeChat app is used:
-
-| Where the page is opened | WeChat app used | Env vars |
-|---|---|---|
-| Inside the WeChat app (WeChat's built-in browser) | Official Account web authorization (`snsapi_userinfo`), e.g. the **free sandbox test account** | `WECHAT_MP_APP_ID`, `WECHAT_MP_APP_SECRET` |
-| Any other browser | Open Platform Website Application, QR login (`snsapi_login`) | `WECHAT_APP_ID`, `WECHAT_APP_SECRET` |
-
-With only the test account set, normal browsers show a note to open seiya.web.id inside WeChat.
-
-**Free setup for demos and testing (sandbox test account, 测试号):**
-
-1. Open [mp.weixin.qq.com/debug/cgi-bin/sandbox?t=sandbox/login](https://mp.weixin.qq.com/debug/cgi-bin/sandbox?t=sandbox/login) and scan the QR code with WeChat. You get an **appID** and **appsecret**.
-2. On that page, under 体验接口权限表 → 网页服务 → 网页帐号 → 网页授权获取用户基本信息 → 修改, set the domain to `seiya.web.id` (no `https://`, no path).
-3. Every tester scans the **测试号二维码** on that page to follow the test account (the sandbox allows about 100 testers).
-4. Put the values into Vercel (Production) as `WECHAT_MP_APP_ID` and `WECHAT_MP_APP_SECRET`, then redeploy.
-5. Send `https://seiya.web.id` to yourself in WeChat, open it there, and tap **Continue with WeChat**.
-
-The test account is for demos only; for the public, use a verified Official Account (服务号) and/or an Open Platform Website Application (paid yearly verification, company entity).
-
-Accounts are keyed by `unionid` when WeChat provides it, otherwise by `<appid>:<openid>` (so test-account users are separate from production users). Linking WeChat to an existing name + password account is not built yet.
-
-After a nameserver change, some home routers keep a cached failure for a while; test from mobile data or a public DNS (8.8.8.8 / 1.1.1.1) if the site does not open locally.
-
 ### Access from mainland China
 
 Seiya is built for a competition in China, where Google services are blocked and some CDNs are unreliable. The browser only needs to reach **`seiya.web.id`**:
 
 | Concern | Status |
 |---|---|
-| Login | Name + password, or WeChat (see above). No Google sign-in. |
+| Login | Full name + password through our own API. No Google sign-in. |
 | Fonts | `next/font` downloads Lora, Inter and Plus Jakarta Sans at build time and serves them from `/_next/static/media`; no runtime request to Google Fonts. |
 | Receipt OCR (tesseract.js) | Worker, engine (WASM) and `eng`/`ind` language data are served from `/ocr` on our domain, not `cdn.jsdelivr.net`. `scripts/copy-ocr-assets.mjs` copies them from the pinned npm packages (`tesseract.js`, `tesseract.js-core`, `@tesseract.js-data/eng`, `@tesseract.js-data/ind`) before every `dev`/`build`; `public/ocr/` is git-ignored. Verified: with `/ocr` removed the OCR fails instead of falling back to the CDN, and with it present the sample receipt reads in about 1 s. |
 | Supabase | Only the server talks to Supabase. Chat history, the last direct browser read, now goes through `GET /api/households/[householdId]/chat-history`. |
@@ -260,9 +233,6 @@ Some APIs may map database errors differently. Frontend code should show a safe 
 | Method | Endpoint | Purpose | Auth |
 |---|---|---|---|
 | `POST` | `/api/auth/signup` | Create account with full name + password | Public entry point |
-| `GET` | `/api/auth/wechat` | `{ enabled }`: whether WeChat login is configured | Public |
-| `GET` | `/api/auth/wechat/start` | Redirect to WeChat's QR login page (sets the `state` cookie) | Public entry point |
-| `GET` | `/api/auth/wechat/callback` | WeChat returns here; exchanges the code, signs in, redirects to `/` | Public entry point |
 | `POST` | `/api/auth/signin` | Sign in and establish session cookie | Public entry point |
 | `GET` | `/api/auth/me` | Get current authenticated profile, active household, partner, and PIN status | Required |
 | `POST` | `/api/auth/signout` | End local session | Required |

@@ -132,11 +132,6 @@ function MainApp() {
       setShowLanding(false);
       setAuthMode("register");
       setAuthFlowActive(true);
-    } else if (new URLSearchParams(window.location.search).has("wechat_error")) {
-      // Back from a failed WeChat sign-in: show the message on the login screen.
-      setShowLanding(false);
-      setAuthMode("login");
-      setAuthFlowActive(true);
     } else {
       setShowLanding(true);
       setAuthFlowActive(false);
