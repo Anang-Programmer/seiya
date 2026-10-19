@@ -80,6 +80,7 @@ Put values in `.env.local` locally and in Vercel → Project → Settings → En
 | Variable | Default | Description |
 |---|---|---|
 | `APP_BASE_URL` | `http://localhost:3000` | Base for invitation links and the OpenRouter `HTTP-Referer`. Production: `https://seiya.web.id`. |
+| `WECHAT_APP_ID`, `WECHAT_APP_SECRET` | empty | Enable "Continue with WeChat" (server only). The button is hidden until both are set. See section 6. |
 | `NEXT_PUBLIC_ENABLE_DEMO_SIMULATION` | `false` | Shows a screen switcher in the auth/onboarding flow for design review. Keep `false` in production. |
 
 ### AI provider keys (server only, secret)
@@ -138,6 +139,17 @@ Production runs on Vercel project **seiya** with the domain **seiya.web.id** (an
 3. Deploy: `npx vercel deploy --prod`. `vercel.json` pins the **Next.js** framework preset; without it a CLI-created project builds as "Other" and every route returns 404.
 4. Domain: the registrar (IDwebhost) points the nameservers to `ns1.vercel-dns.com` and `ns2.vercel-dns.com`; Vercel then serves DNS, `www`, and the HTTPS certificate. If you ever move DNS back to the registrar, use the records shown in Vercel → Settings → Domains instead.
 5. Supabase → Authentication → URL Configuration: set the Site URL to `https://seiya.web.id` (sign-in uses name + password, so this only matters for future email links).
+
+### WeChat login (optional)
+
+"Continue with WeChat" appears on the login and register screens once `WECHAT_APP_ID` and `WECHAT_APP_SECRET` are set. Supabase has no WeChat provider, so the server runs the OAuth exchange (`/api/auth/wechat/start` → WeChat QR page → `/api/auth/wechat/callback`), then creates the account on first use (`wx-<hash>@users.seiya.invalid`, name from the WeChat nickname) and starts a normal Supabase session. A random `state` cookie protects against login CSRF; the AppSecret never reaches the browser.
+
+1. Register at [open.weixin.qq.com](https://open.weixin.qq.com) and create a **Website Application** (网站应用). WeChat reviews the developer/company and charges a yearly verification fee.
+2. Set the authorized callback domain to `seiya.web.id` (no `https://`, no path).
+3. Put the AppID and AppSecret into Vercel → Environment Variables (Production) and redeploy.
+4. Check `GET https://seiya.web.id/api/auth/wechat` returns `{"enabled":true}`.
+
+Accounts are keyed by `unionid` when WeChat provides it, otherwise `openid`. Linking WeChat to an existing name + password account is not built yet.
 
 After a nameserver change, some home routers keep a cached failure for a while; test from mobile data or a public DNS (8.8.8.8 / 1.1.1.1) if the site does not open locally.
 
@@ -214,6 +226,9 @@ Some APIs may map database errors differently. Frontend code should show a safe 
 | Method | Endpoint | Purpose | Auth |
 |---|---|---|---|
 | `POST` | `/api/auth/signup` | Create account with full name + password | Public entry point |
+| `GET` | `/api/auth/wechat` | `{ enabled }`: whether WeChat login is configured | Public |
+| `GET` | `/api/auth/wechat/start` | Redirect to WeChat's QR login page (sets the `state` cookie) | Public entry point |
+| `GET` | `/api/auth/wechat/callback` | WeChat returns here; exchanges the code, signs in, redirects to `/` | Public entry point |
 | `POST` | `/api/auth/signin` | Sign in and establish session cookie | Public entry point |
 | `GET` | `/api/auth/me` | Get current authenticated profile, active household, partner, and PIN status | Required |
 | `POST` | `/api/auth/signout` | End local session | Required |
