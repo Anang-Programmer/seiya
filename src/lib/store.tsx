@@ -201,6 +201,9 @@ export interface ChatHistorySession {
   title: string;
   updatedAt: string;
   messages: ChatMessage[];
+  isShared: boolean;
+  /** Who started it; only they can rename, share, delete or continue it. */
+  creatorRole: UserRole;
 }
 
 export interface BudgetSummary {
@@ -326,8 +329,11 @@ interface AppContextType {
     approveEverySharedPurchase?: boolean;
     walletMode?: "shared_only" | "shared_and_personal" | "separate_only";
   }) => Promise<ContractSignatureResult>;
-  sendChatMessage: (text: string, options?: { sessionKey?: string }) => Promise<ChatMessage | null>;
+  sendChatMessage: (text: string, options?: { sessionKey?: string; shared?: boolean }) => Promise<ChatMessage | null>;
   loadChatHistory: () => Promise<ChatHistorySession[]>;
+  /** Saves a rename / share change for a chat; true when saved (or not on the server yet). */
+  updateConversation: (sessionKey: string, changes: { title?: string; shared?: boolean }) => Promise<boolean>;
+  deleteConversation: (sessionKey: string) => Promise<boolean>;
   payBill: (billId: string) => Promise<void>;
   settleUp: () => Promise<void>;
   // Bill Management
@@ -1438,8 +1444,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       };
     } else {
       try {
-        const res = await api.apiSendChat(householdId, text, conversationIds.current.get(sessionKey));
+        const existingId = conversationIds.current.get(sessionKey);
+        const res = await api.apiSendChat(householdId, text, existingId);
         if (res.conversationId) conversationIds.current.set(sessionKey, res.conversationId);
+        // Chats started in "Shared with your partner" mode are saved as shared.
+        if (options?.shared && !existingId && res.conversationId) {
+          void api.apiUpdateConversation(householdId, res.conversationId, { visibility: "shared" }).catch((error) => {
+            console.warn("[chat] could not share the new chat:", error);
+          });
+        }
         if (res.warning) console.warn("[chat]", res.warning);
 
         reply = {
@@ -1487,17 +1500,48 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             timestamp: new Date(m.created_at).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
           }));
         const firstUser = convMessages.find((m) => m.sender === "user")?.text ?? "Conversation";
+        const creatorRole: UserRole = c.user_id === authUser.id ? currentUser : currentUser === "partner_a" ? "partner_b" : "partner_a";
         conversationIds.current.set(`history-${c.id}`, c.id);
         return {
           conversationId: c.id,
           title: c.title || (firstUser.length > 32 ? `${firstUser.slice(0, 32)}...` : firstUser),
           updatedAt: c.updated_at || c.created_at,
-          messages: convMessages,
+          messages: convMessages.map((m) => (m.sender === "user" ? { ...m, userRole: creatorRole } : m)),
+          isShared: c.visibility === "shared",
+          creatorRole,
         };
       });
     } catch (error) {
       console.warn("[store] chat history unavailable:", error);
       return [];
+    }
+  };
+
+  const updateConversation: AppContextType["updateConversation"] = async (sessionKey, changes) => {
+    const conversationId = conversationIds.current.get(sessionKey);
+    if (!conversationId || !householdId) return true; // not saved on the server yet
+    try {
+      await api.apiUpdateConversation(householdId, conversationId, {
+        ...(changes.title !== undefined ? { title: changes.title } : {}),
+        ...(changes.shared !== undefined ? { visibility: changes.shared ? "shared" : "private" } : {}),
+      });
+      return true;
+    } catch (error) {
+      notify("error", errorMessage(error, "Unable to save this chat change."));
+      return false;
+    }
+  };
+
+  const deleteConversation: AppContextType["deleteConversation"] = async (sessionKey) => {
+    const conversationId = conversationIds.current.get(sessionKey);
+    if (!conversationId || !householdId) return true;
+    try {
+      await api.apiDeleteConversation(householdId, conversationId);
+      conversationIds.current.delete(sessionKey);
+      return true;
+    } catch (error) {
+      notify("error", errorMessage(error, "Unable to delete this chat."));
+      return false;
     }
   };
 
@@ -1571,6 +1615,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         activateInitialContract,
         sendChatMessage,
         loadChatHistory,
+        updateConversation,
+        deleteConversation,
         payBill,
         settleUp,
         addPlan,

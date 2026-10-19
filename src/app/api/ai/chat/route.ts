@@ -115,7 +115,6 @@ export async function POST(request: Request) {
       .eq("id", input.conversationId)
       .eq("household_id", input.householdId)
       .eq("user_id", user.id)
-      .eq("visibility", "private")
       .maybeSingle();
 
     if (conversationError) {

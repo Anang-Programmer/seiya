@@ -202,6 +202,8 @@ export function ClauseCard({
   partnerName,
   partnerPicked,
   partnerDiffers,
+  ownerLabel = "Partner A",
+  memberLabel = "Partner B",
 }: {
   clause: PromiseClause;
   checked: boolean;
@@ -214,6 +216,9 @@ export function ClauseCard({
   partnerPicked: boolean;
   /** Both picked it, but the partner's wording or numbers differ from yours. */
   partnerDiffers: boolean;
+  /** Names for the cost split: the space creator (ownerPercent) and the partner who joined. */
+  ownerLabel?: string;
+  memberLabel?: string;
 }) {
   const params = clause.params ?? {};
   const setParam = (key: "ownerPercent" | "threshold" | "hours", value: number | undefined) =>
@@ -294,7 +299,7 @@ export function ClauseCard({
           {checked && clause.kind === "cost_sharing" && (
             <div className="grid grid-cols-2 gap-3 pt-1">
               <NumberField
-                label="Partner A pays"
+                label={`${ownerLabel} pays`}
                 value={params.ownerPercent}
                 suffix="%"
                 min={0}
@@ -302,7 +307,7 @@ export function ClauseCard({
                 onChange={(v) => setParam("ownerPercent", v)}
               />
               <div className="flex flex-col gap-1">
-                <span className="font-serif text-xs sm:text-sm text-[#737373] tracking-[-0.85px]">Partner B pays</span>
+                <span className="font-serif text-xs sm:text-sm text-[#737373] tracking-[-0.85px]">{memberLabel} pays</span>
                 <span className="border border-[#e6e6e6] rounded-[12px] px-2.5 py-1.5 text-base text-[#737373]">
                   {params.ownerPercent === undefined ? "–" : `${100 - Math.min(100, Math.max(0, params.ownerPercent))} %`}
                 </span>

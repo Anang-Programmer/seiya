@@ -20,7 +20,6 @@ export function ProfileView({ onLogout, initialTab = "overview" }: ProfileViewPr
     currentUser,
     partnerAName,
     partnerBName,
-    setPartnerNames,
     wallets,
     contract,
     proposeContractChange,
@@ -42,9 +41,6 @@ export function ProfileView({ onLogout, initialTab = "overview" }: ProfileViewPr
   const [activeTab, setActiveTab] = useState<"overview" | "contract" | "security" | "privacy" | "preferences">(
     initialTab || "overview"
   );
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [nameInput, setNameInput] = useState(currentUser === "partner_a" ? partnerAName : partnerBName);
-  const [privacyLock, setPrivacyLock] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showPinModal, setShowPinModal] = useState(false);
 
@@ -64,10 +60,6 @@ export function ProfileView({ onLogout, initialTab = "overview" }: ProfileViewPr
       setActiveTab(initialTab);
     }
   }, [initialTab]);
-
-  useEffect(() => {
-    setNameInput(currentUser === "partner_a" ? partnerAName : partnerBName);
-  }, [currentUser, partnerAName, partnerBName]);
 
   useEffect(() => {
     setThresholdInput(contract.approvalThreshold.toString());
@@ -91,17 +83,6 @@ export function ProfileView({ onLogout, initialTab = "overview" }: ProfileViewPr
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
-  };
-
-  const handleSaveName = () => {
-    if (!nameInput.trim()) return;
-    if (currentUser === "partner_a") {
-      setPartnerNames(nameInput.trim(), partnerBName);
-    } else {
-      setPartnerNames(partnerAName, nameInput.trim());
-    }
-    setIsEditingName(false);
-    showToast("Profile name updated successfully.");
   };
 
   const handleProposeContract = async (e: React.FormEvent) => {
@@ -146,41 +127,10 @@ export function ProfileView({ onLogout, initialTab = "overview" }: ProfileViewPr
             {currentInitial}
           </div>
           <div className="space-y-1">
-            {isEditingName ? (
-              <div className="flex items-center gap-2 flex-wrap">
-                <Input
-                  value={nameInput}
-                  onChange={(e) => setNameInput(e.target.value)}
-                  className="h-8 text-sm font-semibold max-w-[180px] bg-white border-[#d1c9bf]"
-                  placeholder="Enter name"
-                  autoFocus
-                />
-                <Button size="sm" onClick={handleSaveName} className="h-8 px-3 text-xs bg-[#B45529] text-[#fef9ef]">
-                  Save
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => setIsEditingName(false)} className="h-8 px-2.5 text-xs">
-                  Cancel
-                </Button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl sm:text-2xl font-serif font-semibold text-[#2a2b2f] tracking-tight">
-                  {currentDisplayName}
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNameInput(currentDisplayName);
-                    setIsEditingName(true);
-                  }}
-                  className="text-[#808988] hover:text-[#B45529] transition-colors p-1 rounded-full hover:bg-[#ece3d3]"
-                  title="Edit display name"
-                  aria-label="Edit name"
-                >
-                  <SolarIcon name="edit" size={15} />
-                </button>
-              </div>
-            )}
+            <h2 className="text-xl sm:text-2xl font-serif font-semibold text-[#2a2b2f] tracking-tight">
+              {currentDisplayName}
+            </h2>
+            <p className="text-[11px] text-[#808988]">This is also the name you sign in with.</p>
             <p className="text-xs text-[#515151] font-medium">{currentRoleLabel}</p>
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#dce8db] text-[#2d5232] text-[11px] font-semibold">
@@ -612,22 +562,14 @@ export function ProfileView({ onLogout, initialTab = "overview" }: ProfileViewPr
             <div>
               <h4 className="text-sm font-bold text-[#2a2b2f]">Total-Only Privacy Lock</h4>
               <p className="text-xs text-[#515151] mt-1 leading-relaxed max-w-xl">
-                Conceals specific item descriptions, store names, and merchant details of your personal private transactions while keeping aggregate net balances synchronized.
+                Your partner never sees the items, store names, or merchants of your personal transactions. Only your shared wallet is visible to both of you.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setPrivacyLock(!privacyLock)}
-              className={`w-12 h-6 rounded-full transition-colors cursor-pointer relative shrink-0 ${
-                privacyLock ? "bg-[#B45529]" : "bg-[#d1c9bf]"
-              }`}
-            >
-              <div
-                className={`w-4 h-4 rounded-full bg-white transition-transform absolute top-1 ${
-                  privacyLock ? "translate-x-7" : "translate-x-1"
-                }`}
-              />
-            </button>
+            {/* Enforced by the database (RLS), so it is a status, not a switch. */}
+            <span className="shrink-0 inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#2d5232] bg-[#dce8db] px-3 py-1 rounded-full">
+              <SolarIcon name="lock-keyhole" size={12} />
+              Always on
+            </span>
           </div>
 
           <div className="p-5 rounded-[16px] bg-[#f5eee1] border border-[#d1c9bf]/30 flex items-center justify-between gap-4">

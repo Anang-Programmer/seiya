@@ -29,7 +29,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
     const { data: conversations, error } = await supabase
       .from("agent_conversations")
-      .select("id, title, updated_at, created_at")
+      .select("id, user_id, title, visibility, updated_at, created_at")
       .eq("household_id", householdId)
       .order("updated_at", { ascending: false })
       .limit(20);

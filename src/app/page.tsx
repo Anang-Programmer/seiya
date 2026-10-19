@@ -246,6 +246,22 @@ function MainApp() {
       }
     : null;
 
+  const setupNotice = setupBanner && (
+    <div className="max-w-5xl mx-auto w-full p-3.5 rounded-[14px] bg-[#fefcf6] border border-[#B45529]/25 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="flex items-start gap-2.5 text-xs sm:text-[13px] text-[#2a2b2f] leading-relaxed">
+        <SolarIcon name="users-group-rounded" size={16} className="text-[#B45529] shrink-0 mt-0.5" />
+        <span>{setupBanner.message}</span>
+      </div>
+      <button
+        type="button"
+        onClick={() => openSetupFlow(setupBanner.mode, setupBanner.screen)}
+        className="shrink-0 self-start sm:self-auto px-4 py-1.5 rounded-full bg-[#B45529] hover:bg-[#9c4820] text-white text-xs font-serif transition-colors cursor-pointer"
+      >
+        {setupBanner.action}
+      </button>
+    </div>
+  );
+
   return (
     <div className="flex h-screen bg-gradient-to-b from-[#fef9ef] to-[#fefcf6] text-[#2a2b2f] overflow-hidden">
       {/* Desktop Collapsible Sidebar */}
@@ -293,23 +309,9 @@ function MainApp() {
             />
           )}
 
-          {currentTab !== "seiya" && (setupBanner || dataStatus.error) && (
+          {currentTab !== "seiya" && ((setupBanner && currentTab !== "home") || dataStatus.error) && (
             <div className="relative z-10 px-3.5 sm:px-8 pt-3 space-y-2">
-              {setupBanner && (
-                <div className="max-w-5xl mx-auto p-3.5 rounded-[12px] bg-[#B45529]/10 border border-[#B45529]/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-start gap-2 text-xs text-[#2a2b2f]">
-                    <SolarIcon name="users-group-rounded" size={16} className="text-[#B45529] shrink-0 mt-px" />
-                    <span>{setupBanner.message}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => openSetupFlow(setupBanner.mode, setupBanner.screen)}
-                    className="shrink-0 px-4 py-1.5 rounded-full bg-[#B45529] hover:bg-[#9c4820] text-white text-xs font-serif transition-colors cursor-pointer"
-                  >
-                    {setupBanner.action}
-                  </button>
-                </div>
-              )}
+              {setupBanner && currentTab !== "home" && setupNotice}
               {dataStatus.error && (
                 <div className="max-w-5xl mx-auto p-3.5 rounded-[12px] bg-[#fcf0ee] border border-[#9e382b]/20 flex items-center justify-between gap-3">
                   <div className="flex items-start gap-2 text-xs text-[#9e382b]">
@@ -339,7 +341,7 @@ function MainApp() {
               <ContentSkeleton />
             ) : (
               <>
-                {currentTab === "home" && <HomeView onNavigate={handleTabChange} />}
+                {currentTab === "home" && <HomeView onNavigate={handleTabChange} notice={setupNotice || undefined} />}
                 {currentTab === "seiya" && <ChatView />}
                 {currentTab === "approvals" && <ApprovalsView />}
                 {currentTab === "wallets" && <WalletsView />}

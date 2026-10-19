@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,8 +70,11 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [urgency, setUrgency] = useState<"routine" | "planned" | "urgent" | "emergency">("routine");
-  const [receiptAttached, setReceiptAttached] = useState(false);
-  const [receiptFileName, setReceiptFileName] = useState("vendor_quote_estimate.pdf");
+  // The chosen file's name is noted on the request so your partner knows a
+  // receipt or quote exists (the file itself stays on this device).
+  const [receiptFileName, setReceiptFileName] = useState<string | null>(null);
+  const receiptAttached = Boolean(receiptFileName);
+  const receiptInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
   const [successResult, setSuccessResult] = useState<{
     outcome: "NEED_APPROVAL" | "ALLOW" | "HOLD";
@@ -89,7 +92,7 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
       setSplitMode("equal");
       setNotes("");
       setUrgency("routine");
-      setReceiptAttached(false);
+      setReceiptFileName(null);
       setError("");
       setSuccessResult(null);
     }
@@ -176,9 +179,9 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
           partnerA: splitBreakdown.ratioA,
           partnerB: splitBreakdown.ratioB,
         },
-        notes: notes.trim(),
+        notes: [notes.trim(), receiptFileName ? `Receipt: ${receiptFileName}` : ""].filter(Boolean).join(" • "),
         urgency,
-        receiptName: receiptAttached ? receiptFileName : undefined,
+        receiptName: receiptFileName ?? undefined,
       });
       setSuccessResult(result);
     } catch (err) {
@@ -584,9 +587,20 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
                 <label className="text-xs font-semibold text-[#2a2b2f] block">
                   Receipt / Quote
                 </label>
+                <input
+                  ref={receiptInputRef}
+                  type="file"
+                  accept="image/*,application/pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) setReceiptFileName(file.name.slice(0, 120));
+                    e.target.value = "";
+                  }}
+                />
                 <button
                   type="button"
-                  onClick={() => setReceiptAttached(!receiptAttached)}
+                  onClick={() => (receiptAttached ? setReceiptFileName(null) : receiptInputRef.current?.click())}
                   className={`w-full h-9 px-3 rounded-full border text-xs font-medium flex items-center justify-between transition-all cursor-pointer ${
                     receiptAttached
                       ? "bg-[#edf3ec] border-[#2d5232] text-[#2d5232]"

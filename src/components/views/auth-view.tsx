@@ -2632,6 +2632,8 @@ export function AuthView({
                               onRemove={clause.kind === "custom" ? () => removeOwnClause(clause.id) : undefined}
                               currency={promiseCurrency}
                               partnerName={promisePartnerName}
+                              ownerLabel={isHouseholdCreator ? "You" : promisePartnerName}
+                              memberLabel={isHouseholdCreator ? promisePartnerName : "You"}
                               partnerPicked={Boolean(partnerVersion) && !promiseActive}
                               partnerDiffers={
                                 !promiseActive &&

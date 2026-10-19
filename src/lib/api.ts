@@ -538,12 +538,28 @@ export interface PromiseStatus {
 // ---------------------------------------------------------------------------
 
 export interface ChatHistoryRow {
-  conversations: Array<{ id: string; title: string | null; updated_at: string | null; created_at: string }>;
+  conversations: Array<{
+    id: string;
+    user_id: string;
+    title: string | null;
+    visibility: "private" | "shared";
+    updated_at: string | null;
+    created_at: string;
+  }>;
   messages: Array<{ id: string; conversation_id: string; role: string; content: string; created_at: string }>;
 }
 
 export const apiGetChatHistory = (hid: string) =>
   request<{ success: true } & ChatHistoryRow>(`/api/households/${hid}/chat-history`);
+
+export const apiUpdateConversation = (
+  hid: string,
+  conversationId: string,
+  changes: { title?: string; visibility?: "private" | "shared" }
+) => request<{ success: true }>(`/api/households/${hid}/chat-history/${conversationId}`, { method: "PATCH", body: changes });
+
+export const apiDeleteConversation = (hid: string, conversationId: string) =>
+  request<{ success: true }>(`/api/households/${hid}/chat-history/${conversationId}`, { method: "DELETE" });
 
 export const apiGetPromise = (hid: string) =>
   request<{ success: true; myUserId: string; status: PromiseStatus }>(`/api/households/${hid}/promise`);

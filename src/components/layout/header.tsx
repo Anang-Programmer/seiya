@@ -20,7 +20,7 @@ const TAB_HEADER_CONFIG: Record<string, TabHeaderConfig> = {
     title: "Dashboard",
     shortTitle: "Dashboard",
     iconName: "home",
-    description: "Overview of your couple financial ecosystem, balances, and shared budget.",
+    description: "Your money at a glance: your balance, your partner's, the shared wallet, this month's income and spending, and quick actions to log expenses, goals and bills.",
   },
   plan: {
     title: "Financial Planning & Couple Goals",
@@ -388,9 +388,12 @@ export function Header({
         </div>
       </div>
 
-      {/* Expandable Explanation Info Box */}
-      {showInfo && currentTab !== "home" && currentConfig.description && (
-        <div className="w-full mt-3 p-3.5 rounded-[12px] bg-[#f5eee1] border border-[#d1c9bf]/50 text-xs text-[#515151] animate-in fade-in-0 slide-in-from-top-1">
+      {/* Expandable Explanation Info Box (every page, Home included) */}
+      {showInfo && currentConfig.description && (
+        <div
+          role="note"
+          className="w-full max-w-7xl mx-auto mt-3 p-3.5 rounded-[12px] bg-[#f5eee1]/95 backdrop-blur-sm border border-[#d1c9bf]/50 text-xs text-[#515151] leading-relaxed shadow-2xs animate-in fade-in-0 slide-in-from-top-1 relative z-10"
+        >
           {currentConfig.description}
         </div>
       )}

@@ -161,7 +161,9 @@ function AskSeiyaDirectChatBox({
   );
 }
 
-export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
+// `notice` (e.g. "Your partner hasn't joined yet") sits under the greeting so it
+// never covers the landscape illustration at the top of the dashboard.
+export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => void; notice?: React.ReactNode }) {
   const {
     wallets,
     convertedBalances,
@@ -698,6 +700,8 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
           )}
         </div>
       </div>
+
+      {notice}
 
       {/* 1. THREE DISTINCTIVE WHITE CARDS WITH BORDER & COLORED CHARTS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
