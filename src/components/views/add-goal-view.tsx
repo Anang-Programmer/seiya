@@ -38,17 +38,19 @@ export function AddGoalView({ onBack, onGoalCreated }: AddGoalViewProps) {
   const [title, setTitle] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [category, setCategory] = useState("Travel");
-  const [targetAmount, setTargetAmount] = useState<number | string>(10000);
-  const [currentAmount, setCurrentAmount] = useState<number | string>(1500);
+  const [targetAmount, setTargetAmount] = useState<number | string>("");
+  const [currentAmount, setCurrentAmount] = useState<number | string>("");
   const [currency, setCurrency] = useState(reportingCurrency || "USD");
+  const [formError, setFormError] = useState("");
 
   // Horizon State: Month & Year
   const currentYear = new Date().getFullYear();
+  const currentMonthIndex = new Date().getMonth();
   const [targetMonth, setTargetMonth] = useState("Dec");
   const [targetYear, setTargetYear] = useState((currentYear + 1).toString());
 
   // Funding & Split State
-  const [fundingWallet, setFundingWallet] = useState("Planned shared contributions");
+  const [fundingWallet, setFundingWallet] = useState("Planned shared contributions (Joint Pool)");
   const [splitMode, setSplitMode] = useState<"contract" | "equal" | "custom">("contract");
   const [customSplitA, setCustomSplitA] = useState(contract.splitPartnerA);
   const [customSplitB, setCustomSplitB] = useState(contract.splitPartnerB);
@@ -90,8 +92,9 @@ export function AddGoalView({ onBack, onGoalCreated }: AddGoalViewProps) {
       splitA = 50;
       splitB = 50;
     } else if (splitMode === "custom") {
-      splitA = Number(customSplitA) || 50;
-      splitB = Number(customSplitB) || 50;
+      // 0% is a valid share, so no "|| 50" fallback here.
+      splitA = Math.min(100, Math.max(0, Number(customSplitA) || 0));
+      splitB = 100 - splitA;
     }
 
     const aAmt = Math.round((monthly * splitA) / 100);
@@ -117,9 +120,25 @@ export function AddGoalView({ onBack, onGoalCreated }: AddGoalViewProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || isSaving) return;
+    setFormError("");
 
     const targetNum = Number(targetAmount) || 0;
     const currentNum = Number(currentAmount) || 0;
+    if (targetNum <= 0) {
+      setFormError("Enter a target amount greater than 0.");
+      return;
+    }
+    if (currentNum > targetNum) {
+      setFormError("Already saved can't be more than the target amount.");
+      return;
+    }
+    if (
+      Number(targetYear) < currentYear ||
+      (Number(targetYear) === currentYear && months.indexOf(targetMonth) <= currentMonthIndex)
+    ) {
+      setFormError("Pick a target month after this month.");
+      return;
+    }
     const targetDateFormatted = `${targetMonth} ${targetYear} (${durationMonths} mos)`;
 
     const defaultAssumptions = assumptions.trim()
@@ -135,9 +154,12 @@ export function AddGoalView({ onBack, onGoalCreated }: AddGoalViewProps) {
       currency,
       targetDate: targetDateFormatted,
       recommendedMonthly: monthlyTotal,
+      // plans.split_partner_a/b hold percentages (0–100). Sending the monthly
+      // amounts broke every goal whose share exceeded 100, e.g. most IDR goals.
+      // Percentages also map correctly if the server converts a/(a+b).
       splitRecommendation: {
-        partnerA: partnerAAmount,
-        partnerB: partnerBAmount,
+        partnerA: activeSplitA,
+        partnerB: activeSplitB,
       },
       walletFunding: fundingWallet,
       status: initialStatus,
@@ -327,8 +349,12 @@ export function AddGoalView({ onBack, onGoalCreated }: AddGoalViewProps) {
                   onChange={(e) => setTargetMonth(e.target.value)}
                   className="w-full h-10 px-3 rounded-full border border-[#d1c9bf] bg-white text-xs font-semibold text-[#2a2b2f]"
                 >
-                  {months.map((m) => (
-                    <option key={m} value={m}>
+                  {months.map((m, i) => (
+                    <option
+                      key={m}
+                      value={m}
+                      disabled={Number(targetYear) === currentYear && i <= currentMonthIndex}
+                    >
                       {m}
                     </option>
                   ))}
@@ -417,7 +443,7 @@ export function AddGoalView({ onBack, onGoalCreated }: AddGoalViewProps) {
                     max="100"
                     value={customSplitA}
                     onChange={(e) => {
-                      const val = Number(e.target.value) || 0;
+                      const val = Math.min(100, Math.max(0, Number(e.target.value) || 0));
                       setCustomSplitA(val);
                       setCustomSplitB(100 - val);
                     }}
@@ -434,7 +460,7 @@ export function AddGoalView({ onBack, onGoalCreated }: AddGoalViewProps) {
                     max="100"
                     value={customSplitB}
                     onChange={(e) => {
-                      const val = Number(e.target.value) || 0;
+                      const val = Math.min(100, Math.max(0, Number(e.target.value) || 0));
                       setCustomSplitB(val);
                       setCustomSplitA(100 - val);
                     }}
@@ -532,12 +558,19 @@ export function AddGoalView({ onBack, onGoalCreated }: AddGoalViewProps) {
             </label>
             <textarea
               rows={3}
-              placeholder="e.g. Flight tickets to be booked by June; target includes $2,000 buffer for hotel reservations..."
+              placeholder="e.g. Flight tickets to be booked by June; the target includes a buffer for the hotel..."
               value={assumptions}
               onChange={(e) => setAssumptions(e.target.value)}
               className="w-full p-3.5 rounded-[14px] border border-[#d1c9bf] bg-[#fef9ef] text-xs text-[#2a2b2f] focus:outline-none focus:ring-2 focus:ring-[#B45529]/20"
             />
           </div>
+
+          {formError && (
+            <div role="alert" className="p-3 rounded-[12px] bg-[#fcf0ee] text-[#a34426] text-xs flex items-center gap-2 border border-[#a34426]/20">
+              <SolarIcon name="danger-triangle" size={16} className="shrink-0" />
+              <span>{formError}</span>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="pt-4 border-t border-[#e8dfd5] flex items-center justify-end gap-3">
@@ -552,10 +585,11 @@ export function AddGoalView({ onBack, onGoalCreated }: AddGoalViewProps) {
             <Button
               type="submit"
               variant="primary"
+              disabled={isSaving}
               className="text-xs px-6 h-11 flex items-center gap-2 cursor-pointer shadow-sm"
             >
               <SolarIcon name="check-circle" size={16} />
-              <span>Save & Launch Couple Goal</span>
+              <span>{isSaving ? "Saving..." : "Save & Launch Couple Goal"}</span>
             </Button>
           </div>
         </form>

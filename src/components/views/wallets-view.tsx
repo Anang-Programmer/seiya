@@ -25,6 +25,19 @@ export function WalletsView() {
   } = useApp();
 
   const [selectedWalletTab, setSelectedWalletTab] = useState<"shared" | "personal" | "partner">("shared");
+  // Settling clears the balance for both partners, so it takes a second, explicit click.
+  const [confirmSettle, setConfirmSettle] = useState(false);
+  const [isSettling, setIsSettling] = useState(false);
+  const settlementCurrency = settlement.currency || wallets.shared.currency;
+  const owedAmount = Math.max(settlement.partnerBOwesA, settlement.partnerAOwesB);
+  const debtorName = settlement.partnerBOwesA > 0 ? partnerBName : partnerAName;
+  const creditorName = settlement.partnerBOwesA > 0 ? partnerAName : partnerBName;
+  const handleSettleUp = async () => {
+    setIsSettling(true);
+    await settleUp();
+    setIsSettling(false);
+    setConfirmSettle(false);
+  };
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [transactionModalOpen, setTransactionModalOpen] = useState(false);
 
@@ -60,11 +73,11 @@ export function WalletsView() {
               <div className="text-lg font-bold text-[#2a2b2f]">
                 {partnerBName} owes {partnerAName}{" "}
                 <span className="text-[#B45529] font-serif">
-                  {formatMoney(settlement.partnerBOwesA, wallets.shared.currency, locale)}
+                  {formatMoney(settlement.partnerBOwesA, settlementCurrency, locale)}
                 </span>
-                {wallets.shared.currency !== reportingCurrency && (
+                {settlementCurrency !== reportingCurrency && (
                   <span className="text-xs text-[#808988] font-serif block">
-                    ≈ {formatMoneyConverted(settlement.partnerBOwesA, wallets.shared.currency, reportingCurrency, locale)}
+                    ≈ {formatMoneyConverted(settlement.partnerBOwesA, settlementCurrency, reportingCurrency, locale)}
                   </span>
                 )}
               </div>
@@ -72,11 +85,11 @@ export function WalletsView() {
               <div className="text-lg font-bold text-[#2a2b2f]">
                 {partnerAName} owes {partnerBName}{" "}
                 <span className="text-[#B45529] font-serif">
-                  {formatMoney(settlement.partnerAOwesB, wallets.shared.currency, locale)}
+                  {formatMoney(settlement.partnerAOwesB, settlementCurrency, locale)}
                 </span>
-                {wallets.shared.currency !== reportingCurrency && (
+                {settlementCurrency !== reportingCurrency && (
                   <span className="text-xs text-[#808988] font-serif block">
-                    ≈ {formatMoneyConverted(settlement.partnerAOwesB, wallets.shared.currency, reportingCurrency, locale)}
+                    ≈ {formatMoneyConverted(settlement.partnerAOwesB, settlementCurrency, reportingCurrency, locale)}
                   </span>
                 )}
               </div>
@@ -91,11 +104,27 @@ export function WalletsView() {
           </div>
         </div>
 
-        {(settlement.partnerBOwesA > 0 || settlement.partnerAOwesB > 0) && (
-          <Button variant="primary" size="sm" onClick={settleUp} className="shrink-0 text-xs">
+        {owedAmount > 0 && !confirmSettle && (
+          <Button variant="primary" size="sm" onClick={() => setConfirmSettle(true)} className="shrink-0 text-xs">
             <SolarIcon name="check" size={14} />
             Settle Up Now
           </Button>
+        )}
+        {owedAmount > 0 && confirmSettle && (
+          <div role="alertdialog" aria-label="Confirm settlement" className="w-full sm:w-auto sm:max-w-xs p-3 rounded-[12px] bg-[#fef9ef] border border-[#B45529]/30 space-y-2">
+            <p className="text-xs text-[#2a2b2f] leading-snug">
+              Mark {formatMoney(owedAmount, settlementCurrency, locale)} from {debtorName} to {creditorName} as paid?
+              Only do this after the money has actually been transferred.
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setConfirmSettle(false)} disabled={isSettling} className="text-xs">
+                Cancel
+              </Button>
+              <Button variant="primary" size="sm" onClick={handleSettleUp} disabled={isSettling} className="text-xs">
+                {isSettling ? "Settling..." : "Yes, it's paid"}
+              </Button>
+            </div>
+          </div>
         )}
       </div>
 
