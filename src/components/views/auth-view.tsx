@@ -47,6 +47,18 @@ import {
 // Screen-jumping review tools are only available when explicitly enabled.
 const DEMO_SIMULATION_ENABLED = process.env.NEXT_PUBLIC_ENABLE_DEMO_SIMULATION === "true";
 
+// WeChat brand mark (green chat bubbles). Login with WeChat is shown as UI only.
+function WeChatLogo({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="#07C160"
+        d="M9.1 3.5C4.9 3.5 1.5 6.3 1.5 9.8c0 2 1.1 3.8 2.9 5l-.7 2.3 2.6-1.4c.9.3 1.8.4 2.8.4h.6a5.6 5.6 0 0 1-.2-1.5c0-3.4 3.3-6.1 7.3-6.1h.6c-.7-2.9-3.9-5-7.6-5zM6.6 8.6a.95.95 0 1 1 0-1.9.95.95 0 0 1 0 1.9zm5 0a.95.95 0 1 1 0-1.9.95.95 0 0 1 0 1.9zm10.9 6c0-2.9-2.9-5.2-6.4-5.2s-6.4 2.3-6.4 5.2 2.9 5.2 6.4 5.2c.7 0 1.4-.1 2.1-.3l2 1.1-.5-1.9c1.7-1 2.8-2.4 2.8-4.1zm-8.6-.8a.8.8 0 1 1 0-1.6.8.8 0 0 1 0 1.6zm4.4 0a.8.8 0 1 1 0-1.6.8.8 0 0 1 0 1.6z"
+      />
+    </svg>
+  );
+}
+
 // Rounds converted preset amounts to two significant digits (e.g. 7,834,120 -> 7,800,000).
 function niceRound(value: number) {
   if (!Number.isFinite(value) || value <= 0) return 0;
@@ -112,6 +124,8 @@ export function AuthView({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  // "Continue with WeChat" is UI only for now: it opens a "coming soon" sheet.
+  const [showWechatSheet, setShowWechatSheet] = useState(false);
 
   // Dynamic names: once signed in they come from the household (owner = partner A).
   const activePartnerAName = authUser ? partnerAName : fullName.trim() || partnerAName;
@@ -1564,6 +1578,23 @@ export function AuthView({
                       : mode === "login"
                         ? "Login"
                         : "Create an account"}
+                  </button>
+                </div>
+
+                {/* Continue with WeChat (UI only: shows a "coming soon" sheet) */}
+                <div className="space-y-3 pt-1">
+                  <div className="flex items-center gap-3 text-xs text-[#a3abaa]">
+                    <span className="h-px flex-1 bg-[#e8dfd5]" />
+                    <span>or</span>
+                    <span className="h-px flex-1 bg-[#e8dfd5]" />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowWechatSheet(true)}
+                    className="w-full py-3.5 px-6 rounded-full border border-[#d1c9bf] bg-white hover:bg-[#f6fbf8] hover:border-[#07C160]/50 text-[#2a2b2f] font-serif text-base flex items-center justify-center gap-2.5 transition-all shadow-2xs cursor-pointer active:scale-[0.99]"
+                  >
+                    <WeChatLogo />
+                    <span>Continue with WeChat</span>
                   </button>
                 </div>
 
@@ -3863,6 +3894,76 @@ export function AuthView({
       {/* =========================================================================
           JOIN SPACE MODAL (Invite code input)
           ========================================================================= */}
+      {showWechatSheet && (
+        <div
+          className="fixed inset-0 z-50 bg-[#2a2b2f]/50 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="wechat-sheet-title"
+          onClick={() => setShowWechatSheet(false)}
+        >
+          <div
+            className="bg-white w-full sm:max-w-sm rounded-t-[28px] sm:rounded-[28px] p-6 sm:p-7 shadow-2xl space-y-5 animate-in fade-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <span className="w-10 h-10 rounded-full bg-[#e9f9f0] flex items-center justify-center">
+                  <WeChatLogo size={22} />
+                </span>
+                <div>
+                  <h3 id="wechat-sheet-title" className="font-serif text-lg text-[#2a2b2f]">
+                    Continue with WeChat
+                  </h3>
+                  <p className="text-xs text-[#808988]">Scan with the WeChat app to sign in</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowWechatSheet(false)}
+                className="p-1.5 rounded-full text-[#808988] hover:text-[#2a2b2f] hover:bg-black/5 transition-colors cursor-pointer"
+                aria-label="Close"
+              >
+                <SolarIcon name="close-circle" size={20} />
+              </button>
+            </div>
+
+            {/* QR placeholder: WeChat sign-in is not connected yet */}
+            <div className="relative mx-auto w-48 h-48 rounded-[20px] border border-[#e6e6e6] bg-[#fafafa] overflow-hidden">
+              <div
+                className="absolute inset-3 opacity-[0.12]"
+                style={{
+                  backgroundImage:
+                    "linear-gradient(90deg,#2a2b2f 50%,transparent 50%),linear-gradient(#2a2b2f 50%,transparent 50%)",
+                  backgroundSize: "14px 14px",
+                }}
+              />
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-4">
+                <span className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center">
+                  <WeChatLogo size={28} />
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full bg-[#fffaee] border border-[#fcc850] text-[11px] font-semibold text-[#9a7414]">
+                  Coming soon
+                </span>
+              </div>
+            </div>
+
+            <p className="text-sm text-[#515151] text-center leading-relaxed">
+              WeChat sign-in is on its way. For now, {mode === "register" ? "create your account" : "sign in"} with your
+              full name and password.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => setShowWechatSheet(false)}
+              className="w-full py-3 rounded-full bg-[#B4562A] hover:bg-[#9c4820] text-white font-serif text-base transition-colors cursor-pointer"
+            >
+              {mode === "register" ? "Create account with name" : "Sign in with name"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {showJoinModal && (
         <div className="fixed inset-0 z-50 bg-[#2a2b2f]/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-[#FEF9E9] rounded-[24px] max-w-md w-full p-6 sm:p-8 shadow-2xl border border-[#eedecb] space-y-5 animate-in fade-in zoom-in-95 duration-200">
