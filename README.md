@@ -24,7 +24,7 @@ All money movement in this MVP is **simulated**. No endpoint moves real money.
 - **Partner invitations.** The creator gets a single-use private link (`/invite?token=…`); the partner opens it or pastes it on the *Join shared space* screen.
 - **Seiya's Promise.** Once both partners finish onboarding, Seiya's AI drafts one shared set of clauses (cost sharing, "discuss first" limit, cooling-off, family support, privacy, check-ins, emergency fund). Each partner selects and edits clauses; when both save the same version, the numbers become the household's active finance rules and the shared wallets open.
 - **Country-aware amounts.** The "discuss first" question uses round amounts in the user's currency (detected from the browser, changeable); a joining partner uses the shared space's currency.
-- **Chat attachments.** In Ask Seiya, 📎 reads a bank statement (PDF, Excel, CSV) and imports it after you confirm; 🖼 reads a receipt photo into an editable draft that is recorded through the normal expense rules (limit, cooling-off, partner approval).
+- **Chat attachments (no AI tokens in the normal path).** Files wait in the composer so you can add a note, then go on Send. 📎 bank statements are read with libraries (`unpdf` for PDF text, `xlsx`/SheetJS for Excel, a CSV reader) and imported after you confirm; files that are not statements are rejected with a clear reason. 🖼 receipt photos are read **on the device** with `tesseract.js` OCR plus rules (total, date, store, category); PDF e-receipts use `unpdf`. The vision model (`/receipt-scan`) is only a fallback when OCR finds no total. A confirmed receipt goes through the normal expense rules (limit, cooling-off, partner approval).
 - **Dashboard.** Shared and personal wallets, transactions with automatic split, bills, budgets, couple goals, approvals queue, waiting list (cooling-off), settlement (who owes whom), activity log, bank-statement import, and the Ask Seiya AI chat.
 - **Dual-key safety.** A requester can never approve their own request; sensitive actions can require a 6-digit PIN; rules are enforced by database RPCs and RLS, never by UI state or by the AI.
 
@@ -261,7 +261,7 @@ Some APIs may map database errors differently. Frontend code should show a safe 
 | `POST` | `/api/households/[householdId]/gateway/decision` | Household-scoped gateway rule evaluation | Required active household member |
 | `POST` | `/api/statement-import` | Upload bank statement (PDF, Excel, CSV) with preview & batch import | Required active household member |
 | `POST` | `/api/households/[householdId]/statement-import` | Household-scoped bank statement parsing, categorization, and commit | Required active household member |
-| `POST` | `/api/households/[householdId]/receipt-scan` | Read a receipt photo into a draft expense (nothing is recorded) | Required active household member |
+| `POST` | `/api/households/[householdId]/receipt-scan` | PDF e-receipt → draft via `unpdf` + rules; photo → vision-model fallback (used only when on-device OCR fails). Nothing is recorded | Required active household member |
 | `POST` | `/api/ai/chat` | Run AI agent with conversational cards (ACTION_ALLOW, NEED_APPROVAL, HOLD) | Required active household member |
 
 > **Important:** This inventory reflects endpoints implemented in the project during the build. For signup, onboarding, transactions, and budgets, verify exact body/property names against `src/backend/validators/*.ts` and the relevant route before wiring the UI; the UI must not infer missing fields.

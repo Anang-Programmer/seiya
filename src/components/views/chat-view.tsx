@@ -13,6 +13,7 @@ import { ActionCard, PlanCard, ClarificationCard } from "@/components/cards/doma
 import { useApp, ChatMessage } from "@/lib/store";
 import { apiCommitStatement, apiPreviewStatement, apiScanReceipt, type StatementTransaction } from "@/lib/api";
 import { ReceiptDraftCard, StatementPreviewCard, type ReceiptConfirmation } from "@/components/cards/attachment-cards";
+import { readReceiptOnDevice } from "@/lib/receipt-ocr";
 import { formatRelativeDate } from "@/lib/transformers";
 
 const Orb = dynamic(() => import("orb-ui").then((mod) => mod.Orb), {
@@ -31,6 +32,14 @@ const orangeCloudTheme = {
   },
 };
 
+
+type ScannedReceiptLike = {
+  merchant: string | null;
+  total: number | null;
+  currency: string | null;
+  date: string | null;
+  category: "Food & Drinks" | "Shopping" | "Bills" | "Transportation" | "Health" | "Social" | "Others";
+};
 
 // Unique ids for messages and chats created on this device.
 function newLocalId(prefix: string) {
@@ -149,31 +158,155 @@ export function ChatView() {
     return message;
   };
 
-  const handleStatementFile = async (file: File) => {
+  // Attachments wait in the composer until Send, so the user can add a note.
+  type AttachmentKind = "statement" | "receipt";
+  type WalletChoice = "shared" | "personal";
+  const [pendingAttachment, setPendingAttachment] = useState<{ file: File; hint: AttachmentKind; previewUrl: string | null } | null>(null);
+  const [processingLabel, setProcessingLabel] = useState<string | null>(null);
+
+  const isImageFile = (f: File) => f.type.startsWith("image/") || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name);
+  const isSheetFile = (f: File) => /\.(csv|xlsx|xls)$/i.test(f.name);
+  const isPdfFile = (f: File) => f.type === "application/pdf" || /\.pdf$/i.test(f.name);
+
+  const stageAttachment = (file: File, hint: AttachmentKind) => {
+    setPendingAttachment((prev) => {
+      if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+      return { file, hint, previewUrl: isImageFile(file) ? URL.createObjectURL(file) : null };
+    });
+  };
+  const clearAttachment = () =>
+    setPendingAttachment((prev) => {
+      if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+      return null;
+    });
+
+  // "masuk shared ya" / "pribadi" in the note preselects the wallet on the card.
+  const walletFromNote = (note: string): WalletChoice | undefined =>
+    /\b(shared|bersama|berdua|patungan|joint)\b/i.test(note)
+      ? "shared"
+      : /\b(pribadi|personal|sendiri|private)\b/i.test(note)
+        ? "personal"
+        : undefined;
+
+  const processStatement = async (sessionId: string, file: File, wallet: WalletChoice | undefined, rethrow = false) => {
     if (!householdId) return;
-    const sessionId = postUserAttachment(`📎 ${file.name}`);
-    if (!/\.(pdf|csv|xlsx|xls)$/i.test(file.name)) {
-      appendToSession(sessionId, seiyaNote("I can read bank statements as **PDF**, **Excel** (.xlsx/.xls) or **CSV** files. Please attach one of those."));
-      return;
-    }
-    if (file.size > MAX_UPLOAD_BYTES) {
-      appendToSession(sessionId, seiyaNote("That file is larger than **4 MB**. Please export a shorter period (for example one month) and try again."));
-      return;
-    }
-    setIsProcessing(true);
+    setProcessingLabel("Reading your statement…");
     try {
       const res = await apiPreviewStatement(householdId, file);
       appendToSession(
         sessionId,
         seiyaNote(
           `I found **${res.extractedCount} transaction${res.extractedCount === 1 ? "" : "s"}** in your statement. Check them below and choose which wallet to import them into. Nothing is saved until you confirm.`,
-          { cardType: "STATEMENT_PREVIEW", cardData: { fileName: res.fileName || file.name, transactions: res.transactions } }
+          { cardType: "STATEMENT_PREVIEW", cardData: { fileName: res.fileName || file.name, transactions: res.transactions, defaultWallet: wallet } }
         )
       );
     } catch (error) {
+      if (rethrow) throw error;
       appendToSession(sessionId, seiyaNote(friendlyError(error, "I couldn't read that statement. Please try another file.")));
+    }
+  };
+
+  const postReceiptDraft = (sessionId: string, receipt: ScannedReceiptLike, note: string, wallet: WalletChoice | undefined) => {
+    const missing = receipt.total === null ? " I couldn't read the total, so please type it in." : "";
+    appendToSession(
+      sessionId,
+      seiyaNote(`Here's what I read from your receipt. Check the details, then tap **Record expense**.${missing}`, {
+        cardType: "RECEIPT_DRAFT",
+        cardData: { ...receipt, merchant: receipt.merchant ?? (note ? note.slice(0, 80) : null), defaultWallet: wallet },
+      })
+    );
+  };
+
+  const processReceiptPdf = async (sessionId: string, file: File, note: string, wallet: WalletChoice | undefined, rethrow = false) => {
+    if (!householdId) return;
+    setProcessingLabel("Reading your receipt…");
+    try {
+      const res = await apiScanReceipt(householdId, file, file.name);
+      postReceiptDraft(sessionId, res.receipt, note, wallet);
+    } catch (error) {
+      if (rethrow) throw error;
+      appendToSession(sessionId, seiyaNote(friendlyError(error, "I couldn't read that receipt.")));
+    }
+  };
+
+  // Photos: on-device OCR first (no AI tokens); the vision model is only a fallback.
+  const processReceiptImage = async (sessionId: string, file: File, note: string, wallet: WalletChoice | undefined) => {
+    if (!householdId) return;
+    let image: Blob;
+    try {
+      image = await shrinkImage(file);
+    } catch {
+      appendToSession(sessionId, seiyaNote("I couldn't open that photo. Please take it again as a JPG or PNG."));
+      return;
+    }
+    setProcessingLabel("Reading your receipt on this device…");
+    try {
+      const { fields } = await readReceiptOnDevice(image);
+      if (fields.total !== null) {
+        postReceiptDraft(sessionId, fields, note, wallet);
+        return;
+      }
+    } catch (error) {
+      console.warn("[receipt] on-device OCR unavailable:", error instanceof Error ? error.message : error);
+    }
+    if (image.size > MAX_UPLOAD_BYTES) {
+      appendToSession(sessionId, seiyaNote("That photo is larger than **4 MB**. Please crop it to just the receipt."));
+      return;
+    }
+    setProcessingLabel("Taking a closer look at your receipt…");
+    try {
+      const res = await apiScanReceipt(householdId, image, "receipt.jpg");
+      postReceiptDraft(sessionId, res.receipt, note, wallet);
+    } catch (error) {
+      appendToSession(sessionId, seiyaNote(friendlyError(error, "I couldn't read that receipt. Try a sharper, well-lit photo.")));
+    }
+  };
+
+  const sendAttachment = async (noteRaw: string) => {
+    const attachment = pendingAttachment;
+    if (!attachment || !householdId) return;
+    const { file, hint } = attachment;
+    const note = noteRaw.trim();
+    clearAttachment();
+    setInputText("");
+
+    const sessionId = postUserAttachment(`${isImageFile(file) ? "🖼" : "📎"} ${file.name}${note ? `\n${note}` : ""}`);
+    const wallet = walletFromNote(note);
+
+    if (!isImageFile(file) && file.size > MAX_UPLOAD_BYTES) {
+      appendToSession(sessionId, seiyaNote("That file is larger than **4 MB**. Please export a shorter period (for example one month) and try again."));
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      if (isImageFile(file)) {
+        await processReceiptImage(sessionId, file, note, wallet);
+      } else if (isSheetFile(file)) {
+        await processStatement(sessionId, file, wallet);
+      } else if (isPdfFile(file)) {
+        // A PDF can be either; try the button's intent first, then the other.
+        const order: AttachmentKind[] = hint === "receipt" ? ["receipt", "statement"] : ["statement", "receipt"];
+        let lastError: unknown = null;
+        for (const kind of order) {
+          try {
+            if (kind === "statement") await processStatement(sessionId, file, wallet, true);
+            else await processReceiptPdf(sessionId, file, note, wallet, true);
+            return;
+          } catch (error) {
+            lastError = error;
+          }
+        }
+        appendToSession(sessionId, seiyaNote(friendlyError(lastError, "I couldn't find a statement or a receipt in this PDF.")));
+      } else {
+        appendToSession(
+          sessionId,
+          seiyaNote("I can read **bank statements** (PDF, Excel or CSV) and **receipts** (a photo or a PDF e-receipt). Please attach one of those.")
+        );
+      }
     } finally {
       setIsProcessing(false);
+      setProcessingLabel(null);
     }
   };
 
@@ -203,43 +336,6 @@ export function ChatView() {
     return await new Promise<Blob>((resolve, reject) =>
       canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Couldn't prepare the photo."))), "image/jpeg", 0.85)
     );
-  };
-
-  const handleReceiptImage = async (file: File) => {
-    if (!householdId) return;
-    const sessionId = postUserAttachment("🖼 Receipt photo");
-    if (!file.type.startsWith("image/")) {
-      appendToSession(sessionId, seiyaNote("Please attach a photo of the receipt (JPG, PNG or WebP)."));
-      return;
-    }
-    setIsProcessing(true);
-    try {
-      let image: Blob;
-      try {
-        image = await shrinkImage(file);
-      } catch {
-        appendToSession(sessionId, seiyaNote("I couldn't open that photo. Please take it again as a JPG or PNG."));
-        return;
-      }
-      if (image.size > MAX_UPLOAD_BYTES) {
-        appendToSession(sessionId, seiyaNote("That photo is still larger than **4 MB**. Please crop it to just the receipt."));
-        return;
-      }
-      const res = await apiScanReceipt(householdId, image, "receipt.jpg");
-      const r = res.receipt;
-      const missing = r.total === null ? " I couldn't read the total, so please type it in." : "";
-      appendToSession(
-        sessionId,
-        seiyaNote(`Here's what I read from your receipt. Check the details, then tap **Record expense**.${missing}`, {
-          cardType: "RECEIPT_DRAFT",
-          cardData: r,
-        })
-      );
-    } catch (error) {
-      appendToSession(sessionId, seiyaNote(friendlyError(error, "I couldn't read that receipt. Try a sharper, well-lit photo.")));
-    } finally {
-      setIsProcessing(false);
-    }
   };
 
   const recordReceipt = async (sessionId: string | null, draft: ReceiptConfirmation) => {
@@ -308,6 +404,7 @@ export function ChatView() {
   const [historyFilter, setHistoryFilter] = useState<"all" | "shared" | "private">("all");
   const [showHistory, setShowHistory] = useState<boolean>(false);
   const [inputText, setInputText] = useState("");
+  const hasComposerContent = Boolean(inputText.trim() || pendingAttachment);
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeMenuSessionId, setActiveMenuSessionId] = useState<string | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -1182,7 +1279,7 @@ export function ChatView() {
               ) : isProcessing ? (
                 <div className="flex items-center gap-1.5 text-[11px] text-[#B45529] font-medium mt-0.5 animate-in fade-in-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#B45529] animate-ping" />
-                  <span>Checking your rules and balances…</span>
+                  <span>{processingLabel ?? "Checking your rules and balances…"}</span>
                 </div>
               ) : null}
             </div>
@@ -1412,6 +1509,7 @@ export function ChatView() {
                     transactions={msg.cardData.transactions}
                     locale={locale}
                     partnerName={partnerName}
+                    defaultWallet={msg.cardData.defaultWallet}
                     onImport={(walletType) => importStatement(activeSessionId, msg.cardData.transactions, walletType)}
                   />
                 )}
@@ -1421,6 +1519,7 @@ export function ChatView() {
                     receipt={msg.cardData}
                     fallbackCurrency={baseCurrency}
                     partnerName={partnerName}
+                    defaultWallet={msg.cardData.defaultWallet}
                     onRecord={(draft) => recordReceipt(activeSessionId, draft)}
                   />
                 )}
@@ -1436,7 +1535,7 @@ export function ChatView() {
               </div>
               <div className="p-3.5 rounded-[20px] bg-[#fef9ef] rounded-tl-xs flex items-center gap-2.5 text-xs text-[#515151] shadow-2xs">
                 <span className="w-2 h-2 rounded-full bg-[#B45529] animate-ping" />
-                <span className="font-medium text-[#2a2b2f]">Checking rules & balances...</span>
+                <span className="font-medium text-[#2a2b2f]">{processingLabel ?? "Checking your rules and balances…"}</span>
               </div>
             </div>
           )}
@@ -1542,18 +1641,18 @@ export function ChatView() {
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   e.target.value = "";
-                  if (file) void handleStatementFile(file);
+                  if (file) stageAttachment(file, "statement");
                 }}
               />
               <input
                 ref={receiptInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,application/pdf,.pdf"
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   e.target.value = "";
-                  if (file) void handleReceiptImage(file);
+                  if (file) stageAttachment(file, "receipt");
                 }}
               />
               <button
@@ -1571,7 +1670,7 @@ export function ChatView() {
                 onClick={() => receiptInputRef.current?.click()}
                 disabled={isProcessing || !householdId}
                 className="p-1.5 sm:p-2 rounded-full text-[#808988] hover:text-[#B45529] hover:bg-[#ece3d3] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                title="Scan a receipt photo"
+                title="Scan a receipt (photo or PDF)"
                 aria-label="Scan a receipt photo"
               >
                 <SolarIcon name="image" size={17} />
@@ -1582,42 +1681,77 @@ export function ChatView() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                handleSend();
+                if (pendingAttachment) void sendAttachment(inputText);
+                else handleSend();
               }}
-              className="flex-1 min-w-0"
+              className="flex-1 min-w-0 flex flex-col gap-1.5"
             >
+              {pendingAttachment && (
+                <div className="flex items-center gap-2 self-start max-w-full pl-1.5 pr-1 py-1 rounded-[14px] bg-white border border-[#e5dcd0] shadow-2xs">
+                  {pendingAttachment.previewUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={pendingAttachment.previewUrl} alt="" className="w-9 h-9 rounded-[8px] object-cover shrink-0" />
+                  ) : (
+                    <span className="w-9 h-9 rounded-[8px] bg-[#fbf0eb] text-[#B45529] flex items-center justify-center shrink-0">
+                      <SolarIcon name={isPdfFile(pendingAttachment.file) || isSheetFile(pendingAttachment.file) ? "paperclip" : "image"} size={16} />
+                    </span>
+                  )}
+                  <span className="min-w-0">
+                    <span className="block truncate text-[11px] sm:text-xs font-semibold text-[#2a2b2f] max-w-[180px] sm:max-w-[280px]">
+                      {pendingAttachment.file.name}
+                    </span>
+                    <span className="block text-[10px] text-[#808988]">
+                      {isImageFile(pendingAttachment.file) ? "Receipt photo" : isSheetFile(pendingAttachment.file) ? "Bank statement" : "PDF"} ·{" "}
+                      {(pendingAttachment.file.size / 1024 < 1024
+                        ? `${Math.max(1, Math.round(pendingAttachment.file.size / 1024))} KB`
+                        : `${(pendingAttachment.file.size / 1024 / 1024).toFixed(1)} MB`)}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={clearAttachment}
+                    className="p-1 rounded-full text-[#808988] hover:text-[#a34426] hover:bg-[#f5eee1] cursor-pointer"
+                    aria-label="Remove attachment"
+                    title="Remove"
+                  >
+                    <SolarIcon name="close-circle" size={16} />
+                  </button>
+                </div>
+              )}
               <input
                 type="text"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                placeholder="Message Seiya…"
+                placeholder={pendingAttachment ? "Add a note (optional), then press Send" : "Message Seiya…"}
                 className="w-full px-3 sm:px-4 py-2 sm:py-2.5 rounded-full bg-[#fef9ef] border border-[#d1c9bf] text-xs sm:text-sm text-[#2a2b2f] placeholder-[#808988] focus:outline-none focus:ring-2 focus:ring-[#B45529]/20 transition-all shadow-2xs"
               />
             </form>
 
-            {/* Unified Dynamic Voice Chat & Send Action Button */}
+            {/* Unified Dynamic Voice Chat & Send Action Button (sends text and/or the attachment) */}
             <button
               type="button"
               disabled={isProcessing}
               onClick={() => {
-                if (inputText.trim()) {
+                if (pendingAttachment) {
+                  void sendAttachment(inputText);
+                } else if (inputText.trim()) {
                   handleSend();
                 } else {
                   setIsVoiceChatActive(true);
                 }
               }}
               className={`h-9 sm:h-10 shrink-0 flex items-center justify-center transition-all duration-300 ease-in-out cursor-pointer group select-none ${
-                inputText.trim()
+                hasComposerContent
                   ? "px-3.5 sm:px-5 rounded-[40px] bg-[#B45529] hover:bg-[#9a451e] border border-transparent text-[#fef9ef] shadow-xs active:scale-95"
                   : "w-9 sm:w-10 px-0 rounded-full bg-[#fbf0eb] hover:bg-[#f6e1d7] border border-[#B45529]/35 text-[#B45529] shadow-2xs hover:shadow-xs active:scale-95"
               }`}
-              title={inputText.trim() ? "Send message" : "Start Voice Chat with Seiya"}
-              aria-label={inputText.trim() ? "Send message" : "Start Voice Chat with Seiya"}
+              title={hasComposerContent ? "Send message" : "Start Voice Chat with Seiya"}
+              aria-label={hasComposerContent ? "Send message" : "Start Voice Chat with Seiya"}
             >
               <div className="relative flex items-center justify-center">
                 <span
                   className={`flex items-center justify-center transition-all duration-300 ease-in-out ${
-                    inputText.trim()
+                    hasComposerContent
                       ? "opacity-0 scale-50 max-w-0 overflow-hidden pointer-events-none"
                       : "opacity-100 scale-100 max-w-[40px]"
                   }`}
@@ -1630,7 +1764,7 @@ export function ChatView() {
                 </span>
                 <span
                   className={`flex items-center gap-1.5 transition-all duration-300 ease-in-out overflow-hidden ${
-                    inputText.trim()
+                    hasComposerContent
                       ? "opacity-100 scale-100 max-w-[100px]"
                       : "opacity-0 scale-50 max-w-0 pointer-events-none"
                   }`}

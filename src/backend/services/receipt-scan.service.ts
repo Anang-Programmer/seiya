@@ -2,6 +2,7 @@ import "server-only";
 import { AIProviderError } from "@/backend/agents/errors";
 import { postJson } from "@/backend/agents/providers/http";
 import type { TransactionCategory } from "@/backend/validators/statement-import";
+import { findDate, guessCategory, parseAmount } from "@/lib/receipt-text";
 
 // Reads a receipt photo with a vision model and returns a draft expense the
 // user confirms in the chat. Receipt photos are private data, so only providers
@@ -57,45 +58,13 @@ export function hasReceiptReader() {
   return visionCalls().length > 0;
 }
 
-function parseAmount(value: unknown): number | null {
-  if (typeof value === "number") return Number.isFinite(value) && value > 0 && value < 1e12 ? Math.round(value * 100) / 100 : null;
-  if (typeof value !== "string") return null;
-  // "98.790" / "98,790" / "Rp 98.790,50" -> 98790 / 98790 / 98790.5
-  let s = value.replace(/[^\d.,]/g, "");
-  if (!s) return null;
-  const lastComma = s.lastIndexOf(",");
-  const lastDot = s.lastIndexOf(".");
-  const decimalSep = lastComma > lastDot ? "," : ".";
-  const decimals = s.length - Math.max(lastComma, lastDot) - 1;
-  if (Math.max(lastComma, lastDot) >= 0 && decimals === 3) {
-    s = s.replace(/[.,]/g, ""); // separators are thousands
-  } else {
-    const thousands = decimalSep === "," ? "." : ",";
-    s = s.split(thousands).join("").replace(decimalSep, ".");
-  }
-  return parseAmount(Number(s));
-}
-
 function parseDate(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const m = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return null;
-  const d = new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00Z`);
-  if (Number.isNaN(d.getTime()) || d.getUTCFullYear() < 2000 || d.getTime() > Date.now() + 86_400_000) return null;
-  return `${m[1]}-${m[2]}-${m[3]}`;
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value.trim()) ? findDate(value.trim()) : null;
 }
 
 function parseCategory(value: unknown, merchant: string | null): ExpenseCategory {
   const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
-  const exact = CATEGORIES.find((c) => c.toLowerCase() === raw);
-  if (exact) return exact;
-  const hint = `${raw} ${merchant ?? ""}`.toLowerCase();
-  if (/food|drink|cafe|coffee|kopi|resto|restaurant|makan|bakery|warung/.test(hint)) return "Food & Drinks";
-  if (/grab|gojek|taxi|fuel|bensin|pertamina|parking|parkir|toll|tol|transport/.test(hint)) return "Transportation";
-  if (/pharma|apotek|clinic|klinik|hospital|health|kimia farma/.test(hint)) return "Health";
-  if (/pln|listrik|water|pdam|internet|bill|tagihan|telkom/.test(hint)) return "Bills";
-  if (/mart|maret|alfa|market|supermarket|shop|store|toko|mall|hypermart|lotte/.test(hint)) return "Shopping";
-  return "Others";
+  return CATEGORIES.find((c) => c.toLowerCase() === raw) ?? guessCategory(`${raw} ${merchant ?? ""}`);
 }
 
 export function sanitizeReceipt(value: unknown): ReceiptDraft {

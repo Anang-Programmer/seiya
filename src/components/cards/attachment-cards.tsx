@@ -69,15 +69,18 @@ export function StatementPreviewCard({
   transactions,
   locale,
   partnerName,
+  defaultWallet,
   onImport,
 }: {
   fileName: string;
   transactions: StatementTransaction[];
   locale: string;
   partnerName: string;
+  /** Preselected from the note sent with the file ("shared", "pribadi", …). */
+  defaultWallet?: WalletChoice;
   onImport: (walletType: WalletChoice) => Promise<string>;
 }) {
-  const [wallet, setWallet] = useState<WalletChoice>("shared");
+  const [wallet, setWallet] = useState<WalletChoice>(defaultWallet ?? "shared");
   const [status, setStatus] = useState<CardStatus>("idle");
   const [result, setResult] = useState("");
 
@@ -176,18 +179,20 @@ export function ReceiptDraftCard({
   receipt,
   fallbackCurrency,
   partnerName,
+  defaultWallet,
   onRecord,
 }: {
   receipt: ScannedReceipt;
   fallbackCurrency: string;
   partnerName: string;
+  defaultWallet?: WalletChoice;
   onRecord: (draft: ReceiptConfirmation) => Promise<string>;
 }) {
   const currency = receipt.currency || fallbackCurrency;
   const [title, setTitle] = useState(receipt.merchant ?? "");
   const [amount, setAmount] = useState(receipt.total !== null ? String(receipt.total) : "");
   const [category, setCategory] = useState<ScannedReceipt["category"]>(receipt.category);
-  const [wallet, setWallet] = useState<WalletChoice>("shared");
+  const [wallet, setWallet] = useState<WalletChoice>(defaultWallet ?? "shared");
   const [status, setStatus] = useState<CardStatus>("idle");
   const [result, setResult] = useState("");
 

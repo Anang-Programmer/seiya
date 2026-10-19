@@ -53,3 +53,6 @@ next-env.d.ts
 .claude/
 knowledge/seiya/CLAUDE-CODE-PROMPT.md
 knowledge/seiya/DEPLOYMENT-GUIDE.md
+
+# tesseract.js language-data cache (created when OCR runs in Node)
+*.traineddata

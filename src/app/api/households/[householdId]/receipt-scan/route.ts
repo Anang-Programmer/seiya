@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { consumeAgentRequestAllowance } from "@/backend/agents/request-limiter";
 import { hasReceiptReader, scanReceipt } from "@/backend/services/receipt-scan.service";
+import { extractPdfText } from "@/backend/services/statement-parser.service";
+import { parseReceiptText } from "@/lib/receipt-text";
 
 type RouteContext = { params: Promise<{ householdId: string }> };
 
@@ -10,9 +12,11 @@ const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 /**
- * Reads a receipt photo and returns a draft expense (merchant, total, date,
- * category). Nothing is recorded here: the user confirms the draft in the chat,
- * which then goes through the normal expense rules.
+ * Reads a receipt into a draft expense (merchant, total, date, category).
+ * - PDF e-receipts: text via unpdf + rules, no AI tokens.
+ * - Photos: the browser already tried on-device OCR (tesseract.js); this
+ *   vision-model path is only the fallback when OCR could not find a total.
+ * Nothing is recorded here: the user confirms the draft in the chat.
  */
 export async function POST(request: Request, context: RouteContext) {
   const { householdId } = await context.params;
@@ -38,10 +42,6 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ success: false, message: "Active household membership required." }, { status: 403 });
     }
 
-    if (!hasReceiptReader()) {
-      return NextResponse.json({ success: false, message: "Receipt reading is not configured yet." }, { status: 503 });
-    }
-
     const allowance = consumeAgentRequestAllowance(user.id);
     if (!allowance.allowed) {
       return NextResponse.json(
@@ -60,11 +60,28 @@ export async function POST(request: Request, context: RouteContext) {
     if (!(file instanceof File)) {
       return NextResponse.json({ success: false, message: "No receipt photo provided." }, { status: 400 });
     }
-    if (!IMAGE_TYPES.has(file.type)) {
-      return NextResponse.json({ success: false, message: "Use a JPG, PNG or WebP photo." }, { status: 415 });
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+    if (!isPdf && !IMAGE_TYPES.has(file.type)) {
+      return NextResponse.json({ success: false, message: "Use a JPG, PNG or WebP photo, or a PDF e-receipt." }, { status: 415 });
     }
     if (file.size > MAX_IMAGE_BYTES) {
-      return NextResponse.json({ success: false, message: "The photo is too large (max 4 MB)." }, { status: 413 });
+      return NextResponse.json({ success: false, message: "The file is too large (max 4 MB)." }, { status: 413 });
+    }
+
+    if (isPdf) {
+      const text = await extractPdfText(new Uint8Array(await file.arrayBuffer()));
+      const receipt = text ? parseReceiptText(text) : null;
+      if (!receipt || receipt.total === null) {
+        return NextResponse.json(
+          { success: false, message: "I couldn't find a total in this PDF. If it's a bank statement, use 📎 instead." },
+          { status: 422 }
+        );
+      }
+      return NextResponse.json({ success: true, receipt, provider: "pdf-text" });
+    }
+
+    if (!hasReceiptReader()) {
+      return NextResponse.json({ success: false, message: "Receipt reading is not configured yet." }, { status: 503 });
     }
 
     const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
