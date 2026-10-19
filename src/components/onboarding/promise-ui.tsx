@@ -70,9 +70,13 @@ export function BackLink({ onClick, label = "Back" }: { onClick: () => void; lab
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center gap-2 font-serif text-[#bfbfbf] hover:text-[#737373] text-lg sm:text-xl tracking-[-0.85px] transition-colors cursor-pointer"
+      className="inline-flex items-center gap-2 font-serif text-[#737373] hover:text-black text-lg sm:text-xl tracking-[-0.85px] transition-colors cursor-pointer"
     >
-      <Image src="/images/onboarding/arrow-back.svg" alt="" width={24} height={24} className="shrink-0" />
+      {/* Inline so the circle follows the text color (the Figma asset is white-only). */}
+      <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" className="shrink-0">
+        <circle cx="12" cy="12" r="12" fill="currentColor" />
+        <path d="M13.5 7.5 9 12l4.5 4.5" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
       <span>{label}</span>
     </button>
   );

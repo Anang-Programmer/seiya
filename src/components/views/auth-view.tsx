@@ -201,7 +201,11 @@ export function AuthView({
   // =========================================================================
   const [currentScreen, setCurrentScreen] = useState<number>(initialScreen ?? 1);
   // Furthest profiling screen reached; later steps stay locked until then.
-  const [furthestScreen, setFurthestScreen] = useState<number>(initialScreen ?? 1);
+  // Opened from the dashboard (initialScreen >= 22): the saved profile is not
+  // loaded into this form, so profiling steps stay locked instead of showing
+  // blank answers that would overwrite it when saved again.
+  const openedFromDashboard = (initialScreen ?? 0) >= 22;
+  const [furthestScreen, setFurthestScreen] = useState<number>(openedFromDashboard ? 0 : initialScreen ?? 1);
 
   // Screen 1: Relationship Status
   const [relationshipStatus, setRelationshipStatus] = useState<string>("");
@@ -2012,7 +2016,7 @@ export function AuthView({
                     Profiling
                   </h2>
                   <span className="font-mono text-xs text-[#808988]">
-                    {currentScreen <= 21 ? `${currentScreen} / 21` : `Setup · ${currentScreen - 21} of 5`}
+                    {currentScreen <= 21 ? `${currentScreen} / 21` : "Completed"}
                   </span>
                 </div>
 
@@ -2478,6 +2482,7 @@ export function AuthView({
                         )}
                         <p className="font-serif text-sm text-[#737373] tracking-[-0.85px]">
                           The link can only be used once. Share it via WhatsApp or your preferred app.
+                          {!inviteUrl && " Creating a new link cancels any link you shared before."}
                         </p>
                       </FigmaCard>
                     )}
@@ -2517,14 +2522,30 @@ export function AuthView({
                         {promiseError}
                       </p>
                     )}
-                    <div className="flex items-center justify-between pt-1">
-                      <BackLink onClick={() => setCurrentScreen(23)} />
-                      <PrimaryButton
-                        onClick={() => setCurrentScreen(25)}
-                        disabled={!meDone || !partnerDone || !promiseStatus?.promise}
-                      >
-                        {meDone && partnerDone && !promiseStatus?.promise ? "Preparing..." : "Done"}
-                      </PrimaryButton>
+                    <div className="flex items-center justify-between gap-3 pt-1">
+                      <BackLink
+                        label={openedFromDashboard && onClose ? "Dashboard" : "Back"}
+                        onClick={() => (openedFromDashboard && onClose ? onClose() : setCurrentScreen(23))}
+                      />
+                      <div className="flex items-center gap-4">
+                        {!(meDone && partnerDone && promiseStatus?.promise) && (
+                          <span className="hidden sm:inline font-serif text-sm text-[#737373] tracking-[-0.85px] text-right">
+                            {!meDone
+                              ? "Finish your profile first"
+                              : !partnerProgress
+                                ? `Waiting for ${invitedPartnerName.trim() || "your partner"} to join`
+                                : !partnerDone
+                                  ? `Waiting for ${promisePartnerName} to finish`
+                                  : "Seiya is drafting your clauses…"}
+                          </span>
+                        )}
+                        <PrimaryButton
+                          onClick={() => setCurrentScreen(25)}
+                          disabled={!meDone || !partnerDone || !promiseStatus?.promise}
+                        >
+                          {meDone && partnerDone && !promiseStatus?.promise ? "Preparing..." : "Done"}
+                        </PrimaryButton>
+                      </div>
                     </div>
                   </div>
                 )}

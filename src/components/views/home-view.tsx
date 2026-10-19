@@ -160,28 +160,6 @@ function AskSeiyaDirectChatBox({
   );
 }
 
-function TrendIndicator({
-  percent,
-  isUp = true,
-  customColor,
-}: {
-  percent: string;
-  isUp?: boolean;
-  customColor?: string;
-}) {
-  return (
-    <span
-      className={`inline-flex items-center gap-0.5 text-xs font-serif font-bold ${
-        customColor ? "" : isUp ? "text-[#2d5232]" : "text-[#a34426]"
-      }`}
-      style={customColor ? { color: customColor } : undefined}
-    >
-      <span className="text-[11px] font-extrabold">{isUp ? "↑" : "↓"}</span>
-      <span>{percent}</span>
-    </span>
-  );
-}
-
 export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
   const {
     wallets,
@@ -200,6 +178,8 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
     setPendingDirectChat,
     settlement,
     budgetSummary,
+    walletsReady,
+    partnerProfile,
   } = useApp();
 
   const activeName = currentUser === "partner_a" ? partnerAName : partnerBName;
@@ -299,13 +279,16 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
   const formatChange = (change: number | null) =>
     change === null ? null : `${Math.abs(change).toFixed(change !== 0 && Math.abs(change) < 10 ? 1 : 0)}%`;
 
+  const hasMonthData = stats.income > 0 || stats.expenses > 0 || stats.savings > 0;
   const yLabels = useMemo(() => {
+    if (!hasMonthData) return { top: "", midTop: "", midBottom: "", zero: "0" };
     const k6 = stats.scaleMax;
     const k4 = (stats.scaleMax * 2) / 3;
     const k2 = stats.scaleMax / 3;
     const formatCompact = (val: number) => {
-      if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(0)}M`;
-      if (val >= 1_000) return `${(val / 1_000).toFixed(0)}k`;
+      const short = (n: number) => (n < 10 ? n.toFixed(1).replace(/\.0$/, "") : n.toFixed(0));
+      if (val >= 1_000_000) return `${short(val / 1_000_000)}M`;
+      if (val >= 1_000) return `${short(val / 1_000)}k`;
       return Math.round(val).toString();
     };
     return {
@@ -314,9 +297,16 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
       midBottom: formatCompact(k2),
       zero: "0",
     };
-  }, [stats.scaleMax]);
+  }, [stats.scaleMax, hasMonthData]);
 
   const isPartnerA = currentUser === "partner_a";
+
+  // Wallets only exist after both partners agree on Seiya's Promise.
+  const walletStatus = (cardId: string) => {
+    if (cardId === "partner-wallet" && !partnerProfile) return "Waiting for your partner to join";
+    if (!walletsReady) return "Opens after Seiya's Promise";
+    return null;
+  };
 
   const walletCards = [
     // 1. Your Balance (Always leftmost / paling kiri)
@@ -329,7 +319,6 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
       currency: isPartnerA ? wallets.personalA.currency : wallets.personalB.currency,
       balance: isPartnerA ? wallets.personalA.balance : wallets.personalB.balance,
       converted: isPartnerA ? convertedBalances.personalA : convertedBalances.personalB,
-      trend: isPartnerA ? "12.4%" : "8.7%",
       chartColor: isPartnerA ? "#2d5232" : "#B45529", // Cowo: Green (#2d5232), Cewe: Terracotta (#B45529)
       chartId: isPartnerA ? "sparkline-cowo-card1" : "sparkline-cewe-card1",
       pathD: isPartnerA
@@ -352,7 +341,6 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
       currency: isPartnerA ? wallets.personalB.currency : wallets.personalA.currency,
       balance: isPartnerA ? wallets.personalB.balance : wallets.personalA.balance,
       converted: isPartnerA ? convertedBalances.personalB : convertedBalances.personalA,
-      trend: isPartnerA ? "8.7%" : "12.4%",
       chartColor: isPartnerA ? "#B45529" : "#2d5232", // Cewe: Terracotta (#B45529), Cowo: Green (#2d5232)
       chartId: isPartnerA ? "sparkline-cewe-card2" : "sparkline-cowo-card2",
       pathD: isPartnerA
@@ -375,7 +363,6 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
       currency: wallets.shared.currency,
       balance: wallets.shared.balance,
       converted: convertedBalances.shared,
-      trend: "15.2%",
       chartColor: "#C98A4F", // Shared: Honey Amber (#C98A4F)
       chartId: "sparkline-shared-card3",
       pathD: "M 0,39 C 18,37 26,23 42,27 C 58,31 74,15 90,18 C 102,21 112,11 120,7",
@@ -742,7 +729,9 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
                   {formatMoney(card.balance, card.currency, locale)}
                 </div>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  <TrendIndicator percent={card.trend} isUp={true} customColor={card.chartColor} />
+                  {walletStatus(card.id) && (
+                    <span className="text-[11px] text-[#808988] font-medium">{walletStatus(card.id)}</span>
+                  )}
                   {card.currency !== reportingCurrency && (
                     <span className="text-[11px] text-[#808988] font-medium">
                       {!card.converted.available ? (
@@ -758,15 +747,17 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
                 </div>
               </div>
 
-              {/* Dynamic Colored Wave Chart */}
-              <div className="shrink-0 w-24 sm:w-28 h-10 sm:h-12">
-                <TrendSparkline
-                  id={card.chartId}
-                  color={card.chartColor}
-                  pathD={card.pathD}
-                  areaD={card.areaD}
-                />
-              </div>
+              {/* Decorative wave, shown only once the wallet holds money */}
+              {card.balance > 0 && !walletStatus(card.id) && (
+                <div className="shrink-0 w-24 sm:w-28 h-10 sm:h-12">
+                  <TrendSparkline
+                    id={card.chartId}
+                    color={card.chartColor}
+                    pathD={card.pathD}
+                    areaD={card.areaD}
+                  />
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -891,6 +882,11 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
                   fill="none"
                   xmlns="http://www.w3.org/2000/svg"
                 >
+                  {!hasMonthData && (
+                    <text x="245" y="100" textAnchor="middle" fill="#a3abaa" fontSize="12" fontFamily="serif">
+                      No transactions yet this month
+                    </text>
+                  )}
                   {/* Horizontal Gridlines & Y-Axis labels */}
                   <text x="0" y="24" fill="#808988" fontSize="10" fontFamily="serif" fontWeight="bold">{yLabels.top}</text>
                   <line x1="32" y1="20" x2="455" y2="20" stroke="#e8dfd5" strokeWidth="1" strokeDasharray="3 3" opacity="0.6" />
@@ -1089,12 +1085,12 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
               <button
                 onClick={() => {
                   onNavigate("seiya");
-                  sendChatMessage("Paid $45 for lunch together, I paid.");
+                  sendChatMessage("I want to log a shared expense.");
                 }}
                 className="w-full p-3 bg-[#fef9ef] hover:bg-[#fffdf9] text-left rounded-[12px] text-xs font-semibold text-[#2a2b2f] shadow-xs transition-all cursor-pointer flex items-center gap-2.5"
               >
                 <SolarIcon name="receipt" size={16} className="text-[#B45529] shrink-0" />
-                <span className="truncate">Log an expense ($45 lunch)</span>
+                <span className="truncate">Log an expense</span>
               </button>
               <button
                 onClick={() => {
@@ -1424,12 +1420,12 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
           <button
             onClick={() => {
               onNavigate("seiya");
-              sendChatMessage("Paid $45 for lunch together, I paid.");
+              sendChatMessage("I want to log a shared expense.");
             }}
             className="p-3.5 bg-[#fef9ef] hover:bg-[#fffdf9] text-left rounded-[12px] text-xs font-semibold text-[#2a2b2f] shadow-xs transition-all cursor-pointer flex items-center gap-2"
           >
             <SolarIcon name="receipt" size={16} className="text-[#B45529] shrink-0" />
-            <span>Log an expense ($45 lunch)</span>
+            <span>Log an expense</span>
           </button>
           <button
             onClick={() => {
