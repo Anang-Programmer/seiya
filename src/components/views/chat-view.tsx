@@ -12,7 +12,7 @@ import { SeiyaVideoAvatar } from "@/components/ui/seiya-video-avatar";
 import { ActionCard, PlanCard, ClarificationCard } from "@/components/cards/domain-cards";
 import { useApp, ChatMessage } from "@/lib/store";
 import { apiCommitStatement, apiPreviewStatement, apiScanReceipt, type StatementTransaction } from "@/lib/api";
-import { ReceiptDraftCard, StatementPreviewCard, type ReceiptConfirmation } from "@/components/cards/attachment-cards";
+import { BillDraftCard, ReceiptDraftCard, StatementPreviewCard, type BillDraft, type ReceiptConfirmation } from "@/components/cards/attachment-cards";
 import { readReceiptOnDevice } from "@/lib/receipt-ocr";
 import { formatRelativeDate } from "@/lib/transformers";
 
@@ -74,6 +74,7 @@ export function ChatView() {
     partnerProfile,
     refreshData,
     proposeExpense,
+    addBill,
     household,
   } = useApp();
 
@@ -338,6 +339,22 @@ export function ChatView() {
     return await new Promise<Blob>((resolve, reject) =>
       canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Couldn't prepare the photo."))), "image/jpeg", 0.85)
     );
+  };
+
+  // "Add bill" on a bill draft card from Seiya.
+  const saveBillDraft = async (bill: BillDraft): Promise<string> => {
+    const ok = await addBill({
+      title: bill.title,
+      amount: bill.amount,
+      currency: bill.currency,
+      dueDate: bill.dueDate,
+      wallet: "shared",
+      category: bill.payee || "Bills",
+      status: "upcoming",
+      isRecurring: bill.recurrence === "monthly",
+    });
+    if (!ok) throw new Error("Couldn't add this bill. Please try again.");
+    return `Added to Bills${bill.recurrence === "monthly" ? " · repeats every month" : ""}.`;
   };
 
   const recordReceipt = async (sessionId: string | null, draft: ReceiptConfirmation) => {
@@ -1532,6 +1549,11 @@ export function ChatView() {
                     onImport={(walletType) => importStatement(activeSessionId, msg.cardData.transactions, walletType)}
                   />
                 )}
+
+                {msg.cardType === "BILL_DRAFT" && Array.isArray(msg.cardData?.bills) &&
+                  (msg.cardData.bills as BillDraft[]).map((bill, j) => (
+                    <BillDraftCard key={`${msg.id}-bill-${j}`} draft={bill} onAdd={saveBillDraft} />
+                  ))}
 
                 {msg.cardType === "RECEIPT_DRAFT" && msg.cardData && (
                   <ReceiptDraftCard

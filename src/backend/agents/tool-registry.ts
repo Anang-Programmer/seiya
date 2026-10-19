@@ -12,7 +12,8 @@ type ToolName =
   | "list_upcoming_bills"
   | "get_household_rules"
   | "get_wallet_summary"
-  | "record_expense";
+  | "record_expense"
+  | "draft_bill";
 
 export interface SeiyaToolContext {
   supabase: UserScopedSupabaseClient;
@@ -101,9 +102,50 @@ export const RECORD_EXPENSE_TOOL: AIToolDefinition = {
   },
 };
 
+/**
+ * Prepares a bill for the user to review. Nothing is saved: the chat shows an
+ * editable card and the bill is created only when the user presses "Add bill".
+ */
+export const DRAFT_BILL_TOOL: AIToolDefinition = {
+  name: "draft_bill",
+  description:
+    "Prepare household bills (electricity, water, internet, rent, subscriptions, installments) as draft cards the user reviews and saves. " +
+    "Call it ONCE with every bill the user named in the `bills` list (up to three), as soon as you know what each bill is and its amount. " +
+    "Nothing is saved by this tool; afterwards, tell the user to check each card and press Add bill. Describe only the drafts the tool returned. " +
+    "Convert units to full numbers: 450 ribu = 450000. payee is the company being paid (e.g. PLN), not the person paying.",
+  parameters: {
+    type: "object",
+    properties: {
+      bills: {
+        type: "array",
+        description: "One entry per bill the user mentioned (1 to 3).",
+        items: {
+          type: "object",
+          properties: {
+            title: { type: "string", description: "Short bill name in the user's language, e.g. 'Listrik PLN'." },
+            amount: { type: "number", description: "Full amount per period in the household currency, e.g. 450000." },
+            dueDay: { type: "number", description: "Day of the month it is due (1-31), if the user said one." },
+            recurrence: {
+              type: "string",
+              enum: ["monthly", "none"],
+              description: "monthly for repeating bills (DEFAULT); none for a one-time bill.",
+            },
+            payee: { type: "string", description: "Company being paid, if mentioned, e.g. PLN." },
+          },
+          required: ["title", "amount"],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ["bills"],
+    additionalProperties: false,
+  },
+};
+
 export const SEIYA_TOOL_DEFINITIONS: AIToolDefinition[] = [
   ...SEIYA_READ_TOOLS,
   RECORD_EXPENSE_TOOL,
+  DRAFT_BILL_TOOL,
 ];
 
 const ALLOWED_TOOL_NAMES = new Set<ToolName>([
@@ -112,6 +154,7 @@ const ALLOWED_TOOL_NAMES = new Set<ToolName>([
   "get_household_rules",
   "get_wallet_summary",
   "record_expense",
+  "draft_bill",
 ]);
 
 type PlainRecord = Record<string, unknown>;
@@ -511,6 +554,66 @@ async function recordExpense(
   };
 }
 
+/** Next date (YYYY-MM-DD, from `today`) that falls on `dueDay`, clamped to short months. */
+function nextDueDate(today: string, dueDay: number | null): string {
+  const [y, m, d] = today.split("-").map(Number);
+  if (!dueDay) {
+    const fallback = new Date(Date.UTC(y, m - 1, d + 7));
+    return fallback.toISOString().slice(0, 10);
+  }
+  const onDay = (year: number, month: number) => {
+    const last = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+    return new Date(Date.UTC(year, month, Math.min(dueDay, last)));
+  };
+  let due = onDay(y, m - 1);
+  if (due.getUTCDate() < d) due = onDay(y, m);
+  return due.toISOString().slice(0, 10);
+}
+
+function parseBillDraft(raw: unknown, today: string, currency: string) {
+  if (!isPlainRecord(raw)) return null;
+  const title = typeof raw.title === "string" ? raw.title.trim().replace(/\s+/g, " ").slice(0, 160) : "";
+  const amount = numeric(raw.amount);
+  if (!title || amount === null || amount <= 0 || amount > 999_999_999_999) return null;
+  const rawDay = numeric(raw.dueDay);
+  const dueDay = rawDay !== null && Number.isInteger(rawDay) && rawDay >= 1 && rawDay <= 31 ? rawDay : null;
+  return {
+    title,
+    payee: typeof raw.payee === "string" && raw.payee.trim() ? raw.payee.trim().slice(0, 160) : null,
+    amount: Math.round(amount * 100) / 100,
+    currency,
+    dueDate: nextDueDate(today, dueDay),
+    dueDayGiven: dueDay !== null,
+    recurrence: raw.recurrence === "none" ? "none" : "monthly",
+  };
+}
+
+async function draftBill(args: unknown, context: SeiyaToolContext): Promise<unknown> {
+  if (!isPlainRecord(args)) return { ok: false, message: "Invalid draft_bill arguments." };
+  // Older single-bill shape ({ title, amount, ... }) is still accepted.
+  const entries = Array.isArray(args.bills) ? args.bills.slice(0, 3) : [args];
+
+  const { data: household } = await context.supabase
+    .from("households")
+    .select("base_currency")
+    .eq("id", context.householdId)
+    .maybeSingle();
+  const currency = safeText(household?.base_currency, 3) ?? "IDR";
+
+  const drafts = entries.map((entry) => parseBillDraft(entry, context.today, currency)).filter((d) => d !== null);
+  if (!drafts.length) {
+    return { ok: false, message: "Ask the user what the bill is for and how much it is." };
+  }
+
+  return {
+    ok: true,
+    saved: false,
+    drafts,
+    skipped: entries.length - drafts.length,
+    note: "Not saved yet. The user reviews each card and presses Add bill to save it.",
+  };
+}
+
 const READ_TOOL_NAMES = new Set<ToolName>([
   "get_budget_summary",
   "list_upcoming_bills",
@@ -538,6 +641,7 @@ export async function executeSeiyaTool(
       case "get_household_rules": return await getHouseholdRules(context);
       case "get_wallet_summary": return await getWalletSummary(context);
       case "record_expense": return await recordExpense(args, context);
+      case "draft_bill": return await draftBill(args, context);
     }
   } catch {
     // Do not send raw exceptions or SQL/provider details to the model.

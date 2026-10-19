@@ -20,67 +20,67 @@ const TAB_HEADER_CONFIG: Record<string, TabHeaderConfig> = {
     title: "Dashboard",
     shortTitle: "Dashboard",
     iconName: "home",
-    description: "Your money at a glance: your balance, your partner's, the shared wallet, this month's income and spending, and quick actions to log expenses, goals and bills.",
+    description: "Your balance, your partner's and the shared wallet, plus this month's income and spending.",
   },
   plan: {
     title: "Financial Planning & Couple Goals",
     shortTitle: "Financial Planning",
     iconName: "chart",
-    description: "Collaborative planning: forward-looking assumptions, projections, and dual-partner agreement.",
+    description: "Set shared goals, track progress, and agree on them together.",
   },
   add_goal: {
     title: "Add New Couple Goal",
     shortTitle: "New Goal",
     iconName: "money-bag",
-    description: "Design transparent financial milestones, contribution splits, and dual-key security rules.",
+    description: "Create a shared goal: target, deadline and who contributes what.",
   },
   draft_goals: {
     title: "Draft Couple Goals",
     shortTitle: "Draft Goals",
     iconName: "edit",
-    description: "Milestones in planning stage awaiting proposal, revision, or mutual dual-key activation.",
+    description: "Goals still being planned. Propose or revise them until you both agree.",
   },
   approvals: {
     title: "Dual-Key Approvals Center",
     shortTitle: "Dual-Key Approvals",
     iconName: "shield-check",
-    description: "Every shared decision above agreed threshold requires both keys. Verbal agreement does not count.",
+    description: "Shared spending above your limit needs approval from both of you.",
   },
   wallets: {
     title: "Wallets & Multi-Currency Balances",
     shortTitle: "Wallets & Balances",
     iconName: "wallet",
-    description: "Transparent shared ledger with strict partner privacy protection and multi-currency tracking.",
+    description: "All your balances in one place, in any currency, with privacy kept.",
   },
   bills: {
     title: "Upcoming Bills & Deadlines",
     shortTitle: "Upcoming Bills",
     iconName: "receipt",
-    description: "Track due dates, anomalies, price increases, and pay securely through Dual-Key Gateway.",
+    description: "Upcoming bills, due dates and price changes, so nothing gets missed.",
   },
   waiting_list: {
     title: "Waiting List & Cooling-Off Holds",
     shortTitle: "Cooling-Off Holds",
     iconName: "clock-circle",
-    description: "Couple safety guardrail: temporary holding area for late-night or high-value purchases.",
+    description: "Late-night or large purchases wait here before they go through.",
   },
   activity: {
     title: "Activity & Decision Audit Trail",
     shortTitle: "Activity & Audit",
     iconName: "calendar",
-    description: "A transparent ledger of mutual approvals, cooling-off holds, and spending rules.",
+    description: "A record of every approval, hold and rule change.",
   },
   settings: {
     title: "Couple Contract & Settings",
     shortTitle: "Couple Contract",
     iconName: "settings",
-    description: "Rules governing your Dual-Key Gateway, spending thresholds, splits, currency reporting, and privacy.",
+    description: "Your shared rules: approval limits, splits, currency and privacy.",
   },
   profile: {
     title: "Partner Profile & Couple Contract",
     shortTitle: "Profile & Contract",
     iconName: "user",
-    description: "Manage partner identity, dual-key signing rules, expense split ratios, and privacy settings.",
+    description: "Your profile, approval rules, expense split and privacy.",
   },
 };
 
@@ -392,9 +392,12 @@ export function Header({
       {showInfo && currentConfig.description && (
         <div
           role="note"
-          className="w-full max-w-7xl mx-auto mt-3 p-3.5 rounded-[12px] bg-[#f5eee1]/95 backdrop-blur-sm border border-[#d1c9bf]/50 text-xs text-[#515151] leading-relaxed shadow-2xs animate-in fade-in-0 slide-in-from-top-1 relative z-10"
+          className="w-full max-w-7xl mx-auto mt-3 animate-in fade-in-0 slide-in-from-top-1 relative z-10"
         >
-          {currentConfig.description}
+          {/* Sized to its text and unblurred so the illustration on the right stays visible */}
+          <div className="w-fit max-w-full sm:max-w-xl px-3.5 py-2 rounded-[12px] bg-white/20 border border-white/60 text-xs sm:text-[13px] text-[#2a2b2f] leading-relaxed">
+            {currentConfig.description}
+          </div>
         </div>
       )}
 

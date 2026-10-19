@@ -724,11 +724,12 @@ export function AuthView({
       "At a set time": "waktu_khusus",
     };
     const perma: Record<string, string> = {
-      "Calmer day to day": "emosi_positif",
-      "Proud of my growth": "pencapaian",
-      "My life has more meaning": "makna",
-      "Freer to choose": "keasyikan",
-      "Closer as a couple": "hubungan",
+      // Labels mirror PERMA_GOAL_DIRECTIVES in src/backend/personalization.ts
+      "Enjoy life without guilt": "emosi_positif",
+      "Reach a big milestone": "pencapaian",
+      "Support my family": "makna",
+      "More time for what I love": "keasyikan",
+      "Celebrate together": "hubungan",
     };
     const accounts: Record<string, string> = {
       "Fully combined": "shared",
@@ -1056,10 +1057,10 @@ export function AuthView({
     },
     14: {
       category: "Your goals",
-      question: "Reaching it would make you feel…",
-      subtitle: "Helps Seiya understand why it matters",
+      question: "What should this goal bring you most?",
+      subtitle: "Seiya keeps this in mind when it helps you plan",
       type: "choice" as const,
-      options: ["Calmer day to day", "Proud of my growth", "My life has more meaning", "Freer to choose", "Closer as a couple"],
+      options: ["Enjoy life without guilt", "Reach a big milestone", "More time for what I love", "Support my family", "Celebrate together"],
       selectedString: goalEmotion,
       onSelectString: (v: string) => setGoalEmotion(v),
     },
@@ -2100,6 +2101,11 @@ export function AuthView({
                 {/* Category, Title, and Subtitle */}
                 <div className="space-y-1">
                   <span className="font-serif text-xs sm:text-sm text-[#808988] block">
+                    {currentScreen <= 21 && (
+                      <span className="text-[#B45529] font-medium">
+                        Question {currentScreen} of 21 ·{" "}
+                      </span>
+                    )}
                     {currentScreenConfig.category}
                   </span>
                   <h1 className="font-serif text-xl sm:text-2xl font-normal text-[#2a2b2f] tracking-tight leading-snug">

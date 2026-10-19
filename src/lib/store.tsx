@@ -162,7 +162,8 @@ export interface ChatMessage {
     | "PLAN"
     | "CLARIFICATION"
     | "STATEMENT_PREVIEW"
-    | "RECEIPT_DRAFT";
+    | "RECEIPT_DRAFT"
+    | "BILL_DRAFT";
   cardData?: any;
 }
 

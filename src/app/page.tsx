@@ -246,8 +246,17 @@ function MainApp() {
       }
     : null;
 
+  // Top banners match the width of the page below them; Home places the notice
+  // inside its own full-width grid.
+  const pageWidthClass =
+    currentTab === "home"
+      ? ""
+      : currentTab === "plan" || currentTab === "wallets" || currentTab === "draft_goals"
+        ? "max-w-5xl mx-auto"
+        : "max-w-4xl mx-auto";
+
   const setupNotice = setupBanner && (
-    <div className="max-w-5xl mx-auto w-full p-3.5 rounded-[14px] bg-[#fefcf6] border border-[#B45529]/25 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <div className={`${pageWidthClass} w-full p-3.5 rounded-[14px] bg-[#fefcf6] border border-[#B45529]/25 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3`}>
       <div className="flex items-start gap-2.5 text-xs sm:text-[13px] text-[#2a2b2f] leading-relaxed">
         <SolarIcon name="users-group-rounded" size={16} className="text-[#B45529] shrink-0 mt-0.5" />
         <span>{setupBanner.message}</span>
@@ -313,7 +322,7 @@ function MainApp() {
             <div className="relative z-10 px-3.5 sm:px-8 pt-3 space-y-2">
               {setupBanner && currentTab !== "home" && setupNotice}
               {dataStatus.error && (
-                <div className="max-w-5xl mx-auto p-3.5 rounded-[12px] bg-[#fcf0ee] border border-[#9e382b]/20 flex items-center justify-between gap-3">
+                <div className={`${pageWidthClass || "max-w-7xl mx-auto"} p-3.5 rounded-[12px] bg-[#fcf0ee] border border-[#9e382b]/20 flex items-center justify-between gap-3`}>
                   <div className="flex items-start gap-2 text-xs text-[#9e382b]">
                     <SolarIcon name="danger-triangle" size={16} className="shrink-0 mt-px" />
                     <span>{dataStatus.error}</span>
@@ -345,7 +354,7 @@ function MainApp() {
                 {currentTab === "seiya" && <ChatView />}
                 {currentTab === "approvals" && <ApprovalsView />}
                 {currentTab === "wallets" && <WalletsView />}
-                {currentTab === "bills" && <BillsView />}
+                {currentTab === "bills" && <BillsView onNavigate={handleTabChange} />}
                 {currentTab === "plan" && <PlanView onNavigate={handleTabChange} />}
                 {currentTab === "add_goal" && (
                   <AddGoalView

@@ -25,7 +25,7 @@ export function DraftGoalsView({ onBack, onNavigate }: DraftGoalsViewProps) {
     partnerAName,
     partnerBName,
     currentUser,
-    sendChatMessage,
+    setPendingDirectChat,
   } = useApp();
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -91,9 +91,10 @@ export function DraftGoalsView({ onBack, onNavigate }: DraftGoalsViewProps) {
           <Button
             variant="primary"
             size="sm"
-            onClick={() =>
-              sendChatMessage("Let's plan a new savings goal for our couple bucket list.")
-            }
+            onClick={() => {
+              setPendingDirectChat({ message: "Let's plan a new savings goal together.", mode: "personal" });
+              onNavigate?.("seiya");
+            }}
             className="text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs"
           >
             <SeiyaIcon size={14} color="#fef9ef" />

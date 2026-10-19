@@ -21,6 +21,7 @@ export function WalletsView() {
     settleUp,
     partnerAName,
     partnerBName,
+    partnerProfile,
   } = useApp();
 
   const [selectedWalletTab, setSelectedWalletTab] = useState<"shared" | "personal" | "partner">("shared");
@@ -30,6 +31,8 @@ export function WalletsView() {
   const isPartnerA = currentUser === "partner_a";
   const myName = isPartnerA ? partnerAName : partnerBName;
   const partnerName = isPartnerA ? partnerBName : partnerAName;
+  // Before the partner joins the name is the placeholder "your partner".
+  const partnerLabel = partnerName.charAt(0).toUpperCase() + partnerName.slice(1);
 
   const myWallet = isPartnerA ? wallets.personalA : wallets.personalB;
   const partnerWallet = isPartnerA ? wallets.personalB : wallets.personalA;
@@ -202,7 +205,7 @@ export function WalletsView() {
                 className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover shrink-0 shadow-2xs border border-[#ecd9c7] transition-transform duration-300"
               />
               <span className="text-xs sm:text-[13px] font-semibold text-[#27472c] tracking-tight">
-                Partner Balance ({partnerName})
+                {partnerProfile ? `${partnerLabel}’s balance` : "Partner balance"}
               </span>
             </div>
             <Badge variant="deny">
@@ -223,7 +226,7 @@ export function WalletsView() {
             </p>
           )}
           <p className="text-[11px] text-[#59785e] mt-1.5">
-            Itemized history protected by Couple Contract
+            {partnerProfile ? "Only the total is shared with you" : "Waiting for your partner to join"}
           </p>
         </div>
       </div>
@@ -237,11 +240,11 @@ export function WalletsView() {
                 ? "Shared Wallet Transactions"
                 : selectedWalletTab === "personal"
                 ? "Your Personal Wallet Transactions"
-                : `${partnerName}’s Protected Wallet View`}
+                : `${partnerLabel}’s wallet`}
             </h3>
             <p className="text-xs text-[#515151]">
               {selectedWalletTab === "partner"
-                ? "Privacy rule: Partner cannot inspect your individual itemized purchases."
+                ? "Personal purchases stay private. You see only the total, and your partner sees only yours."
                 : "Synchronized with Dual-Key Gateway."}
             </p>
           </div>
@@ -254,18 +257,19 @@ export function WalletsView() {
               <SolarIcon name="lock-keyhole" size={26} />
             </div>
             <h4 className="text-base font-serif font-normal text-[#2a2b2f]">
-              {partnerName}’s Detailed Transactions are Protected
+              {partnerLabel}’s transactions are private
             </h4>
             <p className="text-xs text-[#515151] max-w-md mx-auto leading-relaxed">
-              Under your mutual Couple Contract, partners agree to share total savings visibility (
+              You can see their personal balance (
               <strong className="font-serif text-[#2a2b2f]">
                 {formatMoney(partnerWallet.balance, partnerWallet.currency, locale)}
               </strong>
-              ) while preserving personal autonomy and individual purchase privacy.
+              ), but not what they bought or where. The same rule protects your personal wallet.
             </p>
             <div className="pt-2">
-              <span className="text-[11px] text-[#808988] font-mono bg-[#f5eee1] px-3.5 py-1 rounded-full shadow-xs">
-                Rule: CONTRACT_SEC_PARTNER_TOTAL_ONLY_ENFORCED
+              <span className="inline-flex items-center gap-1.5 text-[11px] text-[#2d5232] bg-[#edf3ec] px-3.5 py-1 rounded-full">
+                <SolarIcon name="shield-check" size={12} />
+                Protected by Seiya’s privacy rules
               </span>
             </div>
           </div>

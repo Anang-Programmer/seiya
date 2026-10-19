@@ -276,3 +276,91 @@ export function ReceiptDraftCard({
   );
 }
 
+
+// ---------------------------------------------------------------------------
+// Bill draft from Ask Seiya ("Add via Seiya" on Bills)
+// ---------------------------------------------------------------------------
+
+export interface BillDraft {
+  title: string;
+  payee?: string | null;
+  amount: number;
+  currency: string;
+  dueDate: string;
+  recurrence: "monthly" | "none";
+}
+
+export function BillDraftCard({
+  draft,
+  onAdd,
+}: {
+  draft: BillDraft;
+  onAdd: (bill: BillDraft) => Promise<string>;
+}) {
+  const [title, setTitle] = useState(draft.title ?? "");
+  const [amount, setAmount] = useState(draft.amount ? String(draft.amount) : "");
+  const [dueDate, setDueDate] = useState(draft.dueDate ?? "");
+  const [recurrence, setRecurrence] = useState<BillDraft["recurrence"]>(draft.recurrence === "none" ? "none" : "monthly");
+  const [status, setStatus] = useState<CardStatus>("idle");
+  const [result, setResult] = useState("");
+
+  const parsedAmount = parseAmount(amount) ?? NaN;
+  const valid = title.trim().length > 0 && Number.isFinite(parsedAmount) && parsedAmount > 0 && /^\d{4}-\d{2}-\d{2}$/.test(dueDate);
+  const locked = status === "busy" || status === "done";
+
+  const handleAdd = async () => {
+    if (!valid) return;
+    setStatus("busy");
+    try {
+      setResult(
+        await onAdd({ title: title.trim(), payee: draft.payee ?? null, amount: parsedAmount, currency: draft.currency, dueDate, recurrence })
+      );
+      setStatus("done");
+    } catch (error) {
+      setResult(error instanceof Error && error.message ? error.message : "Couldn't add this bill. Please try again.");
+      setStatus("error");
+    }
+  };
+
+  return (
+    <div className={CARD}>
+      <div className="flex items-center gap-2 font-semibold text-[#B4562A]">
+        <SolarIcon name="receipt" size={16} />
+        <span>Bill draft</span>
+        {status === "done" && <span className="ml-auto text-[11px] font-normal text-[#2d5232]">Saved</span>}
+      </div>
+      <p className="mt-1 text-[11px] text-[#808988]">Check the details, then add it to Bills. Nothing is saved until you confirm.</p>
+
+      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <label className="space-y-1 sm:col-span-2">
+          <span className="text-[11px] text-[#808988]">Bill</span>
+          <input className={INPUT} value={title} maxLength={160} disabled={locked} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Electricity" />
+        </label>
+        <label className="space-y-1">
+          <span className="text-[11px] text-[#808988]">Amount ({draft.currency})</span>
+          <input className={INPUT} type="text" inputMode="decimal" value={amount} disabled={locked} onChange={(e) => setAmount(e.target.value)} />
+        </label>
+        <label className="space-y-1">
+          <span className="text-[11px] text-[#808988]">Next due date</span>
+          <input className={INPUT} type="date" value={dueDate} disabled={locked} onChange={(e) => setDueDate(e.target.value)} />
+        </label>
+        <label className="space-y-1 sm:col-span-2">
+          <span className="text-[11px] text-[#808988]">Repeats</span>
+          <select className={INPUT} value={recurrence} disabled={locked} onChange={(e) => setRecurrence(e.target.value as BillDraft["recurrence"])}>
+            <option value="monthly">Every month</option>
+            <option value="none">One time only</option>
+          </select>
+        </label>
+      </div>
+
+      {status !== "done" && (
+        <div className="mt-3">
+          <button type="button" className={BUTTON} disabled={!valid || locked} onClick={() => void handleAdd()}>
+            {status === "busy" ? "Adding…" : `Add bill · ${Number.isFinite(parsedAmount) ? formatMoney(parsedAmount, draft.currency) : ""}`}
+          </button>
+        </div>
+      )}
+      <ResultLine status={status} text={result} />
+    </div>
+  );
+}

@@ -177,7 +177,6 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
     currentUser,
     partnerAName,
     partnerBName,
-    sendChatMessage,
     setPendingDirectChat,
     settlement,
     budgetSummary,
@@ -186,6 +185,12 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
     hideAmounts,
     household,
   } = useApp();
+
+  // Opens Ask Seiya with this question; the chat view sends it and shows the reply.
+  const askSeiya = (message: string) => {
+    setPendingDirectChat({ message, mode: "personal" });
+    onNavigate("seiya");
+  };
 
   const activeName = currentUser === "partner_a" ? partnerAName : partnerBName;
   // Greeting and date follow the household's country and the device clock;
@@ -1092,8 +1097,7 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
             <div className="space-y-2">
               <button
                 onClick={() => {
-                  onNavigate("seiya");
-                  sendChatMessage("I want to log a shared expense.");
+                  askSeiya("I want to log a shared expense.");
                 }}
                 className="w-full p-3 bg-[#fef9ef] hover:bg-[#fffdf9] text-left rounded-[12px] text-xs font-semibold text-[#2a2b2f] shadow-xs transition-all cursor-pointer flex items-center gap-2.5"
               >
@@ -1102,8 +1106,7 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
               </button>
               <button
                 onClick={() => {
-                  onNavigate("seiya");
-                  sendChatMessage("Can we afford all bills this month?");
+                  askSeiya("Can we afford all bills this month?");
                 }}
                 className="w-full p-3 bg-[#fef9ef] hover:bg-[#fffdf9] text-left rounded-[12px] text-xs font-semibold text-[#2a2b2f] shadow-xs transition-all cursor-pointer flex items-center gap-2.5"
               >
@@ -1112,8 +1115,7 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
               </button>
               <button
                 onClick={() => {
-                  onNavigate("seiya");
-                  sendChatMessage("Help us stop overspending this month.");
+                  askSeiya("Help us stop overspending this month.");
                 }}
                 className="w-full p-3 bg-[#fef9ef] hover:bg-[#fffdf9] text-left rounded-[12px] text-xs font-semibold text-[#2a2b2f] shadow-xs transition-all cursor-pointer flex items-center gap-2.5"
               >
@@ -1247,11 +1249,11 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
                           tx.amount > 0 ? "text-[#2d5232]" : "text-[#2a2b2f]"
                         }`}
                       >
-                        {formatMoney(tx.amount, tx.currency || "USD", locale)}
+                        {formatMoney(tx.amount, tx.currency || reportingCurrency, locale)}
                       </div>
-                      {(tx.currency || "USD") !== reportingCurrency && (
+                      {(tx.currency || reportingCurrency) !== reportingCurrency && (
                         <span className="text-[10px] text-[#808988] font-serif block">
-                          ≈ {formatMoneyConverted(tx.amount, tx.currency || "USD", reportingCurrency, locale)}
+                          ≈ {formatMoneyConverted(tx.amount, tx.currency || reportingCurrency, reportingCurrency, locale)}
                         </span>
                       )}
                       {tx.partnerBOwesA || tx.partnerAOwesB ? (
@@ -1298,11 +1300,23 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
                   />
                 ))}
               </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-3">
+              {/* Text stays inside the ring's hole (inner radius 33 of 50) and shrinks for long amounts */}
+              <div className="absolute inset-[20%] flex flex-col items-center justify-center text-center">
                 <span className="text-xs sm:text-sm text-[#515151] font-medium tracking-wide">Total Spent</span>
-                <span className="text-xl sm:text-3xl font-extrabold font-serif text-[#2a2b2f] tracking-tight my-1">
-                  {formatMoney(stats.totalSpent, reportingCurrency, locale)}
-                </span>
+                {(() => {
+                  const totalSpentLabel = formatMoney(stats.totalSpent, reportingCurrency, locale);
+                  const sizeClass =
+                    totalSpentLabel.length <= 10
+                      ? "text-xl sm:text-3xl"
+                      : totalSpentLabel.length <= 14
+                        ? "text-base sm:text-xl"
+                        : "text-sm sm:text-lg";
+                  return (
+                    <span className={`${sizeClass} max-w-full whitespace-nowrap font-extrabold font-serif text-[#2a2b2f] tracking-tight leading-tight my-1`}>
+                      {totalSpentLabel}
+                    </span>
+                  );
+                })()}
                 {stats.spentChange !== null && (
                   <span
                     className={`text-xs font-bold flex items-center gap-1 px-2 py-0.5 rounded-full mt-0.5 ${
@@ -1427,8 +1441,7 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-5">
           <button
             onClick={() => {
-              onNavigate("seiya");
-              sendChatMessage("I want to log a shared expense.");
+              askSeiya("I want to log a shared expense.");
             }}
             className="p-3.5 bg-[#fef9ef] hover:bg-[#fffdf9] text-left rounded-[12px] text-xs font-semibold text-[#2a2b2f] shadow-xs transition-all cursor-pointer flex items-center gap-2"
           >
@@ -1437,8 +1450,7 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
           </button>
           <button
             onClick={() => {
-              onNavigate("seiya");
-              sendChatMessage("Can we afford all bills this month?");
+              askSeiya("Can we afford all bills this month?");
             }}
             className="p-3.5 bg-[#fef9ef] hover:bg-[#fffdf9] text-left rounded-[12px] text-xs font-semibold text-[#2a2b2f] shadow-xs transition-all cursor-pointer flex items-center gap-2"
           >
@@ -1447,8 +1459,7 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
           </button>
           <button
             onClick={() => {
-              onNavigate("seiya");
-              sendChatMessage("Help us stop overspending this month.");
+              askSeiya("Help us stop overspending this month.");
             }}
             className="p-3.5 bg-[#fef9ef] hover:bg-[#fffdf9] text-left rounded-[12px] text-xs font-semibold text-[#2a2b2f] shadow-xs transition-all cursor-pointer flex items-center gap-2"
           >
@@ -1485,8 +1496,7 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
         open={transactionModalOpen}
         onOpenChange={setTransactionModalOpen}
         onAskSeiya={(prompt) => {
-          onNavigate("seiya");
-          sendChatMessage(prompt);
+          askSeiya(prompt);
         }}
       />
 
