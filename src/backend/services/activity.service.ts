@@ -1,10 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+// The actor is the signed-in member (set by log_household_activity); DENY and
+// partner decisions are recorded only by the server-side RPCs.
 export interface RecordActivityInput {
   title: string;
   category?: string;
-  actor?: "partner_a" | "partner_b" | "seiya";
-  status?: "ALLOW" | "NEED_APPROVAL" | "HOLD" | "DENY" | "INFO";
+  status?: "ALLOW" | "NEED_APPROVAL" | "HOLD" | "INFO";
   amount?: number;
   currency?: string;
   reason?: string;
@@ -29,20 +30,19 @@ export async function recordHouseholdActivity(
   householdId: string,
   input: RecordActivityInput
 ) {
-  return supabase
-    .from("activities")
-    .insert({
-      household_id: householdId,
-      title: input.title,
-      category: input.category || "Activity",
-      actor: input.actor || "seiya",
-      status: input.status || "INFO",
-      amount: input.amount ?? null,
-      currency: input.currency ?? null,
-      reason: input.reason || "",
-    })
-    .select()
-    .single();
+  const result = await supabase.rpc("log_household_activity", {
+    p_household_id: householdId,
+    p_title: input.title.slice(0, 200),
+    p_category: (input.category || "Activity").slice(0, 80),
+    p_status: input.status || "INFO",
+    p_amount: input.amount ?? null,
+    p_currency: input.currency ?? null,
+    p_reason: (input.reason || "").slice(0, 1000),
+  });
+  if (result.error) {
+    console.warn("[activity] Not recorded:", result.error.code, result.error.message);
+  }
+  return result;
 }
 
 export type PartnerRole = "partner_a" | "partner_b";

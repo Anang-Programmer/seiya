@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { settleUpHousehold } from "@/backend/services/settlement.service";
+import { SETTLE_UP_FORBIDDEN_MESSAGE, settleUpHousehold } from "@/backend/services/settlement.service";
+import { forbidUnlessMember } from "@/backend/services/membership.service";
 
 type RouteContext = { params: Promise<{ householdId: string }> };
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -17,8 +18,13 @@ export async function POST(_request: Request, context: RouteContext) {
     if (authError || !user) {
       return NextResponse.json({ success: false, message: "Login required." }, { status: 401 });
     }
+    const notMember = await forbidUnlessMember(supabase, householdId, user.id);
+    if (notMember) return notMember;
 
-    const { data, error } = await settleUpHousehold(supabase, householdId, user.id);
+    const { data, error } = await settleUpHousehold(supabase, householdId);
+    if (error?.code === "42501") {
+      return NextResponse.json({ success: false, message: SETTLE_UP_FORBIDDEN_MESSAGE }, { status: 403 });
+    }
     if (error || !data) {
       return NextResponse.json({ success: false, message: "Unable to complete settlement." }, { status: 500 });
     }

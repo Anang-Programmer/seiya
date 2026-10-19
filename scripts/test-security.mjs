@@ -1,5 +1,6 @@
 /**
- * Manual test: privacy, IDOR, Dual-Key PIN, undo, bill idempotency, and plan deletion.
+ * Manual test: privacy, IDOR, Dual-Key PIN, undo, bill idempotency, plan deletion, and
+ * direct PostgREST writes on settlements, activities, plans and held purchases.
  *
  * The last section locks Partner A's PIN checks for 15 minutes (DB lockout test).
  * A rerun inside that window reports A's PIN as a warning; that is expected.
@@ -274,6 +275,13 @@ async function main() {
     checks.check((moved ?? []).length === 0 && afterMove.status >= 400, "RLS: hold_until tidak bisa dimundurkan langsung", {
       detail: `rows ${moved?.length ?? 0}, continue ${afterMove.status}`,
     });
+    const { data: heldDeletedByB } = await sbB.from("held_purchases").delete().eq("id", heldId).select("id");
+    const { data: heldStill } = await sbA.from("held_purchases").select("id").eq("id", heldId).maybeSingle();
+    checks.check((heldDeletedByB ?? []).length === 0 && Boolean(heldStill), "RLS: B tidak bisa DELETE item waiting list milik A", {
+      detail: `rows ${heldDeletedByB?.length ?? 0}, masih ada ${Boolean(heldStill)}`,
+    });
+    const cancelByB = await api(`/api/waiting-list/${heldId}/cancel`, { method: "POST", cookies: cookiesB });
+    checks.check(cancelByB.status === 403, "B tidak bisa cancel item waiting list milik A", { detail: `status ${cancelByB.status}` });
     const cancelHeld = await api(`/api/waiting-list/${heldId}/cancel`, { method: "POST", cookies: cookiesA });
     checks.check(cancelHeld.status === 200, "cancel purchase menghapus item tanpa memotong saldo", { detail: `status ${cancelHeld.status}` });
   }
@@ -376,6 +384,69 @@ async function main() {
     checks.check(JSON.stringify(stillDirect.data).includes(planId), "RLS: DELETE langsung ke tabel plans tidak menghapus rencana", {
       detail: directDelete ? directDelete.message : "no error returned",
     });
+    // The goal dialogs send monthly amounts; the DB keeps the ratio as percentages (0-100).
+    const amountPlan = await api(`/api/households/${householdId}/plans`, {
+      method: "POST",
+      cookies: cookiesA,
+      body: {
+        title: "QA Dana Rumah (nominal)",
+        category: "Home",
+        targetAmount: 60_000_000,
+        currentAmount: 0,
+        currency: "IDR",
+        targetDate: "Dec 2027 (24 months)",
+        recommendedMonthly: 2_500_000,
+        splitRecommendation: { partnerA: 1_500_000, partnerB: 1_000_000 },
+        walletFunding: "shared",
+        status: "Active",
+      },
+    });
+    const amountPlanId = amountPlan.data?.plan?.id;
+    const { data: amountRow } = amountPlanId
+      ? await sbA.from("plans").select("split_partner_a, split_partner_b").eq("id", amountPlanId).single()
+      : { data: null };
+    const shown = amountPlan.data?.plan?.splitRecommendation;
+    checks.check(
+      amountPlan.status === 201 && Number(amountRow?.split_partner_a) === 60 && Number(amountRow?.split_partner_b) === 40 && shown?.partnerA === 1_500_000 && shown?.partnerB === 1_000_000,
+      "rencana dengan split nominal Rupiah tersimpan sebagai 60% / 40% dan tampil kembali sebagai nominal",
+      { detail: `status ${amountPlan.status} db ${amountRow?.split_partner_a}/${amountRow?.split_partner_b} api ${shown?.partnerA}/${shown?.partnerB} ${amountPlan.data?.message ?? ""}` }
+    );
+
+    heading("Rencana tabungan: ubah target butuh partner");
+    const { data: planUpdatedDirect, error: planUpdateError } = await sbB
+      .from("plans")
+      .update({ target_amount: 1, split_partner_a: 100, split_partner_b: 0, status: "Archived" })
+      .eq("id", planId)
+      .select("id");
+    const { data: planAfterDirect } = await sbA.from("plans").select("target_amount").eq("id", planId).single();
+    checks.check((planUpdatedDirect ?? []).length === 0 && Number(planAfterDirect?.target_amount) === 30_000_000, "RLS: UPDATE langsung ke tabel plans ditolak", {
+      detail: planUpdateError ? planUpdateError.message : `rows ${planUpdatedDirect?.length ?? 0}, target ${planAfterDirect?.target_amount}`,
+    });
+    const rename = await api(`/api/households/${householdId}/plans/${planId}`, {
+      method: "PATCH",
+      cookies: cookiesB,
+      body: { title: "QA Dana Liburan Jepang (B)" },
+    });
+    checks.check(rename.status === 200 && rename.data?.plan?.title === "QA Dana Liburan Jepang (B)" && !rename.data?.pendingApprovalId, "B bisa ganti judul rencana sendiri", {
+      detail: `status ${rename.status} ${rename.data?.message ?? ""}`,
+    });
+    const retarget = await api(`/api/households/${householdId}/plans/${planId}`, {
+      method: "PATCH",
+      cookies: cookiesB,
+      body: { targetAmount: 1_000_000, splitPartnerA: 100, splitPartnerB: 0 },
+    });
+    const goalApprovalId = retarget.data?.pendingApprovalId;
+    checks.check(retarget.status === 200 && Boolean(goalApprovalId) && retarget.data?.plan?.targetAmount === 30_000_000, "ubah target/split oleh B → approval partner, target belum berubah", {
+      detail: `status ${retarget.status} target ${retarget.data?.plan?.targetAmount} ${retarget.data?.message ?? ""}`,
+    });
+    if (goalApprovalId && pinA) {
+      const approveGoal = await api(`/api/approvals/${goalApprovalId}/decision`, { method: "POST", cookies: cookiesA, body: { decision: "approved", pin: TEST_PIN } });
+      const { data: planApproved } = await sbA.from("plans").select("target_amount, split_partner_a").eq("id", planId).single();
+      checks.check(approveGoal.status === 200 && Number(planApproved?.target_amount) === 1_000_000 && Number(planApproved?.split_partner_a) === 100, "A approve dengan PIN → target & split baru berlaku", {
+        detail: `status ${approveGoal.status} target ${planApproved?.target_amount} split A ${planApproved?.split_partner_a}`,
+      });
+    }
+
     const req = await api(`/api/households/${householdId}/plans/${planId}/request-delete`, { method: "POST", cookies: cookiesA, body: {} });
     const after = await api(`/api/households/${householdId}/plans`, { cookies: cookiesA });
     checks.check(JSON.stringify(after.data).includes(planId), "request-delete membuat permintaan, rencana belum terhapus", {
@@ -383,9 +454,93 @@ async function main() {
     });
   }
 
+  heading("Activity log tidak bisa dipalsukan");
+  const { error: forgedActivity } = await sbB.from("activities").insert({
+    household_id: householdId,
+    title: "QA laptop Approved & Executed",
+    category: "Expenses",
+    actor: "partner_a",
+    status: "ALLOW",
+    reason: "Dual-Key signature verified. Action executed.",
+  });
+  checks.check(Boolean(forgedActivity), "RLS: INSERT langsung ke activities ditolak", {
+    detail: forgedActivity ? forgedActivity.message : "no error returned",
+  });
+  const { error: forgedRecord } = await sbB.rpc("record_activity", {
+    p_household_id: householdId,
+    p_title: "QA laptop Approved & Executed",
+    p_actor: "partner_a",
+    p_status: "ALLOW",
+  });
+  checks.check(Boolean(forgedRecord), "RPC langsung: record_activity (actor bebas) tidak bisa dipanggil", {
+    detail: forgedRecord ? forgedRecord.message : "no error returned",
+  });
+  const { error: forgedDeny } = await sbB.rpc("log_household_activity", {
+    p_household_id: householdId,
+    p_title: "QA permintaan",
+    p_status: "DENY",
+  });
+  const { error: forgedTitle } = await sbB.rpc("log_household_activity", {
+    p_household_id: householdId,
+    p_title: "QA laptop Approved & Executed",
+    p_status: "ALLOW",
+  });
+  checks.check(Boolean(forgedDeny) && Boolean(forgedTitle), "log_household_activity menolak status DENY dan judul keputusan partner", {
+    detail: `${forgedDeny?.message ?? "DENY accepted"} / ${forgedTitle?.message ?? "title accepted"}`,
+  });
+  const { data: ownActivityId, error: ownActivityError } = await sbB.rpc("log_household_activity", {
+    p_household_id: householdId,
+    p_title: "QA cek actor activity",
+    p_status: "INFO",
+  });
+  const { data: members } = await sbA.from("household_members").select("user_id, role").eq("household_id", householdId).eq("status", "active");
+  const roleOf = (userId) => ((members ?? []).find((m) => m.user_id === userId)?.role === "owner" ? "partner_a" : "partner_b");
+  const { data: ownActivity } = ownActivityId
+    ? await sbA.from("activities").select("actor").eq("id", ownActivityId).single()
+    : { data: null };
+  checks.check(Boolean(ownActivity) && ownActivity.actor === roleOf(userIdB), "activity dari B selalu tercatat dengan actor B", {
+    detail: ownActivityError ? ownActivityError.message : `actor ${ownActivity?.actor}`,
+  });
+
   heading("Settlement");
   const settlement = await api(`/api/households/${householdId}/settlement`, { cookies: cookiesA });
   checks.check(settlement.status === 200, "settlement bisa dibaca", { detail: JSON.stringify(settlement.data).slice(0, 200) });
+  const ledger = settlement.data?.settlement ?? {};
+  const { data: zeroedDirect, error: zeroError } = await sbB
+    .from("household_settlements")
+    .update({ partner_b_owes_a: 0, partner_a_owes_b: 0 })
+    .eq("household_id", householdId)
+    .select("household_id");
+  const { error: upsertLedgerError } = await sbB
+    .from("household_settlements")
+    .upsert({ household_id: householdId, partner_b_owes_a: 0, partner_a_owes_b: 0 });
+  const afterDirect = await api(`/api/households/${householdId}/settlement`, { cookies: cookiesA });
+  checks.check(
+    (zeroedDirect ?? []).length === 0 && Boolean(upsertLedgerError) && JSON.stringify(afterDirect.data?.settlement) === JSON.stringify(ledger),
+    "RLS: household_settlements tidak bisa di-UPDATE/INSERT langsung",
+    { detail: zeroError ? zeroError.message : `rows ${zeroedDirect?.length ?? 0}, upsert ${upsertLedgerError?.message ?? "accepted"}` }
+  );
+  const debtorRole = ledger.partnerBOwesA > 0 ? "partner_b" : ledger.partnerAOwesB > 0 ? "partner_a" : null;
+  if (debtorRole) {
+    const debtorIsB = roleOf(userIdB) === debtorRole;
+    const [debtorClient, debtorCookies, creditorCookies] = debtorIsB ? [sbB, cookiesB, cookiesA] : [sbA, cookiesA, cookiesB];
+    const { error: debtorRpc } = await debtorClient.rpc("settle_up_household", { p_household_id: householdId });
+    const debtorApi = await api(`/api/households/${householdId}/settlement/settle-up`, { method: "POST", cookies: debtorCookies });
+    const unchanged = await api(`/api/households/${householdId}/settlement`, { cookies: cookiesA });
+    checks.check(
+      Boolean(debtorRpc) && debtorApi.status === 403 && JSON.stringify(unchanged.data?.settlement) === JSON.stringify(ledger),
+      "pihak yang berutang tidak bisa settle-up sepihak (RPC & API)",
+      { detail: `${debtorRpc?.code ?? "rpc ok"} / API ${debtorApi.status}` }
+    );
+    const creditorApi = await api(`/api/households/${householdId}/settlement/settle-up`, { method: "POST", cookies: creditorCookies });
+    checks.check(
+      creditorApi.status === 200 && creditorApi.data?.settlement?.partnerBOwesA === 0 && creditorApi.data?.settlement?.partnerAOwesB === 0,
+      "pihak yang dipiutangi bisa konfirmasi settle-up",
+      { detail: `status ${creditorApi.status} ${creditorApi.data?.message ?? ""}` }
+    );
+  } else {
+    checks.check(false, "saldo settlement 0, cek settle-up sepihak dilewati", { soft: true });
+  }
 
   // Last on purpose: this locks A's PIN checks for 15 minutes.
   heading("PIN lockout lintas request (database)");

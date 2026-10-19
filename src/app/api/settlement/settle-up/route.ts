@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
-import { settleUpHousehold } from "@/backend/services/settlement.service";
+import { SETTLE_UP_FORBIDDEN_MESSAGE, settleUpHousehold } from "@/backend/services/settlement.service";
 
 async function getActiveHouseholdId(supabase: SupabaseClient, userId: string): Promise<string | null> {
   const { data } = await supabase
@@ -28,7 +28,10 @@ export async function POST() {
       return NextResponse.json({ success: false, message: "No active household found." }, { status: 404 });
     }
 
-    const { data, error } = await settleUpHousehold(supabase, householdId, user.id);
+    const { data, error } = await settleUpHousehold(supabase, householdId);
+    if (error?.code === "42501") {
+      return NextResponse.json({ success: false, message: SETTLE_UP_FORBIDDEN_MESSAGE }, { status: 403 });
+    }
     if (error || !data) {
       return NextResponse.json({ success: false, message: "Unable to complete settlement." }, { status: 500 });
     }

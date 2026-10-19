@@ -1,67 +1,31 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getHouseholdRole, recordHouseholdActivity } from "./activity.service";
+import type { RpcError } from "./activity.service";
 
-export async function getHouseholdSettlement(supabase: SupabaseClient, householdId: string) {
-  const { data, error } = await supabase
-    .from("household_settlements")
-    .select("partner_b_owes_a, partner_a_owes_b, currency")
-    .eq("household_id", householdId)
-    .maybeSingle();
+type SettlementRow = { partner_b_owes_a: number | string; partner_a_owes_b: number | string; currency: string };
 
-  if (error) {
-    return { data: null, error };
-  }
-
-  if (!data) {
-    const { data: household } = await supabase
-      .from("households")
-      .select("base_currency")
-      .eq("id", householdId)
-      .maybeSingle();
-
-    const currency = household?.base_currency || "IDR";
-    const initial = {
-      household_id: householdId,
-      partner_b_owes_a: 0,
-      partner_a_owes_b: 0,
-      currency,
-    };
-
-    await supabase.from("household_settlements").insert(initial);
-    return { data: { partnerBOwesA: 0, partnerAOwesB: 0, currency }, error: null };
-  }
-
+function toSettlement(row: SettlementRow) {
   return {
-    data: {
-      partnerBOwesA: Number(data.partner_b_owes_a) || 0,
-      partnerAOwesB: Number(data.partner_a_owes_b) || 0,
-      currency: data.currency || "IDR",
-    },
-    error: null,
+    partnerBOwesA: Number(row.partner_b_owes_a) || 0,
+    partnerAOwesB: Number(row.partner_a_owes_b) || 0,
+    currency: row.currency || "IDR",
   };
 }
 
-export async function settleUpHousehold(supabase: SupabaseClient, householdId: string, userId: string) {
-  const { data, error } = await supabase
-    .from("household_settlements")
-    .update({
-      partner_b_owes_a: 0,
-      partner_a_owes_b: 0,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("household_id", householdId)
-    .select("partner_b_owes_a, partner_a_owes_b, currency")
-    .single();
-
-  if (!error) {
-    await recordHouseholdActivity(supabase, householdId, {
-      title: "Settlement Completed",
-      category: "Settlement",
-      actor: await getHouseholdRole(supabase, householdId, userId),
-      status: "ALLOW",
-      reason: "Shared expense ledger balance settled between partners.",
-    });
+// get_household_settlement creates the zero row on first read; members have
+// no direct write access to household_settlements.
+export async function getHouseholdSettlement(supabase: SupabaseClient, householdId: string) {
+  const { data, error } = await supabase.rpc("get_household_settlement", { p_household_id: householdId });
+  if (error || !data) {
+    return { data: null, error: error ?? { message: "Settlement not found." } };
   }
-
-  return { data, error };
+  return { data: toSettlement(data as SettlementRow), error: null };
 }
+
+// Only the partner who is owed can clear the balance (42501 otherwise).
+// The RPC records the "Settlement Completed" activity.
+export async function settleUpHousehold(supabase: SupabaseClient, householdId: string) {
+  const { data, error } = await supabase.rpc("settle_up_household", { p_household_id: householdId });
+  return { data: (data as SettlementRow | null) ?? null, error: error as RpcError };
+}
+
+export const SETTLE_UP_FORBIDDEN_MESSAGE = "Only the partner who is owed can confirm the settlement.";

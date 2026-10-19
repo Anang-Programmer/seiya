@@ -68,7 +68,6 @@ export async function createHouseholdApproval(
     await recordHouseholdActivity(supabase, householdId, {
       title: `Approval Requested: ${input.title}`,
       category: input.category || "Approval Request",
-      actor: requesterRole,
       status: "NEED_APPROVAL",
       amount: input.amount,
       currency: input.currency,

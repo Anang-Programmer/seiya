@@ -444,8 +444,8 @@ export interface PlanInput {
   currency: string;
   targetDate: string;
   recommendedMonthly: number;
-  // Sent as an object: the validator only accepts 0-100 for the flat
-  // splitPartnerA/B fields, but plans store per-partner monthly amounts.
+  // Per-partner monthly amounts. The server stores their ratio as
+  // percentages and returns amounts derived from recommendedMonthly.
   splitRecommendation: { partnerB: number; partnerA: number };
   walletFunding: string;
   status: string;

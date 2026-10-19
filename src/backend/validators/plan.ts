@@ -95,6 +95,20 @@ function optionalText(value: unknown, maxLength: number): string | null | undefi
   return trimmed.length <= maxLength ? trimmed : undefined;
 }
 
+// The goal dialogs send splitRecommendation as per-partner monthly amounts;
+// plans store the agreed ratio as percentages (split_partner_a/b, 0-100).
+function splitPercentFromAmounts(value: unknown): { a: number; b: number } | null | undefined {
+  if (!isObject(value)) return undefined;
+  const a = value.partnerA;
+  const b = value.partnerB;
+  if (typeof a !== "number" || typeof b !== "number" || !Number.isFinite(a) || !Number.isFinite(b) || a < 0 || b < 0) {
+    return null;
+  }
+  if (a + b === 0) return undefined;
+  const pctA = Math.round((a / (a + b)) * 10_000) / 100;
+  return { a: pctA, b: Math.round((100 - pctA) * 100) / 100 };
+}
+
 export function validateCreatePlan(value: unknown): ValidationResult<CreatePlanInput> {
   if (!isObject(value)) return { ok: false, message: "Invalid request body." };
 
@@ -134,12 +148,14 @@ export function validateCreatePlan(value: unknown): ValidationResult<CreatePlanI
 
   let splitPartnerB = 50;
   let splitPartnerA = 50;
-  if (isObject(value.splitRecommendation)) {
-    const b = value.splitRecommendation.partnerB;
-    const a = value.splitRecommendation.partnerA;
-    if (typeof b === "number" && typeof a === "number" && b >= 0 && a >= 0) {
-      splitPartnerB = b;
-      splitPartnerA = a;
+  if (value.splitRecommendation !== undefined) {
+    const split = splitPercentFromAmounts(value.splitRecommendation);
+    if (split === null) {
+      return { ok: false, message: "splitRecommendation amounts must be non-negative numbers." };
+    }
+    if (split) {
+      splitPartnerA = split.a;
+      splitPartnerB = split.b;
     }
   } else {
     if (typeof value.splitPartnerB === "number" && value.splitPartnerB >= 0 && value.splitPartnerB <= 100) {
@@ -234,12 +250,15 @@ export function validateUpdatePlan(value: unknown): ValidationResult<UpdatePlanI
     data.recommendedMonthly = value.recommendedMonthly;
   }
 
-  if (isObject(value.splitRecommendation)) {
-    const b = value.splitRecommendation.partnerB;
-    const a = value.splitRecommendation.partnerA;
-    if (typeof b === "number" && typeof a === "number" && b >= 0 && a >= 0) {
-      data.splitPartnerB = b;
-      data.splitPartnerA = a;
+  if (value.splitRecommendation !== undefined) {
+    // 0/0 (nothing left to save) keeps the current split.
+    const split = splitPercentFromAmounts(value.splitRecommendation);
+    if (split === null) {
+      return { ok: false, message: "splitRecommendation amounts must be non-negative numbers." };
+    }
+    if (split) {
+      data.splitPartnerA = split.a;
+      data.splitPartnerB = split.b;
     }
   } else {
     if (value.splitPartnerB !== undefined) {
