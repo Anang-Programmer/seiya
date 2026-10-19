@@ -4,12 +4,12 @@ import React, { useState, useRef, useEffect } from "react";
 import dynamic from "next/dynamic";
 import type { OrbSignal } from "orb-ui";
 import { SolarIcon } from "@/components/icons/solar";
+import { RichText } from "@/components/ui/rich-text";
 import { SeiyaIcon } from "@/components/icons/seiya-logo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SeiyaVideoAvatar } from "@/components/ui/seiya-video-avatar";
 import { ActionCard, PlanCard, ClarificationCard } from "@/components/cards/domain-cards";
-import { formatMoneyConverted } from "@/lib/utils";
 import { useApp, ChatMessage } from "@/lib/store";
 import { formatRelativeDate } from "@/lib/transformers";
 
@@ -53,10 +53,20 @@ export function ChatView() {
     locale,
     pendingDirectChat,
     setPendingDirectChat,
+    partnerProfile,
   } = useApp();
 
   const activeName = currentUser === "partner_a" ? partnerAName : partnerBName;
-  const partnerName = currentUser === "partner_a" ? partnerBName : partnerAName;
+  // Until the partner joins, the store only has a "Partner B" placeholder.
+  const partnerName = partnerProfile
+    ? currentUser === "partner_a" ? partnerBName : partnerAName
+    : "your partner";
+
+  // First message of a new conversation.
+  const introFor = (isShared: boolean) =>
+    isShared
+      ? `Hi ${activeName} and ${partnerName}! This is a **shared chat**: you both see everything here, and Seiya's suggestions follow your **Seiya's Promise**.`
+      : `Hi ${activeName}! This is your **private chat** with Seiya, and only you can see it. Ask about your spending, plans, or anything on your mind. When you're ready, tap **Share with ${partnerName}** to bring it into your shared space.`;
 
   // Conversations live in Supabase; new ones are added as the user chats.
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -206,12 +216,9 @@ export function ChatView() {
     if (pendingDirectChat) {
       const mode = pendingDirectChat.mode || "personal";
       const isShared = mode === "shared";
-      const partnerName = currentUser === "partner_a" ? partnerBName : partnerAName;
       const newSessionId = `session-${Date.now()}`;
 
-      const introText = isShared
-        ? `Hello ${activeName} & ${partnerName}! You are in a **Shared Conversation**. Decisions and ideas discussed here are visible to both partners in your Couple Space and bound by your Couple Contract.`
-        : `Hello ${activeName}! This is your **Personal Private Conversation**. You can consult freely about personal spending, ideas, or questions. Whenever you're ready, click "Share with ${partnerName}" to bring it to your Couple Space.`;
+      const introText = introFor(isShared);
 
       let fullUserText = pendingDirectChat.message.trim();
       if (pendingDirectChat.attachedFileName) {
@@ -285,7 +292,6 @@ export function ChatView() {
     if (typeof window !== "undefined" && window.innerWidth < 768) {
       setShowHistory(false);
     }
-    const partnerName = currentUser === "partner_a" ? partnerBName : partnerAName;
     setToastMessage(
       mode === "shared"
         ? `Ready for Shared Conversation with ${partnerName}`
@@ -325,7 +331,6 @@ export function ChatView() {
     const targetSession = sessions.find((s) => s.id === sessionId);
     if (!targetSession) return;
     const nextShared = !targetSession.isShared;
-    const partnerName = currentUser === "partner_a" ? partnerBName : partnerAName;
 
     setSessions((prev) =>
       prev.map((s) => (s.id === sessionId ? { ...s, isShared: nextShared } : s))
@@ -333,8 +338,8 @@ export function ChatView() {
 
     setToastMessage(
       nextShared
-        ? `Shared with ${partnerName}! Pinned to Couple Space.`
-        : `Conversation unshared from Couple Space.`
+        ? `Shared with ${partnerName}.`
+        : `This chat is private again.`
     );
     setTimeout(() => setToastMessage(null), 3000);
   };
@@ -361,9 +366,7 @@ export function ChatView() {
       const newSessionId = targetSessionId;
       const isShared = newChatMode === "shared";
       const title = text.length > 32 ? text.slice(0, 32) + "..." : text;
-      const introText = isShared
-        ? `Hello ${activeName} & ${partnerName}! You are in a **Shared Conversation**. Decisions and ideas discussed here are visible to both partners in your Couple Space and bound by your Couple Contract.`
-        : `Hello ${activeName}! This is your **Personal Private Conversation**. You can consult freely about personal spending, ideas, or questions. Whenever you're ready, click "Share with ${partnerName}" to bring it to your Couple Space.`;
+      const introText = introFor(isShared);
 
       const newSession: ChatSession = {
         id: newSessionId,
@@ -548,40 +551,15 @@ export function ChatView() {
     }
   }, [isVoiceChatActive, isVoiceMuted]);
 
+  // Safe starters: questions only. Nothing here records or proposes a transaction.
   const quickPrompts = [
-    {
-      label: `Lunch ${formatMoneyConverted(45, "USD", reportingCurrency, locale)} (ALLOW)`,
-      text: `Paid ${formatMoneyConverted(45, "USD", reportingCurrency, locale)} for lunch together, I paid.`,
-    },
-    {
-      label: `Groceries ${formatMoneyConverted(120, "USD", reportingCurrency, locale)} (Clarify)`,
-      text: `Monthly groceries ${formatMoneyConverted(120, "USD", reportingCurrency, locale)}.`,
-    },
-    {
-      label: `Correct to ${formatMoneyConverted(38, "USD", reportingCurrency, locale)} (Edit)`,
-      text: `Actually, it was ${formatMoneyConverted(38, "USD", reportingCurrency, locale)}.`,
-    },
-    {
-      label: `Shared Flights ${formatMoneyConverted(650, "USD", reportingCurrency, locale)} (Approval)`,
-      text: `Pay for shared flight tickets ${formatMoneyConverted(650, "USD", reportingCurrency, locale)}.`,
-    },
-    {
-      label: `Flash-Sale TV ${formatMoneyConverted(1400, "USD", reportingCurrency, locale)} (HOLD)`,
-      text: `Checkout flash-sale TV for ${formatMoneyConverted(1400, "USD", reportingCurrency, locale)} from the shared wallet.`,
-    },
-    {
-      label: `External Transfer ${formatMoneyConverted(2500, "USD", reportingCurrency, locale)} (DENY)`,
-      text: `Transfer ${formatMoneyConverted(2500, "USD", reportingCurrency, locale)} to an external personal account now.`,
-    },
-    {
-      label: `Kyoto Trip ${formatMoneyConverted(15000, "USD", reportingCurrency, locale)} (Plan)`,
-      text: `We want to save ${formatMoneyConverted(15000, "USD", reportingCurrency, locale)} for our trip to Kyoto in 10 months.`,
-    },
-    { label: "Check Due Bills (Cash-flow)", text: "Can we afford all bills this month?" },
-    {
-      label: `New Laptop ${formatMoneyConverted(2000, "USD", reportingCurrency, locale)} (Affordability)`,
-      text: `Can we afford a new laptop for ${formatMoneyConverted(2000, "USD", reportingCurrency, locale)}?`,
-    },
+    { label: "Our balances", text: "How much is in our shared wallet and my personal wallet?" },
+    { label: "Bills due", text: "Which bills are due this month?" },
+    { label: "Budget check", text: "How is our budget doing this month?" },
+    { label: "Log an expense", text: "I want to log a shared expense." },
+    { label: "Plan a goal", text: "Help us plan savings for a shared goal." },
+    { label: "Our rules", text: "What did we agree in Seiya's Promise?" },
+    { label: "Money talk tips", text: "How can we talk about money without arguing?" },
   ];
 
   return (
@@ -724,7 +702,7 @@ export function ChatView() {
                       ? "bg-[#fef9ef] text-[#B45529] shadow-xs"
                       : "text-[#515151] hover:text-[#B45529]"
                   }`}
-                  title="Filter to Shared conversations synced with partner"
+                  title="Chats shared with your partner"
                 >
                   <SolarIcon name="users-group-rounded" size={11} />
                   <span>Shared</span>
@@ -747,7 +725,7 @@ export function ChatView() {
                       ? "bg-[#fef9ef] text-[#734a1a] shadow-xs"
                       : "text-[#515151] hover:text-[#734a1a]"
                   }`}
-                  title="Filter to Private personal conversations"
+                  title="Chats only you can see"
                 >
                   <SolarIcon name="lock-keyhole" size={10} />
                   <span>Private</span>
@@ -781,8 +759,8 @@ export function ChatView() {
                   </p>
                   <p className="text-[11px] text-[#808988] leading-relaxed max-w-[200px] mx-auto">
                     {historyFilter === "shared"
-                      ? "Start a new shared conversation or share an existing chat with your partner."
-                      : "All of your conversations are currently shared in Couple Space."}
+                      ? "Start a shared chat, or share one of your private chats."
+                      : "All your chats are shared with your partner."}
                   </p>
                   <button
                     type="button"
@@ -865,7 +843,7 @@ export function ChatView() {
                                   <p className="truncate text-xs leading-snug font-medium">{session.title}</p>
                                   {session.isShared ? (
                                     <span
-                                      title="Shared with partner in Couple Space"
+                                      title="Shared with your partner"
                                       className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-[#B45529] bg-[#fbf0eb] px-1.5 py-0.5 rounded-full shrink-0 border border-[#B45529]/20"
                                     >
                                       <SolarIcon name="users-group-rounded" size={9} />
@@ -976,7 +954,7 @@ export function ChatView() {
             <div className="p-3 border-t border-[#d1c9bf]/30 bg-[#f8f3e9] flex items-center justify-between text-[11px] text-[#515151]">
               <span className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#2d5232]" />
-                <span>Synced with Couple Space</span>
+                <span>Saved to your account</span>
               </span>
               <span className="font-mono text-[10px] text-[#808988]">
                 {filteredSessions.length} {historyFilter === "all" ? "chats" : `${historyFilter} ${filteredSessions.length === 1 ? "chat" : "chats"}`}
@@ -1008,7 +986,7 @@ export function ChatView() {
 
             <div className="min-w-0">
               <h3 className="text-sm font-serif font-normal text-[#2a2b2f] leading-tight truncate">
-                {activeSession?.title || "New Consultation"}
+                {activeSession?.title || "New chat"}
               </h3>
               {isVoiceChatActive ? (
                 <div className="flex items-center gap-1.5 text-[11px] text-[#B45529] font-medium mt-0.5 animate-in fade-in-0">
@@ -1018,7 +996,7 @@ export function ChatView() {
               ) : isProcessing ? (
                 <div className="flex items-center gap-1.5 text-[11px] text-[#B45529] font-medium mt-0.5 animate-in fade-in-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#B45529] animate-ping" />
-                  <span>Analyzing rules & balances...</span>
+                  <span>Checking your rules and balances…</span>
                 </div>
               ) : null}
             </div>
@@ -1032,10 +1010,10 @@ export function ChatView() {
                 size="sm"
                 onClick={() => handleToggleShare(activeSession.id)}
                 className={`h-7 px-2.5 rounded-full text-[11px] font-semibold gap-1 shadow-2xs ${isVoiceChatActive ? "text-[#B45529] border-[#B45529]/40 bg-[#1c1b1a] hover:bg-[#2a170f]" : "text-[#B45529] border-[#B45529]/30 hover:bg-[#B45529] hover:text-[#fef9ef]"}`}
-                title={`Share this conversation with ${currentUser === "partner_a" ? partnerBName : partnerAName}`}
+                title={`Share this chat with ${partnerName}`}
               >
                 <SolarIcon name="users-group-rounded" size={13} />
-                <span className="hidden sm:inline">Share with {currentUser === "partner_a" ? partnerBName : partnerAName}</span>
+                <span className="hidden sm:inline">Share with {partnerName}</span>
                 <span className="sm:hidden">Share</span>
               </Button>
             )}
@@ -1043,7 +1021,7 @@ export function ChatView() {
             {activeSession && activeSession.isShared && (
               <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full border ${isVoiceChatActive ? "text-[#78c282] bg-[#162519] border-[#2d5232]/50" : "text-[#2d5232] bg-[#edf3ec] border-[#2d5232]/20"}`}>
                 <SolarIcon name="users-group-rounded" size={12} />
-                <span className="hidden sm:inline">Shared with {currentUser === "partner_a" ? partnerBName : partnerAName}</span>
+                <span className="hidden sm:inline">Shared with {partnerName}</span>
                 <span className="sm:hidden">Shared</span>
               </span>
             )}
@@ -1083,7 +1061,7 @@ export function ChatView() {
                 How can I help you today, {activeName}?
               </h2>
               <p className="text-xs sm:text-sm text-[#515151] leading-relaxed max-w-md mb-6">
-                I am Seiya, your AI financial co-pilot operating under your Couple Contract. Ask any question or propose a transaction to start a new chat automatically.
+                I&apos;m Seiya, the money co-pilot for the two of you. Ask about your spending, bills, or plans, and a new chat starts automatically.
               </p>
 
               {/* Mode switch for the next conversation */}
@@ -1098,7 +1076,7 @@ export function ChatView() {
                   }`}
                 >
                   <SolarIcon name="user" size={13} />
-                  <span>Personal (Private)</span>
+                  <span>Private</span>
                 </button>
                 <button
                   type="button"
@@ -1114,51 +1092,26 @@ export function ChatView() {
                 </button>
               </div>
 
-              {/* Starter prompts */}
+              {/* Starter prompts (questions only; nothing is recorded until you give an amount) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full text-left">
-                <button
-                  onClick={() => handleSend("Can we afford all bills this month?")}
-                  className="p-3 rounded-[14px] bg-[#fef9ef] hover:bg-[#fffdf9] border border-[#d1c9bf]/50 hover:border-[#B45529]/40 text-xs text-[#2a2b2f] shadow-2xs transition-all cursor-pointer group"
-                >
-                  <div className="flex items-center gap-2 font-semibold text-[#B45529] mb-1">
-                    <SolarIcon name="calendar" size={15} />
-                    <span>Affordability Check</span>
-                  </div>
-                  <span className="text-[11px] text-[#515151]">Can we afford all upcoming bills this month?</span>
-                </button>
-
-                <button
-                  onClick={() => handleSend("Paid $45 for lunch together, I paid.")}
-                  className="p-3 rounded-[14px] bg-[#fef9ef] hover:bg-[#fffdf9] border border-[#d1c9bf]/50 hover:border-[#B45529]/40 text-xs text-[#2a2b2f] shadow-2xs transition-all cursor-pointer group"
-                >
-                  <div className="flex items-center gap-2 font-semibold text-[#B45529] mb-1">
-                    <SolarIcon name="receipt" size={15} />
-                    <span>Log an Expense</span>
-                  </div>
-                  <span className="text-[11px] text-[#515151]">Paid $45 for lunch together, I paid.</span>
-                </button>
-
-                <button
-                  onClick={() => handleSend("We want to save $15,000 for our trip to Kyoto in 10 months.")}
-                  className="p-3 rounded-[14px] bg-[#fef9ef] hover:bg-[#fffdf9] border border-[#d1c9bf]/50 hover:border-[#B45529]/40 text-xs text-[#2a2b2f] shadow-2xs transition-all cursor-pointer group"
-                >
-                  <div className="flex items-center gap-2 font-semibold text-[#B45529] mb-1">
-                    <SolarIcon name="chart" size={15} />
-                    <span>Create Savings Plan</span>
-                  </div>
-                  <span className="text-[11px] text-[#515151]">Save $15,000 for Kyoto in 10 months.</span>
-                </button>
-
-                <button
-                  onClick={() => handleSend("Pay for annual home insurance $1,200 from shared wallet.")}
-                  className="p-3 rounded-[14px] bg-[#fef9ef] hover:bg-[#fffdf9] border border-[#d1c9bf]/50 hover:border-[#B45529]/40 text-xs text-[#2a2b2f] shadow-2xs transition-all cursor-pointer group"
-                >
-                  <div className="flex items-center gap-2 font-semibold text-[#B45529] mb-1">
-                    <SolarIcon name="shield-check" size={15} />
-                    <span>Propose Large Expense</span>
-                  </div>
-                  <span className="text-[11px] text-[#515151]">Propose $1,200 annual home insurance.</span>
-                </button>
+                {[
+                  { icon: "calendar", title: "Bills this month", text: "Which bills are due this month, and can we cover them?" },
+                  { icon: "receipt", title: "Log an expense", text: "I want to log a shared expense." },
+                  { icon: "chart", title: "Plan a savings goal", text: "Help us plan savings for a shared goal." },
+                  { icon: "shield-check", title: "Our agreement", text: "What did we agree in Seiya's Promise?" },
+                ].map((card) => (
+                  <button
+                    key={card.title}
+                    onClick={() => handleSend(card.text)}
+                    className="p-3 rounded-[14px] bg-[#fef9ef] hover:bg-[#fffdf9] border border-[#d1c9bf]/50 hover:border-[#B45529]/40 text-xs text-[#2a2b2f] shadow-2xs transition-all cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-2 font-semibold text-[#B45529] mb-1">
+                      <SolarIcon name={card.icon as "calendar"} size={15} />
+                      <span>{card.title}</span>
+                    </div>
+                    <span className="text-[11px] text-[#515151]">{card.text}</span>
+                  </button>
+                ))}
               </div>
             </div>
           )}
@@ -1182,7 +1135,11 @@ export function ChatView() {
                       : "bg-[#fef9ef] text-[#2a2b2f] rounded-tl-xs shadow-2xs border border-[#e5dcd0]/70"
                   }`}
                 >
-                  <p className="whitespace-pre-line">{msg.text}</p>
+                  {msg.sender === "seiya" ? (
+                    <RichText text={msg.text} />
+                  ) : (
+                    <p className="whitespace-pre-line">{msg.text}</p>
+                  )}
                 </div>
 
                 {/* Timestamp */}
@@ -1199,7 +1156,7 @@ export function ChatView() {
                     currency={msg.cardData.currency || reportingCurrency}
                     category={msg.cardData.category}
                     wallet={msg.cardData.wallet}
-                    reason="Validated against couple budget and contract split."
+                    reason="Checked against your budget and Seiya's Promise."
                     details={msg.cardData}
                   />
                 )}
@@ -1370,28 +1327,6 @@ export function ChatView() {
                 : "opacity-100 translate-y-0 relative visible"
             }`}
           >
-            {/* Action buttons: Attach File & Image */}
-            <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
-              <button
-                type="button"
-                onClick={() => handleSend("Here is my invoice document. Please analyze and log it.")}
-                className="p-1.5 sm:p-2 rounded-full text-[#808988] hover:text-[#B45529] hover:bg-[#ece3d3] transition-colors cursor-pointer"
-                title="Attach document or PDF"
-                aria-label="Attach file"
-              >
-                <SolarIcon name="paperclip" size={17} />
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSend("Here is our receipt photo. Can you split this expense?")}
-                className="p-1.5 sm:p-2 rounded-full text-[#808988] hover:text-[#B45529] hover:bg-[#ece3d3] transition-colors cursor-pointer"
-                title="Upload receipt photo or image"
-                aria-label="Attach image"
-              >
-                <SolarIcon name="image" size={17} />
-              </button>
-            </div>
-
             {/* Chat Textformfield */}
             <form
               onSubmit={(e) => {
@@ -1404,7 +1339,7 @@ export function ChatView() {
                 type="text"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                placeholder={`Ask Seiya as ${activeName}...`}
+                placeholder="Message Seiya…"
                 className="w-full px-3 sm:px-4 py-2 sm:py-2.5 rounded-full bg-[#fef9ef] border border-[#d1c9bf] text-xs sm:text-sm text-[#2a2b2f] placeholder-[#808988] focus:outline-none focus:ring-2 focus:ring-[#B45529]/20 transition-all shadow-2xs"
               />
             </form>
