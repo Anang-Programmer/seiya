@@ -104,6 +104,7 @@ export function Header({
     reportingCurrency,
     setReportingCurrency,
     unreadNotificationsCount,
+    contractMeta,
     approvals,
     bills,
     transactions,
@@ -363,7 +364,23 @@ export function Header({
                   <span className="text-xs text-[#808988] font-mono">{unreadNotificationsCount} active</span>
                 </div>
                 <div className="space-y-1.5 max-h-80 overflow-y-auto">
-                  {approvals.filter(a => a.status === "pending").map(a => (
+                  {contractMeta.pendingNeedsMyApproval && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowNotifications(false);
+                        onNavigate?.("settings");
+                      }}
+                      className="w-full text-left py-2.5 text-xs cursor-pointer hover:bg-[#f5eee1] rounded-[8px] px-1 -mx-1"
+                    >
+                      <div className="flex items-center justify-between text-[#2a2b2f] font-semibold mb-0.5">
+                        <span>Couple Contract change to review</span>
+                        <span className="text-[10px] text-[#B45529] font-semibold">Needs you</span>
+                      </div>
+                      <p className="text-[#515151] text-[11px]">Your partner proposed new rules. Open the contract to review and sign.</p>
+                    </button>
+                  )}
+                  {approvals.filter(a => a.status === "pending" && a.approver === currentUser).map(a => (
                     <div key={a.id} className="py-2.5 text-xs">
                       <div className="flex items-center justify-between text-[#2a2b2f] font-semibold mb-0.5">
                         <span>Approval: {a.title}</span>
@@ -372,13 +389,15 @@ export function Header({
                       <p className="text-[#515151] text-[11px]">{a.reason}</p>
                     </div>
                   ))}
-                  {bills.filter(b => b.daysRemaining <= 3).map(b => (
+                  {bills.filter(b => b.status !== "paid" && b.daysRemaining <= 3).map(b => (
                     <div key={b.id} className="py-2.5 text-xs">
                       <div className="flex items-center justify-between text-[#2a2b2f] font-semibold mb-0.5">
                         <span>Upcoming Bill: {b.title}</span>
-                        <span className="text-[10px] text-[#a34426] font-semibold">Due in 3 days</span>
+                        <span className="text-[10px] text-[#a34426] font-semibold">
+                          {b.daysRemaining < 0 ? "Overdue" : b.daysRemaining === 0 ? "Due today" : `Due in ${b.daysRemaining} day${b.daysRemaining === 1 ? "" : "s"}`}
+                        </span>
                       </div>
-                      <p className="text-[#515151] text-[11px]">{b.anomaly?.message || "Due 25 Sep 2026"}</p>
+                      <p className="text-[#515151] text-[11px]">{b.anomaly?.message || `Due ${b.dueDate}`}</p>
                     </div>
                   ))}
                 </div>

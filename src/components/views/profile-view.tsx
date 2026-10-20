@@ -36,6 +36,8 @@ export function ProfileView({ onLogout, initialTab = "overview" }: ProfileViewPr
     hasPin,
     partnerProfile,
     verifySecurityPin,
+    ensurePin,
+    openPinSetup,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<"overview" | "contract" | "security" | "privacy" | "preferences">(
@@ -98,6 +100,7 @@ export function ProfileView({ onLogout, initialTab = "overview" }: ProfileViewPr
   };
 
   const handleApproveContract = () => {
+    if (!ensurePin()) return;
     setShowPinModal(true);
   };
 
@@ -497,17 +500,29 @@ export function ProfileView({ onLogout, initialTab = "overview" }: ProfileViewPr
       {activeTab === "security" && (
         <div className="space-y-4 animate-in fade-in-0 duration-200">
           <div className="p-5 rounded-[16px] bg-[#f5eee1] border border-[#d1c9bf]/30 space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-full bg-[#2d5232]/10 text-[#2d5232]">
                   <SolarIcon name="shield-check" size={20} />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-[#2a2b2f]">Biometric Device Passkey Confirmation</h4>
-                  <p className="text-xs text-[#515151]">Hardware device key bound for high-value Dual-Key transactions</p>
+                  <h4 className="text-sm font-bold text-[#2a2b2f]">Security PIN</h4>
+                  <p className="text-xs text-[#515151]">
+                    6 digits you enter to approve your partner&apos;s requests and sign changes to Seiya&apos;s Promise.
+                  </p>
                 </div>
               </div>
-              <Badge variant={hasPin ? "allow" : "pending"}>{hasPin ? "Active" : "Set on first approval"}</Badge>
+              <div className="flex items-center gap-2 shrink-0">
+                <Badge variant={hasPin ? "allow" : "pending"}>{hasPin ? "Active" : "Not set"}</Badge>
+                <Button
+                  variant={hasPin ? "outline" : "primary"}
+                  size="sm"
+                  onClick={() => openPinSetup(hasPin ? "change" : "create")}
+                  className="text-xs"
+                >
+                  {hasPin ? "Change PIN" : "Create PIN"}
+                </Button>
+              </div>
             </div>
 
             <div className="pt-3 border-t border-[#d1c9bf]/30 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">

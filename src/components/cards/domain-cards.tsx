@@ -255,7 +255,7 @@ export function PlanCard({
   onAdjust,
   onDelete,
 }: PlanCardProps) {
-  const { reportingCurrency, locale, verifySecurityPin } = useApp();
+  const { reportingCurrency, locale, verifySecurityPin, ensurePin } = useApp();
   const planCurrency = currency || reportingCurrency;
   const [activeStatus, setActiveStatus] = useState(status);
   const [showPinModal, setShowPinModal] = useState(false);
@@ -373,7 +373,7 @@ export function PlanCard({
           <Button
             variant="primary"
             size="sm"
-            onClick={() => setShowPinModal(true)}
+            onClick={() => ensurePin() && setShowPinModal(true)}
           >
             Approve & Activate
           </Button>
@@ -391,7 +391,7 @@ export function PlanCard({
           <Button
             variant="primary"
             size="sm"
-            onClick={() => setShowPinModal(true)}
+            onClick={() => ensurePin() && setShowPinModal(true)}
           >
             Resume plan
           </Button>

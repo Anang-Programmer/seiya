@@ -23,6 +23,7 @@ import { SeiyaLogo } from "@/components/icons/seiya-logo";
 import { SolarIcon } from "@/components/icons/solar";
 import { readPendingInvite, storePendingInvite } from "@/lib/invite";
 import { AddMoneyDialog } from "@/components/modals/add-money-dialog";
+import { SetPinDialog } from "@/components/modals/set-pin-dialog";
 
 function FullScreenLoader() {
   return (
@@ -279,7 +280,7 @@ function MainApp() {
         currentTab={currentTab}
         onTabChange={handleTabChange}
         onLogout={handleLogout}
-        onOpenProfile={() => handleOpenProfile("overview")}
+        onOpenProfile={() => handleOpenProfile(contractMeta.pendingNeedsMyApproval ? "contract" : "overview")}
         onOpenContract={() => handleOpenProfile("contract")}
       />
 
@@ -314,7 +315,7 @@ function MainApp() {
               currentTab={currentTab}
               onOpenAskSeiya={() => setCurrentTab("seiya")}
               onLogout={handleLogout}
-              onOpenProfile={() => handleOpenProfile("overview")}
+              onOpenProfile={() => handleOpenProfile(contractMeta.pendingNeedsMyApproval ? "contract" : "overview")}
               onNavigate={handleTabChange}
             />
           )}
@@ -387,7 +388,7 @@ function MainApp() {
         <BottomNav
           currentTab={currentTab}
           onTabChange={handleTabChange}
-          onOpenProfile={() => handleOpenProfile("overview")}
+          onOpenProfile={() => handleOpenProfile(contractMeta.pendingNeedsMyApproval ? "contract" : "overview")}
         />
       </div>
     </div>
@@ -400,6 +401,7 @@ export default function Page() {
       <MainApp />
       <NoticeStack />
       <AddMoneyDialog />
+      <SetPinDialog />
     </AppProvider>
   );
 }

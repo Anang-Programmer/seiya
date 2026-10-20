@@ -34,7 +34,15 @@ export function Sidebar({
   onOpenProfile,
   onOpenContract,
 }: SidebarProps) {
-  const { currentUser, approvals, heldPurchases, bills, partnerAName, partnerBName } = useApp();
+  const { currentUser, approvals, heldPurchases, bills, partnerAName, partnerBName, contractMeta } = useApp();
+  // A contract change proposed by the partner waits for this person's signature.
+  const contractNeedsMe = contractMeta.pendingNeedsMyApproval;
+  const contractDot = contractNeedsMe ? (
+    <span
+      className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-[#d4380d] border-2 border-[#fcf8f0]"
+      aria-hidden="true"
+    />
+  ) : null;
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const pendingApprovalsCount = approvals.filter(
@@ -167,13 +175,14 @@ export function Sidebar({
                 if (onOpenProfile) onOpenProfile();
                 else onTabChange("profile");
               }}
-              className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold text-[#fef9ef] hover:scale-105 transition-all cursor-pointer shadow-xs ${
+              className={`relative w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold text-[#fef9ef] hover:scale-105 transition-all cursor-pointer shadow-xs ${
                 currentUser === "partner_a" ? "bg-[#B45529]" : "bg-[#3B1D17]"
               } ${currentTab === "profile" ? "ring-2 ring-[#B45529] ring-offset-2 ring-offset-[#fcf8f0]" : ""}`}
-              title={`${currentDisplayName} · Profile & Contract`}
-              aria-label="Profile and Contract"
+              title={contractNeedsMe ? "Contract change waiting for your signature" : `${currentDisplayName} · Profile & Contract`}
+              aria-label={contractNeedsMe ? "Profile and Contract, a contract change needs your signature" : "Profile and Contract"}
             >
               {currentInitial}
+              {contractDot}
             </button>
             {onLogout && (
               <button
@@ -203,20 +212,27 @@ export function Sidebar({
               title="View partner profile & Couple Contract"
             >
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-[#fef9ef] transition-transform group-hover:scale-105 shrink-0 ${
+                className={`relative w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-[#fef9ef] transition-transform group-hover:scale-105 shrink-0 ${
                   currentUser === "partner_a" ? "bg-[#B45529]" : "bg-[#3B1D17]"
                 }`}
               >
                 {currentInitial}
+                {contractDot}
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-bold text-[#2a2b2f] capitalize leading-tight truncate">
                   {currentDisplayName}
                 </p>
-                <span className="text-[10px] text-[#515151] font-medium flex items-center gap-1">
-                  <span>Profile & Contract</span>
-                  <span className="text-[9px] text-[#B45529] font-bold">· Edit</span>
-                </span>
+                {contractNeedsMe ? (
+                  <span className="text-[10px] text-[#d4380d] font-semibold flex items-center gap-1">
+                    Contract change to review
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-[#515151] font-medium flex items-center gap-1">
+                    <span>Profile & Contract</span>
+                    <span className="text-[9px] text-[#B45529] font-bold">· Edit</span>
+                  </span>
+                )}
               </div>
             </button>
             {onLogout && (

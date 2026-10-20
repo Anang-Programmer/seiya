@@ -179,6 +179,8 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
     partnerBName,
     setPendingDirectChat,
     openAddMoney,
+    hasPin,
+    openPinSetup,
     householdId,
     authUser,
     settlement,
@@ -213,6 +215,30 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
       if (startKey) window.localStorage.setItem(startKey, "1");
     } catch {
       // Not remembered; the prompt may show again next visit.
+    }
+  };
+
+  // Approvals need a PIN; ask for it up front instead of at the first approval.
+  const pinKey = authUser ? `seiya.pinPromptLater.${authUser.id}` : null;
+  const [pinLater, setPinLater] = useState(true);
+  useEffect(() => {
+    if (!pinKey) return;
+    let later = false;
+    try {
+      later = window.sessionStorage.getItem(pinKey) === "1";
+    } catch {
+      // Storage unavailable: keep showing the reminder.
+    }
+    const timer = window.setTimeout(() => setPinLater(later), 0);
+    return () => window.clearTimeout(timer);
+  }, [pinKey]);
+  const showPinPrompt = !hasPin && Boolean(partnerProfile) && !pinLater;
+  const remindPinLater = () => {
+    setPinLater(true);
+    try {
+      if (pinKey) window.sessionStorage.setItem(pinKey, "1");
+    } catch {
+      // Not remembered for this visit.
     }
   };
 
@@ -782,6 +808,38 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
       </div>
 
       {notice}
+
+      {showPinPrompt && (
+        <div className="p-4 sm:p-5 rounded-[16px] bg-[#fbf0eb] border border-[#B45529]/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-full bg-white text-[#B45529] flex items-center justify-center shrink-0">
+              <SolarIcon name="lock-keyhole" size={18} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-[#2a2b2f]">Create your security PIN</p>
+              <p className="text-xs text-[#515151] mt-0.5 leading-relaxed">
+                You need a 6-digit PIN to approve your partner&apos;s requests. It takes a few seconds and only you know it.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={remindPinLater}
+              className="px-3 py-1.5 rounded-full text-xs font-semibold text-[#515151] hover:bg-white/70 cursor-pointer"
+            >
+              Later
+            </button>
+            <button
+              type="button"
+              onClick={() => openPinSetup("create")}
+              className="px-4 py-1.5 rounded-full bg-[#B45529] hover:bg-[#9a461e] text-white text-xs font-semibold cursor-pointer"
+            >
+              Create PIN
+            </button>
+          </div>
+        </div>
+      )}
 
       {showStartingBalance && (
         <div className="p-4 sm:p-5 rounded-[16px] bg-[#edf3ec] border border-[#2d5232]/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
