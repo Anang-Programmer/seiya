@@ -87,8 +87,9 @@ export function CreateGoalDialog({ open, onOpenChange, onGoalCreated }: CreateGo
       splitA = 50;
       splitB = 50;
     } else if (splitMode === "custom") {
-      splitA = Number(customSplitA) || 50;
-      splitB = Number(customSplitB) || 50;
+      // 0% is a valid share, so no "|| 50" fallback here.
+      splitA = Math.min(100, Math.max(0, Number(customSplitA) || 0));
+      splitB = 100 - splitA;
     }
 
     const aAmt = Math.round((monthly * splitA) / 100);
@@ -133,8 +134,9 @@ export function CreateGoalDialog({ open, onOpenChange, onGoalCreated }: CreateGo
       targetDate: targetDateFormatted,
       recommendedMonthly: monthlyTotal,
       splitRecommendation: {
-        partnerA: partnerAAmount,
-        partnerB: partnerBAmount,
+        // plans.split_partner_a/b hold percentages (0–100), not monthly amounts.
+        partnerA: activeSplitA,
+        partnerB: activeSplitB,
       },
       walletFunding: fundingWallet,
       status: initialStatus,

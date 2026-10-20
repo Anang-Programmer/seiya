@@ -1377,8 +1377,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     if (status === "pending_approval" && tx) {
       const reason = params.notes ? `${params.notes} • ${decision.reason}` : decision.reason;
-      // The transaction engine already queued the partner approval.
+      // The transaction engine already queued the partner approval; attach the
+      // proposer's notes to it so the partner sees the context.
       if (res.approval_id) {
+        if (params.notes) {
+          try {
+            await api.apiSetApprovalNotes(res.approval_id, params.notes.slice(0, 1000));
+          } catch (error) {
+            // The request itself went through; only the context is missing.
+            console.warn("[store] attaching expense notes failed:", error);
+          }
+        }
         await refreshData();
         return { outcome: "NEED_APPROVAL", id: res.approval_id, reason };
       }

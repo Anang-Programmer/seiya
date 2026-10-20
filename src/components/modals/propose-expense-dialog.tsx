@@ -44,6 +44,13 @@ const PRESET_EXPENSES = [
   { label: "Internet", title: "Home internet", category: "Bills" as ExpenseCategory },
 ];
 
+const URGENCY_LABELS = {
+  routine: "Routine Expense",
+  planned: "Planned Milestone Goal",
+  urgent: "Time-Sensitive Purchase",
+  emergency: "Urgent / Essential",
+} as const;
+
 // Quick "+" chips sized to the currency, so IDR does not get "+25".
 function quickAmountSteps(currency: string): number[] {
   if (currency === "IDR") return [10_000, 25_000, 50_000, 100_000, 500_000];
@@ -175,7 +182,12 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
           partnerA: splitBreakdown.ratioA,
           partnerB: splitBreakdown.ratioB,
         },
-        notes: [notes.trim(), receiptFileName ? `Receipt: ${receiptFileName}` : ""].filter(Boolean).join(" • "),
+        // Priority and receipt name travel in the notes, which the partner sees on the request.
+        notes: [
+          urgency !== "routine" ? `Priority: ${URGENCY_LABELS[urgency]}` : "",
+          notes.trim(),
+          receiptFileName ? `Receipt: ${receiptFileName}` : "",
+        ].filter(Boolean).join(" • "),
         urgency,
         receiptName: receiptFileName ?? undefined,
       });

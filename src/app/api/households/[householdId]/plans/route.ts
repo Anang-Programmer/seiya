@@ -81,6 +81,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     const { data: plan, error } = await createHouseholdPlan(supabase, householdId, user.id, validation.data);
     if (error) {
+      console.error("[plans/create] Insert failed:", error);
       return NextResponse.json({ success: false, message: "Unable to create goal." }, { status: 500 });
     }
 

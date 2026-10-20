@@ -432,6 +432,9 @@ export const apiDecideApproval = (
 export const apiCancelApproval = (approvalId: string) =>
   request<{ success: true; status: string; message: string }>(`/api/approvals/${approvalId}/cancel`, { method: "POST" });
 
+export const apiSetApprovalNotes = (approvalId: string, notes: string) =>
+  request<{ success: true; notes: string | null }>(`/api/approvals/${approvalId}/notes`, { body: { notes } });
+
 // ---------------------------------------------------------------------------
 // Plans & goals
 // ---------------------------------------------------------------------------

@@ -10,6 +10,23 @@ export function formatIDR(amount: number): string {
   return formatMoney(amount, "IDR", "id-ID");
 }
 
+/**
+ * Monthly contribution per partner for a goal. splitRecommendation may hold
+ * percentages or monthly amounts depending on the server version; only the
+ * ratio is used, so both give the same result.
+ */
+export function planMonthlyShares(plan: {
+  recommendedMonthly: number;
+  splitRecommendation: { partnerA: number; partnerB: number };
+}) {
+  const a = Math.max(0, plan.splitRecommendation.partnerA || 0);
+  const b = Math.max(0, plan.splitRecommendation.partnerB || 0);
+  const total = a + b;
+  const monthly = plan.recommendedMonthly || 0;
+  const partnerA = total > 0 ? Math.round((monthly * a) / total) : Math.round(monthly / 2);
+  return { partnerA, partnerB: monthly - partnerA };
+}
+
 export {
   formatMoney,
   formatMoneyAlways,

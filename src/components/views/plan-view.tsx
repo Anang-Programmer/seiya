@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { formatMoney, convertAmount } from "@/lib/utils";
+import { formatMoney, convertAmount, planMonthlyShares } from "@/lib/utils";
 import { SUPPORTED_CURRENCIES } from "@/lib/currency";
 import { parseAmount } from "@/lib/receipt-text";
 import { SolarIcon } from "@/components/icons/solar";
@@ -151,7 +151,7 @@ export function PlanView({ onNavigate }: { onNavigate?: (tab: any) => void }) {
                   currentAmount={p.currentAmount}
                   horizon={p.targetDate}
                   monthlyTarget={p.recommendedMonthly}
-                  split={`${partnerBName} ${formatMoney(p.splitRecommendation.partnerB, planCurr, locale)} • ${partnerAName} ${formatMoney(p.splitRecommendation.partnerA, planCurr, locale)}`}
+                  split={`${partnerBName} ${formatMoney(planMonthlyShares(p).partnerB, planCurr, locale)} • ${partnerAName} ${formatMoney(planMonthlyShares(p).partnerA, planCurr, locale)}`}
                   fundingWallet={p.walletFunding}
                   assumptions={p.assumptions}
                   status={p.status}

@@ -136,6 +136,12 @@ export function ApprovalsView() {
                 <div className="p-4 rounded-[12px] bg-[#fef9ef] text-sm text-[#333333] space-y-1.5 border border-[#d1c9bf]/30">
                   <span className="font-semibold text-[#2a2b2f] block text-xs">Reason for approval:</span>
                   <p className="leading-relaxed text-xs sm:text-sm">{req.reason}</p>
+                  {req.notes && (
+                    <>
+                      <span className="font-semibold text-[#2a2b2f] block text-xs pt-1.5">Notes from the requester:</span>
+                      <p className="leading-relaxed text-xs sm:text-sm whitespace-pre-line">{req.notes}</p>
+                    </>
+                  )}
                 </div>
 
                 {/* Action controls */}
