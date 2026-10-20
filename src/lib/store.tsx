@@ -15,6 +15,7 @@ import {
   transformActivity,
   transformApproval,
   transformBill,
+  withBillIncreaseAnomalies,
   transformHeldPurchase,
   transformPlan,
   transformTransaction,
@@ -22,7 +23,6 @@ import {
   type TransformContext,
   type WalletState,
 } from "./transformers";
-import { createClient as createBrowserSupabase } from "./supabase/client";
 
 export type UserRole = "partner_a" | "partner_b";
 
@@ -73,6 +73,8 @@ export interface HeldPurchase {
   requester: "partner_a" | "partner_b";
   status: "held" | "released" | "cancelled";
   holdUntil: string;
+  /** ISO time the cooling-off ends; drives the countdown and the Continue lock. */
+  holdUntilAt?: string;
   reason: string;
   createdAt: string;
 }
@@ -161,7 +163,8 @@ export interface ChatMessage {
     | "PLAN"
     | "CLARIFICATION"
     | "STATEMENT_PREVIEW"
-    | "RECEIPT_DRAFT";
+    | "RECEIPT_DRAFT"
+    | "BILL_DRAFT";
   cardData?: any;
 }
 
@@ -200,6 +203,9 @@ export interface ChatHistorySession {
   title: string;
   updatedAt: string;
   messages: ChatMessage[];
+  isShared: boolean;
+  /** Who started it; only they can rename, share, delete or continue it. */
+  creatorRole: UserRole;
 }
 
 export interface BudgetSummary {
@@ -325,8 +331,11 @@ interface AppContextType {
     approveEverySharedPurchase?: boolean;
     walletMode?: "shared_only" | "shared_and_personal" | "separate_only";
   }) => Promise<ContractSignatureResult>;
-  sendChatMessage: (text: string, options?: { sessionKey?: string }) => Promise<ChatMessage | null>;
+  sendChatMessage: (text: string, options?: { sessionKey?: string; shared?: boolean }) => Promise<ChatMessage | null>;
   loadChatHistory: () => Promise<ChatHistorySession[]>;
+  /** Saves a rename / share change for a chat; true when saved (or not on the server yet). */
+  updateConversation: (sessionKey: string, changes: { title?: string; shared?: boolean }) => Promise<boolean>;
+  deleteConversation: (sessionKey: string) => Promise<boolean>;
   payBill: (billId: string) => Promise<void>;
   settleUp: () => Promise<void>;
   // Bill Management
@@ -337,7 +346,6 @@ interface AppContextType {
   // Plan Management & Dual-Key Deletion
   addPlan: (newPlan: Omit<PlanItem, "id">) => Promise<PlanItem | null>;
   updatePlan: (planId: string, updated: Partial<PlanItem>) => Promise<boolean>;
-  deletePlan: (planId: string) => Promise<boolean>;
   requestDeletePlan: (
     planId: string,
     partnerAPin?: string,
@@ -346,6 +354,7 @@ interface AppContextType {
   // Approval Queue Management
   approveApprovalRequest: (approvalId: string, pin?: string) => Promise<{ ok: boolean; message?: string }>;
   declineApprovalRequest: (approvalId: string, reason?: string) => Promise<boolean>;
+  cancelApprovalRequest: (approvalId: string) => Promise<boolean>;
   // Direct chat shortcut from dashboard
   pendingDirectChat: PendingDirectChat | null;
   setPendingDirectChat: (data: PendingDirectChat | null) => void;
@@ -391,13 +400,6 @@ function errorMessage(error: unknown, fallback = "Something went wrong. Please t
   return fallback;
 }
 
-// Next local 08:00, used as the end of the late-night cooling-off window.
-function nextMorningIso() {
-  const d = new Date();
-  if (d.getHours() >= 8) d.setDate(d.getDate() + 1);
-  d.setHours(8, 0, 0, 0);
-  return d.toISOString();
-}
 
 function nowTime(locale: string) {
   return new Date().toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
@@ -579,6 +581,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const refreshSession = useCallback(async (): Promise<api.ApiMeResponse | null> => {
     try {
       const me = await api.apiGetMe();
+      if (!me) {
+        clearSession();
+        return null;
+      }
       applyMe(me);
       return me;
     } catch (error) {
@@ -692,6 +698,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 requester: tx.paidBy,
                 status: "held" as const,
                 holdUntil: t.hold_until ? formatRelativeDate(t.hold_until, locale) : "Cooling-off period",
+                holdUntilAt: t.hold_until ?? undefined,
                 reason: "Cooling-off safeguard from your couple contract. Confirm after the hold ends to execute it.",
                 createdAt: t.created_at,
               };
@@ -700,7 +707,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (billsRes.status === "fulfilled") {
-        setBills(billsRes.value.bills.map((b) => transformBill(b, ctx)));
+        const billRows = billsRes.value.bills;
+        setBills(withBillIncreaseAnomalies(billRows, billRows.map((b) => transformBill(b, ctx))));
       }
       if (plansRes.status === "fulfilled") {
         setPlans(plansRes.value.plans.map(transformPlan));
@@ -1008,6 +1016,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const cancelApprovalRequest: AppContextType["cancelApprovalRequest"] = async (approvalId) => {
+    try {
+      await api.apiCancelApproval(approvalId);
+      notify("success", "Request cancelled.");
+      await refreshData();
+      return true;
+    } catch (error) {
+      notify("error", errorMessage(error, "Unable to cancel this request."));
+      return false;
+    }
+  };
+
   const declineApprovalRequest: AppContextType["declineApprovalRequest"] = async (approvalId, reason) => {
     const item = approvals.find((a) => a.id === approvalId);
     if (!item) return false;
@@ -1298,20 +1318,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const deletePlan: AppContextType["deletePlan"] = async (planId) => {
-    const previous = plans;
-    setPlans((prev) => prev.filter((p) => p.id !== planId));
-    try {
-      await api.apiDeletePlan(requireHousehold(), planId);
-      await refreshData();
-      return true;
-    } catch (error) {
-      setPlans(previous);
-      notify("error", errorMessage(error, "Unable to delete this goal."));
-      return false;
-    }
-  };
-
   const requestDeletePlan: AppContextType["requestDeletePlan"] = async (planId, partnerAPin, partnerBPin) => {
     try {
       const hid = requireHousehold();
@@ -1357,7 +1363,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         currency: params.currency,
         wallet: params.wallet,
         requesterRole: currentUser,
-        holdUntil: nextMorningIso(),
         reason: decision.reason,
       });
       await refreshData();
@@ -1378,8 +1383,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     if (status === "pending_approval" && tx) {
       const reason = params.notes ? `${params.notes} • ${decision.reason}` : decision.reason;
-      // The transaction engine already queued the partner approval.
+      // The transaction engine already queued the partner approval; attach the
+      // proposer's notes to it so the partner sees the context.
       if (res.approval_id) {
+        if (params.notes) {
+          try {
+            await api.apiSetApprovalNotes(res.approval_id, params.notes.slice(0, 1000));
+          } catch (error) {
+            // The request itself went through; only the context is missing.
+            console.warn("[store] attaching expense notes failed:", error);
+          }
+        }
         await refreshData();
         return { outcome: "NEED_APPROVAL", id: res.approval_id, reason };
       }
@@ -1446,8 +1460,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       };
     } else {
       try {
-        const res = await api.apiSendChat(householdId, text, conversationIds.current.get(sessionKey));
+        const existingId = conversationIds.current.get(sessionKey);
+        const res = await api.apiSendChat(householdId, text, existingId);
         if (res.conversationId) conversationIds.current.set(sessionKey, res.conversationId);
+        // Chats started in "Shared with your partner" mode are saved as shared.
+        if (options?.shared && !existingId && res.conversationId) {
+          void api.apiUpdateConversation(householdId, res.conversationId, { visibility: "shared" }).catch((error) => {
+            console.warn("[chat] could not share the new chat:", error);
+          });
+        }
         if (res.warning) console.warn("[chat]", res.warning);
 
         reply = {
@@ -1475,28 +1496,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return reply;
   };
 
-  // Chat history is read straight from Supabase; RLS limits it to the
-  // caller's own private conversations and shared household ones.
+  // Chat history comes through our API (same RLS: the caller's private
+  // conversations and shared household ones), so the browser only ever talks
+  // to our own domain, which matters for users in mainland China.
   const loadChatHistory: AppContextType["loadChatHistory"] = async () => {
     if (!householdId || !authUser) return [];
     try {
-      const supabase = createBrowserSupabase();
-      const { data: conversations, error } = await supabase
-        .from("agent_conversations")
-        .select("id, title, updated_at, created_at")
-        .eq("household_id", householdId)
-        .order("updated_at", { ascending: false })
-        .limit(20);
-      if (error || !conversations?.length) return [];
-
-      const ids = conversations.map((c) => c.id);
-      const { data: messages } = await supabase
-        .from("agent_messages")
-        .select("id, conversation_id, role, content, created_at")
-        .in("conversation_id", ids)
-        .in("role", ["user", "assistant"])
-        .order("created_at", { ascending: true })
-        .limit(400);
+      const { conversations, messages } = await api.apiGetChatHistory(householdId);
+      if (!conversations.length) return [];
 
       return conversations.map((c) => {
         const convMessages: ChatMessage[] = (messages ?? [])
@@ -1509,17 +1516,48 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             timestamp: new Date(m.created_at).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
           }));
         const firstUser = convMessages.find((m) => m.sender === "user")?.text ?? "Conversation";
+        const creatorRole: UserRole = c.user_id === authUser.id ? currentUser : currentUser === "partner_a" ? "partner_b" : "partner_a";
         conversationIds.current.set(`history-${c.id}`, c.id);
         return {
           conversationId: c.id,
           title: c.title || (firstUser.length > 32 ? `${firstUser.slice(0, 32)}...` : firstUser),
           updatedAt: c.updated_at || c.created_at,
-          messages: convMessages,
+          messages: convMessages.map((m) => (m.sender === "user" ? { ...m, userRole: creatorRole } : m)),
+          isShared: c.visibility === "shared",
+          creatorRole,
         };
       });
     } catch (error) {
       console.warn("[store] chat history unavailable:", error);
       return [];
+    }
+  };
+
+  const updateConversation: AppContextType["updateConversation"] = async (sessionKey, changes) => {
+    const conversationId = conversationIds.current.get(sessionKey);
+    if (!conversationId || !householdId) return true; // not saved on the server yet
+    try {
+      await api.apiUpdateConversation(householdId, conversationId, {
+        ...(changes.title !== undefined ? { title: changes.title } : {}),
+        ...(changes.shared !== undefined ? { visibility: changes.shared ? "shared" : "private" } : {}),
+      });
+      return true;
+    } catch (error) {
+      notify("error", errorMessage(error, "Unable to save this chat change."));
+      return false;
+    }
+  };
+
+  const deleteConversation: AppContextType["deleteConversation"] = async (sessionKey) => {
+    const conversationId = conversationIds.current.get(sessionKey);
+    if (!conversationId || !householdId) return true;
+    try {
+      await api.apiDeleteConversation(householdId, conversationId);
+      conversationIds.current.delete(sessionKey);
+      return true;
+    } catch (error) {
+      notify("error", errorMessage(error, "Unable to delete this chat."));
+      return false;
     }
   };
 
@@ -1593,11 +1631,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         activateInitialContract,
         sendChatMessage,
         loadChatHistory,
+        updateConversation,
+        deleteConversation,
         payBill,
         settleUp,
         addPlan,
         updatePlan,
-        deletePlan,
         addBill,
         editBill,
         deleteBill,
@@ -1605,6 +1644,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         requestDeletePlan,
         approveApprovalRequest,
         declineApprovalRequest,
+        cancelApprovalRequest,
         pendingDirectChat,
         setPendingDirectChat,
         proposeExpense,

@@ -7,6 +7,7 @@ import { SeiyaIcon } from "@/components/icons/seiya-logo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useApp, Transaction } from "@/lib/store";
+import { dashboardLocale, greetingParts, longDate, type GreetingParts } from "@/lib/greeting";
 import { ApprovalDialog } from "@/components/modals/approval-dialog";
 import { TransactionDetailDialog } from "@/components/modals/transaction-detail-dialog";
 import { ApprovalDeck } from "@/components/cards/approval-deck";
@@ -109,7 +110,7 @@ function AskSeiyaDirectChatBox({
       <div className="relative">
         <div className="flex justify-center -mb-[5px] relative z-10 pointer-events-none select-none">
           <img
-            src="/dashboard/CuriousSeiya-Dashboard.png"
+            src="/dashboard/CuriousSeiya-Dashboard.webp"
             alt="Curious Seiya"
             className="w-40 sm:w-44 h-auto object-contain block drop-shadow-xs"
           />
@@ -160,7 +161,9 @@ function AskSeiyaDirectChatBox({
   );
 }
 
-export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
+// `notice` (e.g. "Your partner hasn't joined yet") sits under the greeting so it
+// never covers the landscape illustration at the top of the dashboard.
+export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => void; notice?: React.ReactNode }) {
   const {
     wallets,
     convertedBalances,
@@ -174,32 +177,35 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
     currentUser,
     partnerAName,
     partnerBName,
-    sendChatMessage,
     setPendingDirectChat,
     settlement,
     budgetSummary,
     walletsReady,
     partnerProfile,
     hideAmounts,
+    household,
   } = useApp();
 
-  const activeName = currentUser === "partner_a" ? partnerAName : partnerBName;
-  const [formattedDate, setFormattedDate] = useState<string>("");
+  // Opens Ask Seiya with this question; the chat view sends it and shows the reply.
+  const askSeiya = (message: string) => {
+    setPendingDirectChat({ message, mode: "personal" });
+    onNavigate("seiya");
+  };
 
+  const activeName = currentUser === "partner_a" ? partnerAName : partnerBName;
+  // Greeting and date follow the household's country and the device clock;
+  // refreshed every minute so "morning" turns into "afternoon" on its own.
+  const headerLocale = dashboardLocale(household?.country, locale);
+  const [header, setHeader] = useState<{ parts: GreetingParts; date: string } | null>(null);
   useEffect(() => {
-    try {
-      const now = new Date();
-      const formatted = new Intl.DateTimeFormat(locale || "en-US", {
-        weekday: "long",
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      }).format(now);
-      setFormattedDate(formatted);
-    } catch {
-      setFormattedDate(new Date().toDateString());
-    }
-  }, [locale]);
+    const update = () => setHeader({ parts: greetingParts(headerLocale), date: longDate(headerLocale) });
+    const first = window.setTimeout(update, 0);
+    const timer = window.setInterval(update, 60_000);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(timer);
+    };
+  }, [headerLocale]);
 
   const [selectedApproval, setSelectedApproval] = useState<any>(null);
   const [approvalModalOpen, setApprovalModalOpen] = useState(false);
@@ -307,14 +313,23 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
   const walletStatus = (cardId: string) => {
     if (cardId === "partner-wallet" && !partnerProfile) return "Waiting for your partner to join";
     if (!walletsReady) return "Opens after Seiya's Promise";
+    // The partner's personal wallet is never sent to this browser (RLS).
+    if (cardId === "partner-wallet") return "Only your partner can see this";
     return null;
   };
+
+  // Cards show the currency picked in the header when a rate is available;
+  // the wallet's own amount stays visible underneath.
+  const displayCurrency = (card: { id: string; currency: string; converted: { available: boolean } }) =>
+    card.currency !== reportingCurrency && card.converted.available
+      ? reportingCurrency
+      : card.currency;
 
   const walletCards = [
     // 1. Your Balance (Always leftmost / paling kiri)
     {
       id: "your-wallet",
-      avatar: isPartnerA ? "/dashboard/Profile-Card-Man.png" : "/dashboard/Profile-Card-Women.png",
+      avatar: isPartnerA ? "/dashboard/Profile-Card-Man.webp" : "/dashboard/Profile-Card-Women.webp",
       alt: `${isPartnerA ? partnerAName : partnerBName} avatar`,
       shouldFlip: !isPartnerA, // When cewe is on the left, reverse horizontal so she faces right towards partner
       label: "Your balance",
@@ -336,7 +351,7 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
     // 2. Partner Balance (Middle)
     {
       id: "partner-wallet",
-      avatar: isPartnerA ? "/dashboard/Profile-Card-Women.png" : "/dashboard/Profile-Card-Man.png",
+      avatar: isPartnerA ? "/dashboard/Profile-Card-Women.webp" : "/dashboard/Profile-Card-Man.webp",
       alt: `${isPartnerA ? partnerBName : partnerAName} avatar`,
       shouldFlip: !isPartnerA, // When partner is cowo, reverse horizontal so he faces left towards partner
       label: "Partner balance",
@@ -358,7 +373,7 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
     // 3. Shared Balance (Rightmost / full width on mobile)
     {
       id: "shared-wallet",
-      avatar: "/dashboard/Profile-Card-Shared.png",
+      avatar: "/dashboard/Profile-Card-Shared.webp",
       alt: "Shared pool avatar",
       shouldFlip: false,
       label: "Shared balance",
@@ -379,11 +394,14 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pt-1 sm:pt-4 pb-2">
         <div>
           <h2 className="text-2xl sm:text-3xl lg:text-[34px] font-serif text-[#2a2b2f] font-normal tracking-tight leading-tight">
-            Good morning, <span className="font-semibold text-[#B45529]">{activeName}</span>
+            {header ? header.parts.greeting : " "}
+            {header?.parts.separator}
+            <span className="font-semibold text-[#B45529]">{activeName}</span>
+            {header?.parts.suffix}
           </h2>
           <div className="flex items-center gap-2 text-xs sm:text-sm text-[#808988] mt-1 font-medium">
             <SolarIcon name="calendar" size={14} className="text-[#B45529]/80 shrink-0" />
-            <span suppressHydrationWarning>{formattedDate || "Thursday, October 15, 2026"}</span>
+            <span lang={headerLocale}>{header?.date ?? " "}</span>
           </div>
         </div>
 
@@ -697,6 +715,8 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
         </div>
       </div>
 
+      {notice}
+
       {/* 1. THREE DISTINCTIVE WHITE CARDS WITH BORDER & COLORED CHARTS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
         {walletCards.map((card, idx) => (
@@ -721,27 +741,37 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
               <span
                 className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full border shadow-2xs ${card.badgeClass}`}
               >
-                {card.currency}
+                {displayCurrency(card)}
               </span>
             </div>
 
             <div className="flex items-end justify-between gap-3 mt-2">
               <div className="min-w-0">
                 <div className="text-2xl sm:text-[28px] font-bold text-[#2a2b2f] tracking-tight font-serif leading-none">
-                  {formatMoney(card.balance, card.currency, locale)}
+                  {card.id === "partner-wallet" && partnerProfile && walletsReady ? (
+                    <span className="inline-flex items-center gap-2 text-[#808988]">
+                      <SolarIcon name="lock-keyhole" size={20} />
+                      Private
+                    </span>
+                  ) : displayCurrency(card) === reportingCurrency && card.currency !== reportingCurrency ? (
+                    // Follows the currency picked in the header, like Monthly Overview.
+                    formatMoney(card.converted.amount, reportingCurrency, locale)
+                  ) : (
+                    formatMoney(card.balance, card.currency, locale)
+                  )}
                 </div>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
                   {walletStatus(card.id) && (
                     <span className="text-[11px] text-[#808988] font-medium">{walletStatus(card.id)}</span>
                   )}
-                  {card.currency !== reportingCurrency && (
+                  {card.currency !== reportingCurrency && card.id !== "partner-wallet" && (
                     <span className="text-[11px] text-[#808988] font-medium">
                       {!card.converted.available ? (
-                        <span className="text-[#a34426]">FX unavail.</span>
+                        <span className="text-[#a34426]">No {reportingCurrency} rate for {card.currency}</span>
                       ) : (
                         <span>
-                          ≈ {formatMoney(card.converted.amount, reportingCurrency, locale)}{" "}
-                          <span className="text-[#a3abaa] font-normal">est.</span>
+                          {formatMoney(card.balance, card.currency, locale)} in wallet{" "}
+                          <span className="text-[#a3abaa] font-normal">· estimated rate</span>
                         </span>
                       )}
                     </span>
@@ -1086,8 +1116,7 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
             <div className="space-y-2">
               <button
                 onClick={() => {
-                  onNavigate("seiya");
-                  sendChatMessage("I want to log a shared expense.");
+                  askSeiya("I want to log a shared expense.");
                 }}
                 className="w-full p-3 bg-[#fef9ef] hover:bg-[#fffdf9] text-left rounded-[12px] text-xs font-semibold text-[#2a2b2f] shadow-xs transition-all cursor-pointer flex items-center gap-2.5"
               >
@@ -1096,8 +1125,7 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
               </button>
               <button
                 onClick={() => {
-                  onNavigate("seiya");
-                  sendChatMessage("Can we afford all bills this month?");
+                  askSeiya("Can we afford all bills this month?");
                 }}
                 className="w-full p-3 bg-[#fef9ef] hover:bg-[#fffdf9] text-left rounded-[12px] text-xs font-semibold text-[#2a2b2f] shadow-xs transition-all cursor-pointer flex items-center gap-2.5"
               >
@@ -1106,8 +1134,7 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
               </button>
               <button
                 onClick={() => {
-                  onNavigate("seiya");
-                  sendChatMessage("Help us stop overspending this month.");
+                  askSeiya("Help us stop overspending this month.");
                 }}
                 className="w-full p-3 bg-[#fef9ef] hover:bg-[#fffdf9] text-left rounded-[12px] text-xs font-semibold text-[#2a2b2f] shadow-xs transition-all cursor-pointer flex items-center gap-2.5"
               >
@@ -1241,11 +1268,11 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
                           tx.amount > 0 ? "text-[#2d5232]" : "text-[#2a2b2f]"
                         }`}
                       >
-                        {formatMoney(tx.amount, tx.currency || "USD", locale)}
+                        {formatMoney(tx.amount, tx.currency || reportingCurrency, locale)}
                       </div>
-                      {(tx.currency || "USD") !== reportingCurrency && (
+                      {(tx.currency || reportingCurrency) !== reportingCurrency && (
                         <span className="text-[10px] text-[#808988] font-serif block">
-                          ≈ {formatMoneyConverted(tx.amount, tx.currency || "USD", reportingCurrency, locale)}
+                          ≈ {formatMoneyConverted(tx.amount, tx.currency || reportingCurrency, reportingCurrency, locale)}
                         </span>
                       )}
                       {tx.partnerBOwesA || tx.partnerAOwesB ? (
@@ -1292,11 +1319,23 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
                   />
                 ))}
               </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-3">
+              {/* Text stays inside the ring's hole (inner radius 33 of 50) and shrinks for long amounts */}
+              <div className="absolute inset-[20%] flex flex-col items-center justify-center text-center">
                 <span className="text-xs sm:text-sm text-[#515151] font-medium tracking-wide">Total Spent</span>
-                <span className="text-xl sm:text-3xl font-extrabold font-serif text-[#2a2b2f] tracking-tight my-1">
-                  {formatMoney(stats.totalSpent, reportingCurrency, locale)}
-                </span>
+                {(() => {
+                  const totalSpentLabel = formatMoney(stats.totalSpent, reportingCurrency, locale);
+                  const sizeClass =
+                    totalSpentLabel.length <= 10
+                      ? "text-xl sm:text-3xl"
+                      : totalSpentLabel.length <= 14
+                        ? "text-base sm:text-xl"
+                        : "text-sm sm:text-lg";
+                  return (
+                    <span className={`${sizeClass} max-w-full whitespace-nowrap font-extrabold font-serif text-[#2a2b2f] tracking-tight leading-tight my-1`}>
+                      {totalSpentLabel}
+                    </span>
+                  );
+                })()}
                 {stats.spentChange !== null && (
                   <span
                     className={`text-xs font-bold flex items-center gap-1 px-2 py-0.5 rounded-full mt-0.5 ${
@@ -1421,8 +1460,7 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-5">
           <button
             onClick={() => {
-              onNavigate("seiya");
-              sendChatMessage("I want to log a shared expense.");
+              askSeiya("I want to log a shared expense.");
             }}
             className="p-3.5 bg-[#fef9ef] hover:bg-[#fffdf9] text-left rounded-[12px] text-xs font-semibold text-[#2a2b2f] shadow-xs transition-all cursor-pointer flex items-center gap-2"
           >
@@ -1431,8 +1469,7 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
           </button>
           <button
             onClick={() => {
-              onNavigate("seiya");
-              sendChatMessage("Can we afford all bills this month?");
+              askSeiya("Can we afford all bills this month?");
             }}
             className="p-3.5 bg-[#fef9ef] hover:bg-[#fffdf9] text-left rounded-[12px] text-xs font-semibold text-[#2a2b2f] shadow-xs transition-all cursor-pointer flex items-center gap-2"
           >
@@ -1441,8 +1478,7 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
           </button>
           <button
             onClick={() => {
-              onNavigate("seiya");
-              sendChatMessage("Help us stop overspending this month.");
+              askSeiya("Help us stop overspending this month.");
             }}
             className="p-3.5 bg-[#fef9ef] hover:bg-[#fffdf9] text-left rounded-[12px] text-xs font-semibold text-[#2a2b2f] shadow-xs transition-all cursor-pointer flex items-center gap-2"
           >
@@ -1479,8 +1515,7 @@ export function HomeView({ onNavigate }: { onNavigate: (tab: any) => void }) {
         open={transactionModalOpen}
         onOpenChange={setTransactionModalOpen}
         onAskSeiya={(prompt) => {
-          onNavigate("seiya");
-          sendChatMessage(prompt);
+          askSeiya(prompt);
         }}
       />
 

@@ -12,7 +12,7 @@ import { SeiyaVideoAvatar } from "@/components/ui/seiya-video-avatar";
 import { ActionCard, PlanCard, ClarificationCard } from "@/components/cards/domain-cards";
 import { useApp, ChatMessage } from "@/lib/store";
 import { apiCommitStatement, apiPreviewStatement, apiScanReceipt, type StatementTransaction } from "@/lib/api";
-import { ReceiptDraftCard, StatementPreviewCard, type ReceiptConfirmation } from "@/components/cards/attachment-cards";
+import { BillDraftCard, ReceiptDraftCard, StatementPreviewCard, type BillDraft, type ReceiptConfirmation } from "@/components/cards/attachment-cards";
 import { readReceiptOnDevice } from "@/lib/receipt-ocr";
 import { formatRelativeDate } from "@/lib/transformers";
 
@@ -62,6 +62,8 @@ export function ChatView() {
     currentUser,
     sendChatMessage,
     loadChatHistory,
+    updateConversation,
+    deleteConversation,
     householdId,
     partnerAName,
     partnerBName,
@@ -72,6 +74,7 @@ export function ChatView() {
     partnerProfile,
     refreshData,
     proposeExpense,
+    addBill,
     household,
   } = useApp();
 
@@ -338,6 +341,22 @@ export function ChatView() {
     );
   };
 
+  // "Add bill" on a bill draft card from Seiya.
+  const saveBillDraft = async (bill: BillDraft): Promise<string> => {
+    const ok = await addBill({
+      title: bill.title,
+      amount: bill.amount,
+      currency: bill.currency,
+      dueDate: bill.dueDate,
+      wallet: "shared",
+      category: bill.payee || "Bills",
+      status: "upcoming",
+      isRecurring: bill.recurrence === "monthly",
+    });
+    if (!ok) throw new Error("Couldn't add this bill. Please try again.");
+    return `Added to Bills${bill.recurrence === "monthly" ? " · repeats every month" : ""}.`;
+  };
+
   const recordReceipt = async (sessionId: string | null, draft: ReceiptConfirmation) => {
     try {
       const res = await proposeExpense({
@@ -387,9 +406,9 @@ export function ChatView() {
               title: h.title,
               timestamp: formatRelativeDate(h.updatedAt, locale),
               dateGroup,
-              mode: "personal",
-              isShared: false,
-              creatorRole: currentUser,
+              mode: h.isShared ? "shared" : "personal",
+              isShared: h.isShared,
+              creatorRole: h.creatorRole,
               messages: h.messages,
             };
           });
@@ -546,7 +565,7 @@ export function ChatView() {
       }
       setIsProcessing(true);
 
-      sendChatMessage(fullUserText, { sessionKey: newSessionId })
+      sendChatMessage(fullUserText, { sessionKey: newSessionId, shared: isShared })
         .then((reply) => {
           if (reply) appendToSession(newSessionId, reply);
         })
@@ -583,41 +602,52 @@ export function ChatView() {
     setTimeout(() => setToastMessage(null), 2500);
   };
 
-  // Delete Chat Session
-  const handleDeleteSession = (sessionId: string, e?: React.MouseEvent) => {
+  // Only the person who started a chat can rename, share, delete or continue it.
+  const ownsSession = (session: ChatSession | null | undefined) =>
+    Boolean(session) && (session!.creatorRole ?? currentUser) === currentUser;
+
+  // Delete Chat Session (saved on the server, so it stays deleted after a refresh)
+  const handleDeleteSession = async (sessionId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    const filtered = sessions.filter((s) => s.id !== sessionId);
-    setSessions(filtered);
-    if (activeSessionId === sessionId) {
-      setActiveSessionId(filtered.length > 0 ? null : null);
-    }
+    const target = sessions.find((s) => s.id === sessionId);
+    if (!ownsSession(target)) return;
+    if (!(await deleteConversation(sessionId))) return;
+    setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+    if (activeSessionId === sessionId) setActiveSessionId(null);
     setToastMessage("Conversation deleted.");
     setTimeout(() => setToastMessage(null), 2500);
   };
 
   // Save Renamed Conversation Title
-  const handleSaveTitle = (sessionId: string) => {
-    if (!editTitleText.trim()) {
-      setEditingSessionId(null);
+  const handleSaveTitle = async (sessionId: string) => {
+    const title = editTitleText.trim().slice(0, 120);
+    const target = sessions.find((s) => s.id === sessionId);
+    setEditingSessionId(null);
+    if (!title || !target || title === target.title || !ownsSession(target)) return;
+    setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, title } : s)));
+    if (!(await updateConversation(sessionId, { title }))) {
+      setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, title: target.title } : s)));
       return;
     }
-    setSessions((prev) =>
-      prev.map((s) => (s.id === sessionId ? { ...s, title: editTitleText.trim() } : s))
-    );
-    setEditingSessionId(null);
     setToastMessage("Conversation renamed.");
     setTimeout(() => setToastMessage(null), 2500);
   };
 
   // Toggle Share to Partner
-  const handleToggleShare = (sessionId: string) => {
+  const handleToggleShare = async (sessionId: string) => {
     const targetSession = sessions.find((s) => s.id === sessionId);
-    if (!targetSession) return;
+    if (!targetSession || !ownsSession(targetSession)) return;
     const nextShared = !targetSession.isShared;
 
     setSessions((prev) =>
-      prev.map((s) => (s.id === sessionId ? { ...s, isShared: nextShared } : s))
+      prev.map((s) => (s.id === sessionId ? { ...s, isShared: nextShared, mode: nextShared ? "shared" : "personal" } : s))
     );
+    if (!(await updateConversation(sessionId, { shared: nextShared }))) {
+      setSessions((prev) =>
+        prev.map((s) => (s.id === sessionId ? { ...s, isShared: targetSession.isShared, mode: targetSession.mode } : s))
+      );
+      return;
+    }
 
     setToastMessage(
       nextShared
@@ -630,6 +660,11 @@ export function ChatView() {
   const handleSend = async (textToSend?: string): Promise<ChatMessage | null> => {
     const text = textToSend || inputText;
     if (!text.trim()) return null;
+    if (activeSession && !ownsSession(activeSession)) {
+      setToastMessage(`${partnerName} shared this chat with you. Start a new chat to ask Seiya.`);
+      setTimeout(() => setToastMessage(null), 3500);
+      return null;
+    }
 
     setInputText("");
     setIsProcessing(true);
@@ -695,7 +730,8 @@ export function ChatView() {
 
     // Seiya's AI backend answers (and may record expenses through its tools).
     try {
-      const reply = await sendChatMessage(text, { sessionKey: targetSessionId });
+      const sendShared = activeSessionId ? Boolean(activeSession?.isShared) : newChatMode === "shared";
+      const reply = await sendChatMessage(text, { sessionKey: targetSessionId, shared: sendShared });
       if (reply) appendToSession(targetSessionId, reply);
       return reply;
     } finally {
@@ -1126,11 +1162,11 @@ export function ChatView() {
                                   <p className="truncate text-xs leading-snug font-medium">{session.title}</p>
                                   {session.isShared ? (
                                     <span
-                                      title="Shared with your partner"
+                                      title={ownsSession(session) ? "Shared with your partner" : `Shared with you by ${partnerName}`}
                                       className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-[#B45529] bg-[#fbf0eb] px-1.5 py-0.5 rounded-full shrink-0 border border-[#B45529]/20"
                                     >
                                       <SolarIcon name="users-group-rounded" size={9} />
-                                      <span>Shared</span>
+                                      <span>{ownsSession(session) ? "Shared" : `From ${partnerName}`}</span>
                                     </span>
                                   ) : (
                                     <span
@@ -1148,8 +1184,8 @@ export function ChatView() {
                               </div>
                             )}
 
-                            {/* Triple Dots Menu Button */}
-                            {!isEditing && (
+                            {/* Triple Dots Menu Button (only for chats you started) */}
+                            {!isEditing && ownsSession(session) && (
                               <div className="relative shrink-0">
                                 <button
                                   onClick={(e) => {
@@ -1287,7 +1323,7 @@ export function ChatView() {
 
           <div className="flex items-center gap-2 shrink-0">
             {/* Share to Partner button for Personal chats */}
-            {activeSession && !activeSession.isShared && (
+            {activeSession && !activeSession.isShared && ownsSession(activeSession) && (
               <Button
                 variant="outline"
                 size="sm"
@@ -1514,6 +1550,11 @@ export function ChatView() {
                   />
                 )}
 
+                {msg.cardType === "BILL_DRAFT" && Array.isArray(msg.cardData?.bills) &&
+                  (msg.cardData.bills as BillDraft[]).map((bill, j) => (
+                    <BillDraftCard key={`${msg.id}-bill-${j}`} draft={bill} onAdd={saveBillDraft} />
+                  ))}
+
                 {msg.cardType === "RECEIPT_DRAFT" && msg.cardData && (
                   <ReceiptDraftCard
                     receipt={msg.cardData}
@@ -1722,7 +1763,14 @@ export function ChatView() {
                 type="text"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                placeholder={pendingAttachment ? "Add a note (optional), then press Send" : "Message Seiya…"}
+                disabled={Boolean(activeSession) && !ownsSession(activeSession)}
+                placeholder={
+                  activeSession && !ownsSession(activeSession)
+                    ? `Shared by ${partnerName} · start a new chat to reply`
+                    : pendingAttachment
+                    ? "Add a note (optional), then press Send"
+                    : "Message Seiya…"
+                }
                 className="w-full px-3 sm:px-4 py-2 sm:py-2.5 rounded-full bg-[#fef9ef] border border-[#d1c9bf] text-xs sm:text-sm text-[#2a2b2f] placeholder-[#808988] focus:outline-none focus:ring-2 focus:ring-[#B45529]/20 transition-all shadow-2xs"
               />
             </form>

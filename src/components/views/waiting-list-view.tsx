@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { formatMoney, formatMoneyConverted } from "@/lib/utils";
 import { SolarIcon } from "@/components/icons/solar";
 import { Badge } from "@/components/ui/badge";
@@ -8,8 +8,23 @@ import { Button } from "@/components/ui/button";
 import { useApp } from "@/lib/store";
 import { PageHeader } from "@/components/ui/page-header";
 
+/** "07:59:12" until the hold ends; null once it has ended (or has no end time). */
+function remainingText(holdUntilAt: string | undefined, now: number): string | null {
+  const end = holdUntilAt ? new Date(holdUntilAt).getTime() : NaN;
+  if (Number.isNaN(end) || end <= now) return null;
+  const total = Math.ceil((end - now) / 1000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(Math.floor(total / 3600))}:${pad(Math.floor((total % 3600) / 60))}:${pad(total % 60)}`;
+}
+
 export function WaitingListView() {
   const { heldPurchases, continueHeldPurchase, cancelHeldPurchase, reportingCurrency, locale, partnerAName, partnerBName } = useApp();
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-16">
@@ -43,6 +58,7 @@ export function WaitingListView() {
             .map((item) => {
               const requesterDisplayName = item.requester === "partner_a" ? partnerAName : partnerBName;
               const itemCurrency = item.currency || reportingCurrency;
+              const remaining = remainingText(item.holdUntilAt, now);
 
               return (
                 <div
@@ -71,6 +87,11 @@ export function WaitingListView() {
                       <span className="text-xs text-[#C98A4F] font-semibold block font-mono mt-1">
                         Held until: {item.holdUntil}
                       </span>
+                      {remaining && (
+                        <span className="text-xs text-[#515151] block font-mono mt-0.5" aria-live="off">
+                          Unlocks in {remaining}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -83,7 +104,9 @@ export function WaitingListView() {
 
                   <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
                     <span className="text-[11px] text-[#808988]">
-                      Rerunning checks validates threshold & approval status.
+                      {remaining
+                        ? "You can continue once the cooling-off period ends."
+                        : "Continuing reruns the threshold and approval checks."}
                     </span>
                     <div className="flex items-center gap-2">
                       <Button
@@ -98,9 +121,10 @@ export function WaitingListView() {
                         variant="primary"
                         size="sm"
                         onClick={() => continueHeldPurchase(item.id)}
+                        disabled={Boolean(remaining)}
                         className="text-xs"
                       >
-                        Continue Anyway (Rerun Gateway)
+                        {remaining ? `Locked · ${remaining}` : "Continue Purchase"}
                       </Button>
                     </div>
                   </div>

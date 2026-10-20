@@ -20,15 +20,19 @@ export async function requestSimulatedTransaction(
   });
 }
 
+// Approving needs the approver's PIN, checked (with the wrong-PIN lockout) by
+// the RPC. Returns { ok: false, reason } for a missing, wrong or locked PIN and
+// { ok: true, transaction } otherwise.
 export async function decideSimulatedTransaction(
   supabase: SupabaseClient,
   transactionId: string,
   input: TransactionDecisionInput
 ) {
-  return supabase.rpc("decide_simulated_transaction", {
+  return supabase.rpc("decide_simulated_transaction_with_pin", {
     p_transaction_id: transactionId,
     p_decision: input.decision,
     p_note: input.note,
+    p_pin: input.decision === "approved" ? input.pin ?? null : null,
   });
 }
 

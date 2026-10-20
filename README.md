@@ -80,7 +80,6 @@ Put values in `.env.local` locally and in Vercel → Project → Settings → En
 | Variable | Default | Description |
 |---|---|---|
 | `APP_BASE_URL` | `http://localhost:3000` | Base for invitation links and the OpenRouter `HTTP-Referer`. Production: `https://seiya.web.id`. |
-| `WECHAT_APP_ID`, `WECHAT_APP_SECRET` | empty | Enable "Continue with WeChat" (server only). The button is hidden until both are set. See section 6. |
 | `NEXT_PUBLIC_ENABLE_DEMO_SIMULATION` | `false` | Shows a screen switcher in the auth/onboarding flow for design review. Keep `false` in production. |
 
 ### AI provider keys (server only, secret)
@@ -140,18 +139,26 @@ Production runs on Vercel project **seiya** with the domain **seiya.web.id** (an
 4. Domain: the registrar (IDwebhost) points the nameservers to `ns1.vercel-dns.com` and `ns2.vercel-dns.com`; Vercel then serves DNS, `www`, and the HTTPS certificate. If you ever move DNS back to the registrar, use the records shown in Vercel → Settings → Domains instead.
 5. Supabase → Authentication → URL Configuration: set the Site URL to `https://seiya.web.id` (sign-in uses name + password, so this only matters for future email links).
 
-### WeChat login (optional)
+### Access from mainland China
 
-"Continue with WeChat" appears on the login and register screens once `WECHAT_APP_ID` and `WECHAT_APP_SECRET` are set. Supabase has no WeChat provider, so the server runs the OAuth exchange (`/api/auth/wechat/start` → WeChat QR page → `/api/auth/wechat/callback`), then creates the account on first use (`wx-<hash>@users.seiya.invalid`, name from the WeChat nickname) and starts a normal Supabase session. A random `state` cookie protects against login CSRF; the AppSecret never reaches the browser.
+Seiya is built for a competition in China, where Google services are blocked and some CDNs are unreliable. The browser only needs to reach **`seiya.web.id`**:
 
-1. Register at [open.weixin.qq.com](https://open.weixin.qq.com) and create a **Website Application** (网站应用). WeChat reviews the developer/company and charges a yearly verification fee.
-2. Set the authorized callback domain to `seiya.web.id` (no `https://`, no path).
-3. Put the AppID and AppSecret into Vercel → Environment Variables (Production) and redeploy.
-4. Check `GET https://seiya.web.id/api/auth/wechat` returns `{"enabled":true}`.
+| Concern | Status |
+|---|---|
+| Login | Full name + password through our own API. No Google sign-in. |
+| Fonts | `next/font` downloads Lora, Inter and Plus Jakarta Sans at build time and serves them from `/_next/static/media`; no runtime request to Google Fonts. |
+| Receipt OCR (tesseract.js) | Worker, engine (WASM) and `eng`/`ind` language data are served from `/ocr` on our domain, not `cdn.jsdelivr.net`. `scripts/copy-ocr-assets.mjs` copies them from the pinned npm packages (`tesseract.js`, `tesseract.js-core`, `@tesseract.js-data/eng`, `@tesseract.js-data/ind`) before every `dev`/`build`; `public/ocr/` is git-ignored. Verified: with `/ocr` removed the OCR fails instead of falling back to the CDN, and with it present the sample receipt reads in about 1 s. |
+| Supabase | Only the server talks to Supabase. Chat history, the last direct browser read, now goes through `GET /api/households/[householdId]/chat-history`. |
+| AI providers (Groq, Mistral, OpenRouter, Cloudflare) | Called only from the Vercel server, outside China. |
+| Analytics / trackers | None. |
 
-Accounts are keyed by `unionid` when WeChat provides it, otherwise `openid`. Linking WeChat to an existing name + password account is not built yet.
+The only external hosts left in the client bundle are strings the browser never requests (tesseract.js's default CDN path, which `src/lib/receipt-ocr.ts` overrides, and a license comment).
 
-After a nameserver change, some home routers keep a cached failure for a while; test from mobile data or a public DNS (8.8.8.8 / 1.1.1.1) if the site does not open locally.
+Remaining risks:
+
+- **Vercel from China.** `*.vercel.app` addresses are often blocked; use `https://seiya.web.id`. Custom domains on Vercel usually load but can be slow or intermittent depending on the network. Test from inside China before the event (for example a phone on a Chinese mobile network, or an online "China speed test" for the URL).
+- **If it is too slow**, the usual fix is a host with mainland or Hong Kong points of presence. Hosting inside mainland China requires an ICP filing (ICP备案) for the domain; Hong Kong hosting does not.
+- **First receipt scan** downloads about 8 MB once (engine plus Indonesian/English data); later scans are cached by the browser.
 
 ## 7. Project structure
 
@@ -226,9 +233,6 @@ Some APIs may map database errors differently. Frontend code should show a safe 
 | Method | Endpoint | Purpose | Auth |
 |---|---|---|---|
 | `POST` | `/api/auth/signup` | Create account with full name + password | Public entry point |
-| `GET` | `/api/auth/wechat` | `{ enabled }`: whether WeChat login is configured | Public |
-| `GET` | `/api/auth/wechat/start` | Redirect to WeChat's QR login page (sets the `state` cookie) | Public entry point |
-| `GET` | `/api/auth/wechat/callback` | WeChat returns here; exchanges the code, signs in, redirects to `/` | Public entry point |
 | `POST` | `/api/auth/signin` | Sign in and establish session cookie | Public entry point |
 | `GET` | `/api/auth/me` | Get current authenticated profile, active household, partner, and PIN status | Required |
 | `POST` | `/api/auth/signout` | End local session | Required |
@@ -810,7 +814,7 @@ Before release, the frontend and backend developers should cross-check the exact
 
 ## 30. Manual terminal tests
 
-Five scripts in `scripts/` drive the real API (signup cookies + RLS-scoped Supabase reads) and print PASS/WARN/FAIL per assertion. They run against the dev server, not a mock, and they create real rows in the development Supabase project.
+Six scripts in `scripts/` drive the real API (sign-in cookies + RLS-scoped Supabase reads) and print PASS/WARN/FAIL per assertion. They run against the dev server, not a mock, and they create real rows in the development Supabase project.
 
 **Prerequisite:** the dev server must be running first.
 
@@ -826,18 +830,20 @@ npm run test:setup   # terminal 2 — one-shot account/household/agreement check
 | `npm run test:wellness` | Stress + crisis messages with the strongest profile applied. Asserts: no currency numbers, no tools, no emoji, no loan/product offer, professional-help pointer, no internal labels. |
 | `npm run test:expense` | `"hari ini aku habis Rp20 juta untuk liburan ke Jepang"` → `record_expense` → row in `transactions` with category `travel` and status from the active agreement (`pending_approval` above the Rp5 juta test threshold); identical resend stays a single row; a personal wallet with zero balance is never faked. |
 | `npm run test:statement` | Bank statement parsing (CSV, Excel `.xlsx`) with 0-token extraction, automatic merchant title cleaning, category mapping (`Food & Drinks`, `Shopping`, `Bills`, `Transportation`, `Income`), preview mode (`dryRun`), and atomic batch commit to Supabase. |
+| `npm run test:security` | Two-partner security pass: personal-wallet privacy (API and direct RLS), IDOR on another household (403), approve needs the approver's PIN on every route, wrong/missing PIN and self-approval rejected, PIN cannot be replaced without the current one, requester can cancel a pending request, cooling-off cannot be skipped, undo restores balance, double-click bill payment debits once, a shared goal cannot be deleted by one partner. |
 | `npm run test:chat` | Runs the three scenario scripts back to back. |
 
 All of them accept the same overrides when you do not want the defaults:
 
 ```powershell
-$env:SEIYA_TEST_EMAIL_A = "suami@gmail.com"   # akun yang SUDAH terkonfirmasi
-$env:SEIYA_TEST_EMAIL_B = "istri@gmail.com"
+$env:SEIYA_TEST_NAME_A = "Seiya Tester A"   # full name = username
+$env:SEIYA_TEST_NAME_B = "Seiya Tester B"
 $env:SEIYA_TEST_PASSWORD = "<password>"
+$env:SEIYA_TEST_PIN = "246810"             # 6-digit PIN used by test:security
 $env:SEIYA_TEST_BASE_URL = "http://localhost:3000"
 npm run test:setup
 ```
 
-**First-run account caveat (read before reporting a failure):** the harness signs up `seiya.test.a@gmail.com` / `seiya.test.b@gmail.com` with `SEIYA_TEST_PASSWORD` (default `SeiyaTest123!`). This project sends a confirmation email, so either confirm both inboxes once, or add `SUPABASE_SECRET_KEY` (service role) to `.env.local` so the harness creates and confirms both accounts itself. GoTrue rejects `example.com`-style domains, and the dev project's email quota can be exhausted (`over_email_send_rate_limit`) — in that case point the overrides above at accounts you already have. None of these secrets are read by application code, only by the scripts.
+**First-run account caveat (read before reporting a failure):** the harness signs in with full names (`Seiya Tester A` / `Seiya Tester B`) and `SEIYA_TEST_PASSWORD` (default `SeiyaTest123!`), the same way the app does. With `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` it creates both accounts already confirmed, so no email is involved. `test:security` sets the test PIN on accounts that have none yet. These values are read only by the scripts, never by application code.
 
 Each script exits non-zero when a hard assertion fails; WARN lines (tone, emoji count, length ordering) are model-dependent and are meant to be eyeballed in the printed replies.

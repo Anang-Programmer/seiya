@@ -4,7 +4,7 @@ import { validateUpdatePlan } from "@/backend/validators/plan";
 import {
   getHouseholdPlan,
   updateHouseholdPlan,
-  deleteHouseholdPlan,
+  toApiPlan,
 } from "@/backend/services/plan.service";
 
 type RouteContext = { params: Promise<{ householdId: string; planId: string }> };
@@ -30,23 +30,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
     return NextResponse.json({
       success: true,
-      plan: {
-        id: plan.id,
-        title: plan.title,
-        category: plan.category,
-        targetAmount: Number(plan.target_amount),
-        currentAmount: Number(plan.current_amount),
-        currency: plan.currency,
-        targetDate: plan.target_date,
-        recommendedMonthly: Number(plan.recommended_monthly),
-        splitRecommendation: {
-          partnerB: Number(plan.split_partner_b),
-          partnerA: Number(plan.split_partner_a),
-        },
-        walletFunding: plan.wallet_funding,
-        status: plan.status,
-        assumptions: plan.assumptions,
-      },
+      plan: toApiPlan(plan),
     });
   } catch (error) {
     console.error("[plans/get] Unexpected error:", error);
@@ -79,31 +63,24 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ success: false, message: "Login required." }, { status: 401 });
     }
 
-    const { data: plan, error } = await updateHouseholdPlan(supabase, householdId, planId, validation.data, user.id);
-    if (error) {
+    const { data: plan, pendingApprovalId, error } = await updateHouseholdPlan(supabase, householdId, planId, validation.data);
+    if (error || !plan) {
+      if (error?.code === "P0002") {
+        return NextResponse.json({ success: false, message: "Goal not found." }, { status: 404 });
+      }
+      if (error?.code === "22023" || error?.code === "23514") {
+        return NextResponse.json({ success: false, message: "Invalid goal values." }, { status: 400 });
+      }
       return NextResponse.json({ success: false, message: "Unable to update goal." }, { status: 500 });
     }
 
     return NextResponse.json({
       success: true,
-      message: "Goal updated successfully.",
-      plan: {
-        id: plan.id,
-        title: plan.title,
-        category: plan.category,
-        targetAmount: Number(plan.target_amount),
-        currentAmount: Number(plan.current_amount),
-        currency: plan.currency,
-        targetDate: plan.target_date,
-        recommendedMonthly: Number(plan.recommended_monthly),
-        splitRecommendation: {
-          partnerB: Number(plan.split_partner_b),
-          partnerA: Number(plan.split_partner_a),
-        },
-        walletFunding: plan.wallet_funding,
-        status: plan.status,
-        assumptions: plan.assumptions,
-      },
+      message: pendingApprovalId
+        ? "Goal updated. Target, currency, split or archive changes are waiting for your partner's approval."
+        : "Goal updated successfully.",
+      pendingApprovalId,
+      plan: toApiPlan(plan),
     });
   } catch (error) {
     console.error("[plans/update] Unexpected error:", error);
@@ -111,27 +88,5 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 }
 
-export async function DELETE(_request: Request, context: RouteContext) {
-  const { householdId, planId } = await context.params;
-  if (!UUID_PATTERN.test(householdId) || !UUID_PATTERN.test(planId)) {
-    return NextResponse.json({ success: false, message: "Invalid parameters." }, { status: 400 });
-  }
-
-  try {
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ success: false, message: "Login required." }, { status: 401 });
-    }
-
-    const { error } = await deleteHouseholdPlan(supabase, householdId, planId, user.id);
-    if (error) {
-      return NextResponse.json({ success: false, message: "Unable to delete goal." }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true, message: "Goal deleted successfully." });
-  } catch (error) {
-    console.error("[plans/delete] Unexpected error:", error);
-    return NextResponse.json({ success: false, message: "An unexpected error occurred." }, { status: 500 });
-  }
-}
+// No DELETE: a shared goal is removed only with both partners, through
+// POST ./request-delete (dual PIN in person, or a PLAN_DELETE approval).

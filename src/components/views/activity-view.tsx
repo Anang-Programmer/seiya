@@ -7,10 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { useApp } from "@/lib/store";
 
 export function ActivityView() {
-  const { activities, reportingCurrency, locale, partnerAName, partnerBName } = useApp();
+  const { activities, reportingCurrency, locale, partnerAName, partnerBName, currentUser } = useApp();
+  const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
   const [filterActor, setFilterActor] = useState<"all" | "partner_a" | "partner_b" | "seiya">("all");
   const [filterStatus, setFilterStatus] = useState<"all" | "ALLOW" | "NEED_APPROVAL" | "HOLD" | "DENY">("all");
 
+  const hasFilters = filterActor !== "all" || filterStatus !== "all";
   const filtered = activities.filter((act) => {
     if (filterActor !== "all" && act.actor !== filterActor) return false;
     if (filterStatus !== "all" && act.status !== filterStatus) return false;
@@ -29,8 +31,8 @@ export function ActivityView() {
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth py-0.5 flex-1">
             {[
               { id: "all", label: "All" },
-              { id: "partner_a", label: `${partnerAName} (You)` },
-              { id: "partner_b", label: partnerBName },
+              { id: "partner_a", label: currentUser === "partner_a" ? `${partnerAName} (You)` : capitalize(partnerAName) },
+              { id: "partner_b", label: currentUser === "partner_b" ? `${partnerBName} (You)` : capitalize(partnerBName) },
               { id: "seiya", label: "Seiya AI" },
             ].map((actor) => (
               <button
@@ -91,8 +93,15 @@ export function ActivityView() {
             <div className="w-10 h-10 rounded-full bg-[#f5eee1] text-[#808988] flex items-center justify-center mx-auto">
               <SolarIcon name="info-circle" size={20} />
             </div>
-            <p className="font-semibold text-sm text-[#2a2b2f]">No matching activities found</p>
-            <p className="text-[#808988]">Try resetting your actor and outcome filters.</p>
+            <p className="font-semibold text-sm text-[#2a2b2f]">
+              {hasFilters ? "No matching activities found" : "No activity yet"}
+            </p>
+            <p className="text-[#808988]">
+              {hasFilters
+                ? "Try resetting your actor and outcome filters."
+                : "Expenses, approvals, bills and agreement changes will appear here as they happen."}
+            </p>
+            {hasFilters && (
             <button
               onClick={() => {
                 setFilterActor("all");
@@ -102,6 +111,7 @@ export function ActivityView() {
             >
               Reset filters
             </button>
+            )}
           </div>
         ) : (
           filtered.map((item) => {
@@ -120,13 +130,13 @@ export function ActivityView() {
                   <div className="flex items-center gap-2.5 min-w-0">
                     {isPartnerA ? (
                       <img
-                        src="/dashboard/Profile-Card-Man.png"
+                        src="/dashboard/Profile-Card-Man.webp"
                         alt={actorName}
                         className="w-8 h-8 rounded-full object-cover border border-[#ecd9c7] shadow-2xs shrink-0"
                       />
                     ) : isPartnerB ? (
                       <img
-                        src="/dashboard/Profile-Card-Women.png"
+                        src="/dashboard/Profile-Card-Women.webp"
                         alt={actorName}
                         className="w-8 h-8 rounded-full object-cover border border-[#ecd9c7] shadow-2xs shrink-0"
                       />

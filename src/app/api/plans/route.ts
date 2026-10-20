@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { validateCreatePlan } from "@/backend/validators/plan";
-import { listHouseholdPlans, createHouseholdPlan } from "@/backend/services/plan.service";
+import { listHouseholdPlans, createHouseholdPlan, toApiPlan } from "@/backend/services/plan.service";
 
 async function getActiveHouseholdId(supabase: SupabaseClient, userId: string): Promise<string | null> {
   const { data } = await supabase
@@ -34,25 +34,7 @@ export async function GET() {
       return NextResponse.json({ success: false, message: "Unable to load goals." }, { status: 500 });
     }
 
-    const mapped = (plans ?? []).map((p) => ({
-      id: p.id,
-      title: p.title,
-      category: p.category,
-      targetAmount: Number(p.target_amount),
-      currentAmount: Number(p.current_amount),
-      currency: p.currency,
-      targetDate: p.target_date,
-      recommendedMonthly: Number(p.recommended_monthly),
-      splitRecommendation: {
-        partnerB: Number(p.split_partner_b),
-        partnerA: Number(p.split_partner_a),
-      },
-      walletFunding: p.wallet_funding,
-      status: p.status,
-      assumptions: p.assumptions,
-      createdAt: p.created_at,
-      updatedAt: p.updated_at,
-    }));
+    const mapped = (plans ?? []).map(toApiPlan);
 
     return NextResponse.json({ success: true, plans: mapped });
   } catch (error) {
@@ -94,23 +76,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       message: "Goal created successfully.",
-      plan: {
-        id: plan.id,
-        title: plan.title,
-        category: plan.category,
-        targetAmount: Number(plan.target_amount),
-        currentAmount: Number(plan.current_amount),
-        currency: plan.currency,
-        targetDate: plan.target_date,
-        recommendedMonthly: Number(plan.recommended_monthly),
-        splitRecommendation: {
-          partnerB: Number(plan.split_partner_b),
-          partnerA: Number(plan.split_partner_a),
-        },
-        walletFunding: plan.wallet_funding,
-        status: plan.status,
-        assumptions: plan.assumptions,
-      },
+      plan: toApiPlan(plan),
     }, { status: 201 });
   } catch (error) {
     console.error("[plans/top-create] Unexpected error:", error);

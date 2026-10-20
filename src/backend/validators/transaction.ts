@@ -12,6 +12,8 @@ export type CreateTransactionInput = {
 export type TransactionDecisionInput = {
   decision: "approved" | "rejected";
   note: string | null;
+  /** Required when approving; checked in the route, never sent to the RPC. */
+  pin?: string;
 };
 
 type ValidationResult<T> =
@@ -131,5 +133,13 @@ export function validateTransactionDecision(
     return { ok: false, message: "Decision note must be at most 500 characters." };
   }
 
-  return { ok: true, data: { decision: value.decision, note } };
+  let pin: string | undefined;
+  if (value.pin !== undefined && value.pin !== null && value.pin !== "") {
+    if (typeof value.pin !== "string" || !/^\d{6}$/.test(value.pin.trim())) {
+      return { ok: false, message: "pin must be a 6-digit numeric string." };
+    }
+    pin = value.pin.trim();
+  }
+
+  return { ok: true, data: { decision: value.decision, note, ...(pin ? { pin } : {}) } };
 }

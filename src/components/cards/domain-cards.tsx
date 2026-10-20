@@ -345,10 +345,12 @@ export function PlanCard({
           <span className="text-[#515151]">Split:</span>
           <span className="font-semibold text-[#B45529]">{split}</span>
         </div>
-        <div className="text-[11px] text-[#515151] bg-[#fef9ef] p-3 rounded-[12px]">
-          <span className="font-medium text-[#2a2b2f] block mb-0.5">Assumptions & Rules:</span>
-          {assumptions}
-        </div>
+        {typeof assumptions === "string" && assumptions.trim() && (
+          <div className="text-[11px] text-[#515151] bg-[#fef9ef] p-3 rounded-[12px]">
+            <span className="font-medium text-[#2a2b2f] block mb-0.5">Assumptions & Rules:</span>
+            {assumptions}
+          </div>
+        )}
       </div>
 
       {/* Action buttons */}

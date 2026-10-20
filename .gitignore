@@ -56,3 +56,6 @@ knowledge/seiya/DEPLOYMENT-GUIDE.md
 
 # tesseract.js language-data cache (created when OCR runs in Node)
 *.traineddata
+
+# tesseract.js files copied from node_modules by scripts/copy-ocr-assets.mjs
+/public/ocr/

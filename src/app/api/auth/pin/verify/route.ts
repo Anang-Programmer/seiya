@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { validateVerifyPin } from "@/backend/validators/pin";
-import { verifyUserPin } from "@/backend/services/pin.service";
+import { checkUserPin, PIN_LOCKED_MESSAGE } from "@/backend/services/pin.service";
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -23,8 +23,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: "Login required." }, { status: 401 });
     }
 
-    const targetUserId = validation.data.userId || user.id;
-    const isValid = await verifyUserPin(supabase, targetUserId, validation.data.pin);
+    // verify_user_pin only checks the caller's own PIN.
+    const check = await checkUserPin(supabase, validation.data.pin);
+    if (check === "locked") {
+      return NextResponse.json({ success: false, valid: false, message: PIN_LOCKED_MESSAGE }, { status: 429 });
+    }
+    const isValid = check === "valid";
 
     return NextResponse.json({
       success: isValid,

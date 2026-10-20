@@ -47,15 +47,7 @@ import {
 // Screen-jumping review tools are only available when explicitly enabled.
 const DEMO_SIMULATION_ENABLED = process.env.NEXT_PUBLIC_ENABLE_DEMO_SIMULATION === "true";
 
-const WECHAT_ERRORS: Record<string, string> = {
-  denied: "WeChat sign-in was cancelled.",
-  state: "The WeChat sign-in expired. Please try again.",
-  exchange: "WeChat couldn't confirm your account. Please try again.",
-  profile: "WeChat couldn't confirm your account. Please try again.",
-  session: "Seiya couldn't start your session after WeChat. Please try again.",
-  not_configured: "WeChat sign-in isn't available yet.",
-};
-
+// WeChat brand mark (green chat bubbles). Login with WeChat is shown as UI only.
 function WeChatLogo({ size = 20 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
@@ -126,36 +118,14 @@ export function AuthView({
   // Form states (Login & Register)
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
-  // A failed WeChat sign-in comes back as /?wechat_error=<reason>.
-  const [authError, setAuthError] = useState(() => {
-    if (typeof window === "undefined") return "";
-    const reason = new URLSearchParams(window.location.search).get("wechat_error");
-    return reason ? WECHAT_ERRORS[reason] ?? WECHAT_ERRORS.session : "";
-  });
-  const [wechatEnabled, setWechatEnabled] = useState(false);
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.has("wechat_error")) {
-      params.delete("wechat_error");
-      const rest = params.toString();
-      window.history.replaceState(null, "", window.location.pathname + (rest ? `?${rest}` : ""));
-    }
-    let cancelled = false;
-    fetch("/api/auth/wechat", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : { enabled: false }))
-      .then((d: { enabled?: boolean }) => {
-        if (!cancelled) setWechatEnabled(Boolean(d.enabled));
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const [authError, setAuthError] = useState("");
   const [authNotice, setAuthNotice] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  // "Continue with WeChat" is UI only for now: it opens a "coming soon" sheet.
+  const [showWechatSheet, setShowWechatSheet] = useState(false);
 
   // Dynamic names: once signed in they come from the household (owner = partner A).
   const activePartnerAName = authUser ? partnerAName : fullName.trim() || partnerAName;
@@ -754,11 +724,12 @@ export function AuthView({
       "At a set time": "waktu_khusus",
     };
     const perma: Record<string, string> = {
-      "Calmer day to day": "emosi_positif",
-      "Proud of my growth": "pencapaian",
-      "My life has more meaning": "makna",
-      "Freer to choose": "keasyikan",
-      "Closer as a couple": "hubungan",
+      // Labels mirror PERMA_GOAL_DIRECTIVES in src/backend/personalization.ts
+      "Enjoy life without guilt": "emosi_positif",
+      "Reach a big milestone": "pencapaian",
+      "Support my family": "makna",
+      "More time for what I love": "keasyikan",
+      "Celebrate together": "hubungan",
     };
     const accounts: Record<string, string> = {
       "Fully combined": "shared",
@@ -1086,10 +1057,10 @@ export function AuthView({
     },
     14: {
       category: "Your goals",
-      question: "Reaching it would make you feel…",
-      subtitle: "Helps Seiya understand why it matters",
+      question: "What should this goal bring you most?",
+      subtitle: "Seiya keeps this in mind when it helps you plan",
       type: "choice" as const,
-      options: ["Calmer day to day", "Proud of my growth", "My life has more meaning", "Freer to choose", "Closer as a couple"],
+      options: ["Enjoy life without guilt", "Reach a big milestone", "More time for what I love", "Support my family", "Celebrate together"],
       selectedString: goalEmotion,
       onSelectString: (v: string) => setGoalEmotion(v),
     },
@@ -1611,23 +1582,22 @@ export function AuthView({
                   </button>
                 </div>
 
-                {/* Continue with WeChat: signs in, or creates the account on first use */}
-                {wechatEnabled && (
-                  <div className="space-y-3 pt-1">
-                    <div className="flex items-center gap-3 text-xs text-[#a3abaa]">
-                      <span className="h-px flex-1 bg-[#e8dfd5]" />
-                      <span>or</span>
-                      <span className="h-px flex-1 bg-[#e8dfd5]" />
-                    </div>
-                    <a
-                      href="/api/auth/wechat/start"
-                      className="w-full py-3.5 px-6 rounded-full border border-[#d1c9bf] bg-white hover:bg-[#f6fbf8] hover:border-[#07C160]/50 text-[#2a2b2f] font-serif text-base flex items-center justify-center gap-2.5 transition-all shadow-2xs cursor-pointer"
-                    >
-                      <WeChatLogo />
-                      <span>Continue with WeChat</span>
-                    </a>
+                {/* Continue with WeChat (UI only: shows a "coming soon" sheet) */}
+                <div className="space-y-3 pt-1">
+                  <div className="flex items-center gap-3 text-xs text-[#a3abaa]">
+                    <span className="h-px flex-1 bg-[#e8dfd5]" />
+                    <span>or</span>
+                    <span className="h-px flex-1 bg-[#e8dfd5]" />
                   </div>
-                )}
+                  <button
+                    type="button"
+                    onClick={() => setShowWechatSheet(true)}
+                    className="w-full py-3.5 px-6 rounded-full border border-[#d1c9bf] bg-white hover:bg-[#f6fbf8] hover:border-[#07C160]/50 text-[#2a2b2f] font-serif text-base flex items-center justify-center gap-2.5 transition-all shadow-2xs cursor-pointer active:scale-[0.99]"
+                  >
+                    <WeChatLogo />
+                    <span>Continue with WeChat</span>
+                  </button>
+                </div>
 
                 {/* Switch between Login and Register */}
                 <div className="text-center pt-2">
@@ -1679,6 +1649,7 @@ export function AuthView({
                   src="/images/auth/auth-mascot.png"
                   alt="Seiya Mascot on Laptop"
                   fill
+                  sizes="(min-width: 1024px) 40vw, 1px"
                   priority
                   className="object-contain"
                 />
@@ -2131,6 +2102,11 @@ export function AuthView({
                 {/* Category, Title, and Subtitle */}
                 <div className="space-y-1">
                   <span className="font-serif text-xs sm:text-sm text-[#808988] block">
+                    {currentScreen <= 21 && (
+                      <span className="text-[#B45529] font-medium">
+                        Question {currentScreen} of 21 ·{" "}
+                      </span>
+                    )}
                     {currentScreenConfig.category}
                   </span>
                   <h1 className="font-serif text-xl sm:text-2xl font-normal text-[#2a2b2f] tracking-tight leading-snug">
@@ -2663,6 +2639,8 @@ export function AuthView({
                               onRemove={clause.kind === "custom" ? () => removeOwnClause(clause.id) : undefined}
                               currency={promiseCurrency}
                               partnerName={promisePartnerName}
+                              ownerLabel={isHouseholdCreator ? "You" : promisePartnerName}
+                              memberLabel={isHouseholdCreator ? promisePartnerName : "You"}
                               partnerPicked={Boolean(partnerVersion) && !promiseActive}
                               partnerDiffers={
                                 !promiseActive &&
@@ -3883,6 +3861,7 @@ export function AuthView({
                   src="/images/auth/auth-mascot.png"
                   alt="Seiya Financial Mediator"
                   fill
+                  sizes="64px"
                   className="object-contain"
                 />
               </div>
@@ -3925,6 +3904,76 @@ export function AuthView({
       {/* =========================================================================
           JOIN SPACE MODAL (Invite code input)
           ========================================================================= */}
+      {showWechatSheet && (
+        <div
+          className="fixed inset-0 z-50 bg-[#2a2b2f]/50 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="wechat-sheet-title"
+          onClick={() => setShowWechatSheet(false)}
+        >
+          <div
+            className="bg-white w-full sm:max-w-sm rounded-t-[28px] sm:rounded-[28px] p-6 sm:p-7 shadow-2xl space-y-5 animate-in fade-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <span className="w-10 h-10 rounded-full bg-[#e9f9f0] flex items-center justify-center">
+                  <WeChatLogo size={22} />
+                </span>
+                <div>
+                  <h3 id="wechat-sheet-title" className="font-serif text-lg text-[#2a2b2f]">
+                    Continue with WeChat
+                  </h3>
+                  <p className="text-xs text-[#808988]">Scan with the WeChat app to sign in</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowWechatSheet(false)}
+                className="p-1.5 rounded-full text-[#808988] hover:text-[#2a2b2f] hover:bg-black/5 transition-colors cursor-pointer"
+                aria-label="Close"
+              >
+                <SolarIcon name="close-circle" size={20} />
+              </button>
+            </div>
+
+            {/* QR placeholder: WeChat sign-in is not connected yet */}
+            <div className="relative mx-auto w-48 h-48 rounded-[20px] border border-[#e6e6e6] bg-[#fafafa] overflow-hidden">
+              <div
+                className="absolute inset-3 opacity-[0.12]"
+                style={{
+                  backgroundImage:
+                    "linear-gradient(90deg,#2a2b2f 50%,transparent 50%),linear-gradient(#2a2b2f 50%,transparent 50%)",
+                  backgroundSize: "14px 14px",
+                }}
+              />
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-4">
+                <span className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center">
+                  <WeChatLogo size={28} />
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full bg-[#fffaee] border border-[#fcc850] text-[11px] font-semibold text-[#9a7414]">
+                  Coming soon
+                </span>
+              </div>
+            </div>
+
+            <p className="text-sm text-[#515151] text-center leading-relaxed">
+              WeChat sign-in is on its way. For now, {mode === "register" ? "create your account" : "sign in"} with your
+              full name and password.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => setShowWechatSheet(false)}
+              className="w-full py-3 rounded-full bg-[#B4562A] hover:bg-[#9c4820] text-white font-serif text-base transition-colors cursor-pointer"
+            >
+              {mode === "register" ? "Create account with name" : "Sign in with name"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {showJoinModal && (
         <div className="fixed inset-0 z-50 bg-[#2a2b2f]/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-[#FEF9E9] rounded-[24px] max-w-md w-full p-6 sm:p-8 shadow-2xl border border-[#eedecb] space-y-5 animate-in fade-in zoom-in-95 duration-200">

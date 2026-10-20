@@ -238,6 +238,33 @@ export function transformBill(row: ApiBill, ctx: Pick<TransformContext, "myUserI
   };
 }
 
+/**
+ * Flags an unpaid bill that costs noticeably more (over 10%) than the last paid
+ * bill with the same name and currency. Nothing is guessed: no history, no flag.
+ */
+export function withBillIncreaseAnomalies(rows: ApiBill[], bills: BillItem[]): BillItem[] {
+  const key = (title: string) => title.trim().toLowerCase();
+  const lastPaid = new Map<string, ApiBill>();
+  for (const row of rows) {
+    if (row.status !== "paid") continue;
+    const k = `${key(row.title)}|${row.currency}`;
+    const prev = lastPaid.get(k);
+    if (!prev || row.due_date > prev.due_date) lastPaid.set(k, row);
+  }
+  return bills.map((bill, i) => {
+    const row = rows[i];
+    if (bill.status === "paid" || bill.anomaly) return bill;
+    const prev = lastPaid.get(`${key(row.title)}|${row.currency}`);
+    const prevAmount = prev ? toNumber(prev.amount) : 0;
+    if (!prev || prevAmount <= 0 || bill.amount <= prevAmount * 1.1) return bill;
+    const pct = Math.round(((bill.amount - prevAmount) / prevAmount) * 100);
+    return {
+      ...bill,
+      anomaly: { type: "increase" as const, message: `Up ${pct}% from the last payment of this bill. Check it before paying.` },
+    };
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Approvals, plans, activities, held purchases
 // ---------------------------------------------------------------------------
@@ -320,6 +347,7 @@ export function transformHeldPurchase(row: ApiHeldPurchase, locale: string): Hel
     holdUntil: Number.isNaN(until.getTime())
       ? row.holdUntilDisplay || row.holdUntil
       : formatRelativeDate(row.holdUntil, locale),
+    holdUntilAt: Number.isNaN(until.getTime()) ? undefined : until.toISOString(),
     reason: row.reason ?? "",
     createdAt: row.createdAt,
   };

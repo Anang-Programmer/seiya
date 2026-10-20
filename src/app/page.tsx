@@ -132,11 +132,6 @@ function MainApp() {
       setShowLanding(false);
       setAuthMode("register");
       setAuthFlowActive(true);
-    } else if (new URLSearchParams(window.location.search).has("wechat_error")) {
-      // Back from a failed WeChat sign-in: show the message on the login screen.
-      setShowLanding(false);
-      setAuthMode("login");
-      setAuthFlowActive(true);
     } else {
       setShowLanding(true);
       setAuthFlowActive(false);
@@ -170,6 +165,27 @@ function MainApp() {
     }
     setCurrentTab(tab);
   };
+
+  // Each tab change gets a history entry so the browser Back button moves
+  // between tabs instead of leaving the app.
+  const lastTab = useRef<NavTab>("home");
+  useEffect(() => {
+    if (lastTab.current === currentTab) return;
+    lastTab.current = currentTab;
+    if (window.history.state?.seiyaTab !== currentTab) {
+      window.history.pushState({ seiyaTab: currentTab }, "");
+    }
+  }, [currentTab]);
+
+  useEffect(() => {
+    const onPopState = (event: PopStateEvent) => {
+      const tab = (event.state?.seiyaTab as NavTab | undefined) ?? "home";
+      lastTab.current = tab;
+      setCurrentTab(tab);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   if (isLoading) {
     return <FullScreenLoader />;
@@ -230,6 +246,31 @@ function MainApp() {
       }
     : null;
 
+  // Top banners match the width of the page below them; Home places the notice
+  // inside its own full-width grid.
+  const pageWidthClass =
+    currentTab === "home"
+      ? ""
+      : currentTab === "plan" || currentTab === "wallets" || currentTab === "draft_goals"
+        ? "max-w-5xl mx-auto"
+        : "max-w-4xl mx-auto";
+
+  const setupNotice = setupBanner && (
+    <div className={`${pageWidthClass} w-full p-3.5 rounded-[14px] bg-[#fefcf6] border border-[#B45529]/25 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3`}>
+      <div className="flex items-start gap-2.5 text-xs sm:text-[13px] text-[#2a2b2f] leading-relaxed">
+        <SolarIcon name="users-group-rounded" size={16} className="text-[#B45529] shrink-0 mt-0.5" />
+        <span>{setupBanner.message}</span>
+      </div>
+      <button
+        type="button"
+        onClick={() => openSetupFlow(setupBanner.mode, setupBanner.screen)}
+        className="shrink-0 self-start sm:self-auto px-4 py-1.5 rounded-full bg-[#B45529] hover:bg-[#9c4820] text-white text-xs font-serif transition-colors cursor-pointer"
+      >
+        {setupBanner.action}
+      </button>
+    </div>
+  );
+
   return (
     <div className="flex h-screen bg-gradient-to-b from-[#fef9ef] to-[#fefcf6] text-[#2a2b2f] overflow-hidden">
       {/* Desktop Collapsible Sidebar */}
@@ -258,7 +299,7 @@ function MainApp() {
             >
               <div className="w-full mt-0 lg:-mt-[4%]">
                 <img
-                  src="/dashboard/SeiyaBG-Landscape.png"
+                  src="/dashboard/SeiyaBG-Landscape.webp"
                   alt="Seiya Landscape Background"
                   className="w-full h-auto block"
                 />
@@ -277,25 +318,11 @@ function MainApp() {
             />
           )}
 
-          {currentTab !== "seiya" && (setupBanner || dataStatus.error) && (
+          {currentTab !== "seiya" && ((setupBanner && currentTab !== "home") || dataStatus.error) && (
             <div className="relative z-10 px-3.5 sm:px-8 pt-3 space-y-2">
-              {setupBanner && (
-                <div className="max-w-5xl mx-auto p-3.5 rounded-[12px] bg-[#B45529]/10 border border-[#B45529]/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-start gap-2 text-xs text-[#2a2b2f]">
-                    <SolarIcon name="users-group-rounded" size={16} className="text-[#B45529] shrink-0 mt-px" />
-                    <span>{setupBanner.message}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => openSetupFlow(setupBanner.mode, setupBanner.screen)}
-                    className="shrink-0 px-4 py-1.5 rounded-full bg-[#B45529] hover:bg-[#9c4820] text-white text-xs font-serif transition-colors cursor-pointer"
-                  >
-                    {setupBanner.action}
-                  </button>
-                </div>
-              )}
+              {setupBanner && currentTab !== "home" && setupNotice}
               {dataStatus.error && (
-                <div className="max-w-5xl mx-auto p-3.5 rounded-[12px] bg-[#fcf0ee] border border-[#9e382b]/20 flex items-center justify-between gap-3">
+                <div className={`${pageWidthClass || "max-w-7xl mx-auto"} p-3.5 rounded-[12px] bg-[#fcf0ee] border border-[#9e382b]/20 flex items-center justify-between gap-3`}>
                   <div className="flex items-start gap-2 text-xs text-[#9e382b]">
                     <SolarIcon name="danger-triangle" size={16} className="shrink-0 mt-px" />
                     <span>{dataStatus.error}</span>
@@ -323,11 +350,11 @@ function MainApp() {
               <ContentSkeleton />
             ) : (
               <>
-                {currentTab === "home" && <HomeView onNavigate={handleTabChange} />}
+                {currentTab === "home" && <HomeView onNavigate={handleTabChange} notice={setupNotice || undefined} />}
                 {currentTab === "seiya" && <ChatView />}
                 {currentTab === "approvals" && <ApprovalsView />}
                 {currentTab === "wallets" && <WalletsView />}
-                {currentTab === "bills" && <BillsView />}
+                {currentTab === "bills" && <BillsView onNavigate={handleTabChange} />}
                 {currentTab === "plan" && <PlanView onNavigate={handleTabChange} />}
                 {currentTab === "add_goal" && (
                   <AddGoalView

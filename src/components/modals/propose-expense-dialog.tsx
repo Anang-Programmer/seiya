@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { SolarIcon, SolarIconName } from "@/components/icons/solar";
 import { useApp } from "@/lib/store";
-import { SUPPORTED_CURRENCIES } from "@/lib/currency";
+import { convertAmount } from "@/lib/currency";
+import { parseAmount } from "@/lib/receipt-text";
 // Amounts here are decided on, so they stay visible in privacy mode.
 import { formatMoneyAlways as formatMoney } from "@/lib/utils";
 
@@ -34,13 +35,28 @@ const CATEGORY_OPTIONS: CategoryOption[] = [
   { label: "Others", icon: "layers" },
 ];
 
+// Presets fill the purpose and category only; amounts depend on the wallet's currency.
 const PRESET_EXPENSES = [
-  { title: "Weekly Organic Groceries", category: "Food & Drinks" as ExpenseCategory, amount: 165 },
-  { title: "Romantic Anniversary Dinner", category: "Social" as ExpenseCategory, amount: 240 },
-  { title: "Home Office Ergonomic Desk", category: "Shopping" as ExpenseCategory, amount: 580 },
-  { title: "Weekend Getaway Shinkansen", category: "Transportation" as ExpenseCategory, amount: 320 },
-  { title: "Apartment High-Speed Wi-Fi", category: "Bills" as ExpenseCategory, amount: 85 },
+  { label: "Groceries", title: "Weekly groceries", category: "Food & Drinks" as ExpenseCategory },
+  { label: "Date night", title: "Dinner together", category: "Social" as ExpenseCategory },
+  { label: "Home", title: "Home supplies", category: "Shopping" as ExpenseCategory },
+  { label: "Transport", title: "Transport", category: "Transportation" as ExpenseCategory },
+  { label: "Internet", title: "Home internet", category: "Bills" as ExpenseCategory },
 ];
+
+const URGENCY_LABELS = {
+  routine: "Routine Expense",
+  planned: "Planned Milestone Goal",
+  urgent: "Time-Sensitive Purchase",
+  emergency: "Urgent / Essential",
+} as const;
+
+// Quick "+" chips sized to the currency, so IDR does not get "+25".
+function quickAmountSteps(currency: string): number[] {
+  if (currency === "IDR") return [10_000, 25_000, 50_000, 100_000, 500_000];
+  if (currency === "JPY") return [500, 1_000, 2_500, 5_000, 10_000];
+  return [5, 10, 25, 50, 100];
+}
 
 export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: ProposeExpenseDialogProps) {
   const {
@@ -56,21 +72,23 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
 
   const activeProposer = currentUser === "partner_a" ? partnerAName : partnerBName;
   const partnerApprover = currentUser === "partner_a" ? partnerBName : partnerAName;
+  // You can spend from the shared wallet or your own; your partner's wallet is theirs.
+  const myWalletKey = currentUser === "partner_a" ? "personal_a" : "personal_b";
+  const myWallet = currentUser === "partner_a" ? wallets.personalA : wallets.personalB;
 
   // Form State
   const [title, setTitle] = useState(defaultTitle);
-  const [amount, setAmount] = useState<string>("350");
-  const [currency, setCurrency] = useState(reportingCurrency || "USD");
+  const [amount, setAmount] = useState<string>("");
   const [category, setCategory] = useState<ExpenseCategory>("Shopping");
   const [wallet, setWallet] = useState<"shared" | "personal_a" | "personal_b">("shared");
-  const [splitMode, setSplitMode] = useState<"equal" | "contract" | "proposer" | "custom">("equal");
-  const [customSplitA, setCustomSplitA] = useState(contract.splitPartnerA);
-  const [customSplitB, setCustomSplitB] = useState(contract.splitPartnerB);
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [urgency, setUrgency] = useState<"routine" | "planned" | "urgent" | "emergency">("routine");
-  const [receiptAttached, setReceiptAttached] = useState(false);
-  const [receiptFileName, setReceiptFileName] = useState("vendor_quote_estimate.pdf");
+  // The chosen file's name is noted on the request so your partner knows a
+  // receipt or quote exists (the file itself stays on this device).
+  const [receiptFileName, setReceiptFileName] = useState<string | null>(null);
+  const receiptAttached = Boolean(receiptFileName);
+  const receiptInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
   const [successResult, setSuccessResult] = useState<{
     outcome: "NEED_APPROVAL" | "ALLOW" | "HOLD";
@@ -81,42 +99,31 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
   useEffect(() => {
     if (open) {
       setTitle(defaultTitle || "");
-      setAmount("350");
-      setCurrency(reportingCurrency || "USD");
+      setAmount("");
       setCategory("Shopping");
       setWallet("shared");
-      setSplitMode("equal");
       setNotes("");
       setUrgency("routine");
-      setReceiptAttached(false);
+      setReceiptFileName(null);
       setError("");
       setSuccessResult(null);
     }
   }, [open, defaultTitle, reportingCurrency]);
 
-  const numAmount = parseFloat(amount) || 0;
+  // Accepts "150.000", "150,000" and "12.50" alike.
+  const numAmount = parseAmount(amount) ?? 0;
 
-  // Split calculation
+  // The ledger records the expense in the funding wallet's own currency.
+  const currency =
+    (wallet === "shared" ? wallets.shared.currency : myWallet.currency) || reportingCurrency || "IDR";
+
+  // Shared expenses are always split by the ratio in Seiya's Promise; the
+  // settlement ledger applies that ratio, so the preview shows the same one.
   const splitBreakdown = useMemo(() => {
-    let ratioA = 50;
-    let ratioB = 50;
-
-    if (splitMode === "contract") {
-      ratioA = contract.splitPartnerA;
-      ratioB = contract.splitPartnerB;
-    } else if (splitMode === "proposer") {
-      ratioA = currentUser === "partner_a" ? 100 : 0;
-      ratioB = currentUser === "partner_a" ? 0 : 100;
-    } else if (splitMode === "custom") {
-      ratioA = customSplitA;
-      ratioB = customSplitB;
-    }
-
-    const shareA = (numAmount * ratioA) / 100;
-    const shareB = (numAmount * ratioB) / 100;
-
-    return { ratioA, ratioB, shareA, shareB };
-  }, [numAmount, splitMode, contract.splitPartnerA, contract.splitPartnerB, currentUser, customSplitA, customSplitB]);
+    const ratioA = contract.splitPartnerA;
+    const ratioB = contract.splitPartnerB;
+    return { ratioA, ratioB, shareA: (numAmount * ratioA) / 100, shareB: (numAmount * ratioB) / 100 };
+  }, [numAmount, contract.splitPartnerA, contract.splitPartnerB]);
 
   // Policy evaluation preview
   const policyPreview = useMemo(() => {
@@ -129,7 +136,8 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
       };
     }
 
-    const exceeds = contract.approveEverySharedPurchase || numAmount >= contract.approvalThreshold;
+    const amountInThresholdCurrency = convertAmount(numAmount, currency, contract.thresholdCurrency || currency);
+    const exceeds = contract.approveEverySharedPurchase || amountInThresholdCurrency >= contract.approvalThreshold;
     if (exceeds) {
       return {
         requiresApproval: true,
@@ -145,7 +153,7 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
       badgeVariant: "allow" as const,
       description: `Within the shared micro-spending threshold (${formatMoney(contract.approvalThreshold, contract.thresholdCurrency, locale)}). Can be logged directly.`,
     };
-  }, [wallet, numAmount, contract.approvalThreshold, contract.thresholdCurrency, contract.approveEverySharedPurchase, activeProposer, partnerApprover, locale]);
+  }, [wallet, numAmount, currency, contract.approvalThreshold, contract.thresholdCurrency, contract.approveEverySharedPurchase, activeProposer, partnerApprover, locale]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -174,9 +182,14 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
           partnerA: splitBreakdown.ratioA,
           partnerB: splitBreakdown.ratioB,
         },
-        notes: notes.trim(),
+        // Priority and receipt name travel in the notes, which the partner sees on the request.
+        notes: [
+          urgency !== "routine" ? `Priority: ${URGENCY_LABELS[urgency]}` : "",
+          notes.trim(),
+          receiptFileName ? `Receipt: ${receiptFileName}` : "",
+        ].filter(Boolean).join(" • "),
         urgency,
-        receiptName: receiptAttached ? receiptFileName : undefined,
+        receiptName: receiptFileName ?? undefined,
       });
       setSuccessResult(result);
     } catch (err) {
@@ -189,13 +202,15 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
   const handleApplyPreset = (preset: typeof PRESET_EXPENSES[0]) => {
     setTitle(preset.title);
     setCategory(preset.category);
-    setAmount(preset.amount.toString());
     setError("");
   };
 
+  const walletLabel =
+    wallet === "shared" ? "Shared wallet" : `${activeProposer}'s wallet`;
+
   const handleAddAmount = (addVal: number) => {
-    const current = parseFloat(amount) || 0;
-    setAmount((current + addVal).toString());
+    // Functional update so quick repeated taps all add up.
+    setAmount((prev) => ((parseAmount(prev) ?? 0) + addVal).toString());
   };
 
   return (
@@ -282,7 +297,7 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-[#808988]">Wallet</span>
-                <span className="font-medium text-[#2a2b2f] capitalize">{wallet.replace("_", " ")}</span>
+                <span className="font-medium text-[#2a2b2f]">{walletLabel}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-[#808988]">Proposer</span>
@@ -321,10 +336,7 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
                     onClick={() => handleApplyPreset(preset)}
                     className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#f5eee1] hover:bg-[#ece3d3] text-[11px] text-[#2a2b2f] font-medium border border-[#d1c9bf]/40 shrink-0 transition-all cursor-pointer"
                   >
-                    <span>{preset.title.split(" ")[0]}</span>
-                    <span className="font-serif font-bold text-[#B45529]">
-                      ${preset.amount}
-                    </span>
+                    <span>{preset.label}</span>
                   </button>
                 ))}
               </div>
@@ -339,7 +351,7 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Weekly Organic Groceries, Shinkansen Tickets, IKEA Sofa"
+                placeholder="e.g. Weekly groceries, train tickets, a new sofa"
                 className="w-full text-xs"
               />
             </div>
@@ -352,23 +364,23 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
                 </label>
                 <div className="relative">
                   <input
-                    type="number"
-                    step="any"
+                    type="text"
+                    inputMode="decimal"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    placeholder="0.00"
+                    placeholder={currency === "IDR" ? "e.g. 150.000" : "e.g. 25.00"}
                     className="w-full px-3.5 py-2 rounded-full border border-[#d1c9bf] bg-[#fef9ef] text-[#2a2b2f] font-serif text-lg font-bold focus:outline-none focus:ring-2 focus:ring-[#B45529]/20"
                   />
                   {/* Quick increment chips */}
-                  <div className="flex items-center gap-1 mt-1.5">
-                    {[25, 50, 100, 250, 500].map((val) => (
+                  <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                    {quickAmountSteps(currency).map((val) => (
                       <button
                         key={val}
                         type="button"
                         onClick={() => handleAddAmount(val)}
                         className="px-2 py-0.5 rounded-full bg-[#f5eee1] hover:bg-[#ece3d3] text-[10px] font-serif font-bold text-[#808988] hover:text-[#B45529] border border-[#d1c9bf]/40 cursor-pointer"
                       >
-                        +{val}
+                        +{val.toLocaleString(locale)}
                       </button>
                     ))}
                   </div>
@@ -379,17 +391,14 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
                 <label className="text-xs font-semibold text-[#2a2b2f] block">
                   Currency
                 </label>
-                <select
-                  value={currency}
-                  onChange={(e) => setCurrency(e.target.value)}
-                  className="w-full h-10 px-3 rounded-full border border-[#d1c9bf] bg-[#fef9ef] text-xs font-medium text-[#2a2b2f] focus:outline-none focus:ring-2 focus:ring-[#B45529]/20"
+                {/* Read-only: the funding wallet decides the currency the ledger records */}
+                <div
+                  className="w-full h-10 px-3 rounded-full border border-[#d1c9bf] bg-[#f5eee1] text-xs font-semibold text-[#2a2b2f] flex items-center"
+                  title="Expenses are recorded in the funding wallet's currency"
                 >
-                  {Object.values(SUPPORTED_CURRENCIES).map((c) => (
-                    <option key={c.code} value={c.code}>
-                      {c.code} ({c.symbol})
-                    </option>
-                  ))}
-                </select>
+                  {currency}
+                </div>
+                <span className="text-[10px] text-[#808988] block px-1">Follows the wallet</span>
               </div>
             </div>
 
@@ -425,7 +434,7 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
               <label className="text-xs font-semibold text-[#2a2b2f] block">
                 Funding Wallet
               </label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setWallet("shared")}
@@ -446,37 +455,19 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
 
                 <button
                   type="button"
-                  onClick={() => setWallet("personal_a")}
+                  onClick={() => setWallet(myWalletKey)}
                   className={`p-2.5 rounded-[12px] border text-left transition-all cursor-pointer ${
-                    wallet === "personal_a"
+                    wallet === myWalletKey
                       ? "bg-[#faeade] border-[#B45529] shadow-2xs"
                       : "bg-[#f5eee1] border-[#d1c9bf]/50 hover:bg-[#ece3d3]"
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-[#2a2b2f]">{partnerAName}&apos;s Wallet</span>
-                    {wallet === "personal_a" && <SolarIcon name="check" size={14} className="text-[#B45529]" />}
+                    <span className="text-xs font-bold text-[#2a2b2f]">My wallet ({activeProposer})</span>
+                    {wallet === myWalletKey && <SolarIcon name="check" size={14} className="text-[#B45529]" />}
                   </div>
                   <span className="text-[11px] font-serif font-bold text-[#808988] block mt-0.5">
-                    {formatMoney(wallets.personalA.balance, wallets.personalA.currency, locale)}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setWallet("personal_b")}
-                  className={`p-2.5 rounded-[12px] border text-left transition-all cursor-pointer ${
-                    wallet === "personal_b"
-                      ? "bg-[#faeade] border-[#B45529] shadow-2xs"
-                      : "bg-[#f5eee1] border-[#d1c9bf]/50 hover:bg-[#ece3d3]"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-[#2a2b2f]">{partnerBName}&apos;s Wallet</span>
-                    {wallet === "personal_b" && <SolarIcon name="check" size={14} className="text-[#B45529]" />}
-                  </div>
-                  <span className="text-[11px] font-serif font-bold text-[#808988] block mt-0.5">
-                    {formatMoney(wallets.personalB.balance, wallets.personalB.currency, locale)}
+                    {formatMoney(myWallet.balance, myWallet.currency, locale)}
                   </span>
                 </button>
               </div>
@@ -485,50 +476,17 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
             {/* 6. Split & Contribution Model (when Shared Wallet) */}
             {wallet === "shared" && (
               <div className="p-3 rounded-[12px] bg-[#f5eee1] space-y-2.5 border border-[#d1c9bf]/40">
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center gap-2">
                   <label className="text-xs font-semibold text-[#2a2b2f]">
-                    Cost Split Ratio
+                    Cost Split
                   </label>
-                  <span className="text-[11px] text-[#808988]">
-                    {splitBreakdown.ratioA}% {partnerAName} : {splitBreakdown.ratioB}% {partnerBName}
+                  <span className="text-[11px] text-[#808988] text-right">
+                    {partnerAName} {splitBreakdown.ratioA}% · {partnerBName} {splitBreakdown.ratioB}%
                   </span>
                 </div>
-
-                <div className="grid grid-cols-3 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setSplitMode("equal")}
-                    className={`py-1.5 px-2 rounded-full text-xs font-medium border text-center transition-all cursor-pointer ${
-                      splitMode === "equal"
-                        ? "bg-[#B45529] text-white border-[#B45529]"
-                        : "bg-[#fef9ef] text-[#2a2b2f] border-[#d1c9bf]"
-                    }`}
-                  >
-                    Equal 50/50
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSplitMode("contract")}
-                    className={`py-1.5 px-2 rounded-full text-xs font-medium border text-center transition-all cursor-pointer ${
-                      splitMode === "contract"
-                        ? "bg-[#B45529] text-white border-[#B45529]"
-                        : "bg-[#fef9ef] text-[#2a2b2f] border-[#d1c9bf]"
-                    }`}
-                  >
-                    Contract ({contract.splitPartnerB}/{contract.splitPartnerA})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSplitMode("proposer")}
-                    className={`py-1.5 px-2 rounded-full text-xs font-medium border text-center transition-all cursor-pointer ${
-                      splitMode === "proposer"
-                        ? "bg-[#B45529] text-white border-[#B45529]"
-                        : "bg-[#fef9ef] text-[#2a2b2f] border-[#d1c9bf]"
-                    }`}
-                  >
-                    100% {activeProposer}
-                  </button>
-                </div>
+                <p className="text-[11px] text-[#808988] leading-snug">
+                  Follows the split in your Seiya&apos;s Promise. Change it there to apply it to every shared expense.
+                </p>
 
                 {/* Real-time share breakdown */}
                 <div className="flex justify-between items-center text-xs pt-1 border-t border-[#d1c9bf]/40">
@@ -582,9 +540,20 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
                 <label className="text-xs font-semibold text-[#2a2b2f] block">
                   Receipt / Quote
                 </label>
+                <input
+                  ref={receiptInputRef}
+                  type="file"
+                  accept="image/*,application/pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) setReceiptFileName(file.name.slice(0, 120));
+                    e.target.value = "";
+                  }}
+                />
                 <button
                   type="button"
-                  onClick={() => setReceiptAttached(!receiptAttached)}
+                  onClick={() => (receiptAttached ? setReceiptFileName(null) : receiptInputRef.current?.click())}
                   className={`w-full h-9 px-3 rounded-full border text-xs font-medium flex items-center justify-between transition-all cursor-pointer ${
                     receiptAttached
                       ? "bg-[#edf3ec] border-[#2d5232] text-[#2d5232]"

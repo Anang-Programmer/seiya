@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 // Amounts here are decided on, so they stay visible in privacy mode.
-import { formatMoneyAlways as formatMoney } from "@/lib/utils";
+import { formatMoneyAlways as formatMoney, planMonthlyShares } from "@/lib/utils";
 import { SolarIcon } from "@/components/icons/solar";
 import { SeiyaIcon } from "@/components/icons/seiya-logo";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +25,7 @@ export function DraftGoalsView({ onBack, onNavigate }: DraftGoalsViewProps) {
     partnerAName,
     partnerBName,
     currentUser,
-    sendChatMessage,
+    setPendingDirectChat,
   } = useApp();
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -91,9 +91,10 @@ export function DraftGoalsView({ onBack, onNavigate }: DraftGoalsViewProps) {
           <Button
             variant="primary"
             size="sm"
-            onClick={() =>
-              sendChatMessage("Let's plan a new savings goal for our couple bucket list.")
-            }
+            onClick={() => {
+              setPendingDirectChat({ message: "Let's plan a new savings goal together.", mode: "personal" });
+              onNavigate?.("seiya");
+            }}
             className="text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs"
           >
             <SeiyaIcon size={14} color="#fef9ef" />
@@ -151,7 +152,7 @@ export function DraftGoalsView({ onBack, onNavigate }: DraftGoalsViewProps) {
                 currentAmount={p.currentAmount}
                 horizon={p.targetDate}
                 monthlyTarget={p.recommendedMonthly}
-                split={`${partnerBName} ${formatMoney(p.splitRecommendation.partnerB, planCurr, locale)} • ${partnerAName} ${formatMoney(p.splitRecommendation.partnerA, planCurr, locale)}`}
+                split={`${partnerBName} ${formatMoney(planMonthlyShares(p).partnerB, planCurr, locale)} • ${partnerAName} ${formatMoney(planMonthlyShares(p).partnerA, planCurr, locale)}`}
                 fundingWallet={p.walletFunding}
                 assumptions={p.assumptions}
                 status={p.status}

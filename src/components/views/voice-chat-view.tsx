@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 // Amounts here are decided on, so they stay visible in privacy mode.
 import { formatMoneyConvertedAlways as formatMoneyConverted } from "@/lib/utils";
 import { ChatMessage } from "@/lib/store";
+import { RichText } from "@/components/ui/rich-text";
 
 interface VoiceChatViewProps {
   onClose: () => void;
@@ -697,7 +698,7 @@ export function VoiceChatView({
                           : "bg-[#f5eee1] text-[#2a2b2f] border border-[#d1c9bf]/40 rounded-tl-xs font-serif"
                       }`}
                     >
-                      {item.text}
+                      {isUser ? item.text : <RichText text={item.text} />}
                     </div>
                   </div>
                 );

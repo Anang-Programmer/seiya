@@ -21,18 +21,38 @@ export function WalletsView() {
     settleUp,
     partnerAName,
     partnerBName,
+    partnerProfile,
   } = useApp();
 
   const [selectedWalletTab, setSelectedWalletTab] = useState<"shared" | "personal" | "partner">("shared");
+  // Settling clears the balance for both partners, so it takes a second, explicit click.
+  const [confirmSettle, setConfirmSettle] = useState(false);
+  const [isSettling, setIsSettling] = useState(false);
+  const settlementCurrency = settlement.currency || wallets.shared.currency;
+  const owedAmount = Math.max(settlement.partnerBOwesA, settlement.partnerAOwesB);
+  const debtorName = settlement.partnerBOwesA > 0 ? partnerBName : partnerAName;
+  const creditorName = settlement.partnerBOwesA > 0 ? partnerAName : partnerBName;
+  const handleSettleUp = async () => {
+    setIsSettling(true);
+    await settleUp();
+    setIsSettling(false);
+    setConfirmSettle(false);
+  };
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [transactionModalOpen, setTransactionModalOpen] = useState(false);
 
   const isPartnerA = currentUser === "partner_a";
   const myName = isPartnerA ? partnerAName : partnerBName;
   const partnerName = isPartnerA ? partnerBName : partnerAName;
+  // Before the partner joins the name is the placeholder "your partner".
+  const partnerLabel = partnerName.charAt(0).toUpperCase() + partnerName.slice(1);
 
   const myWallet = isPartnerA ? wallets.personalA : wallets.personalB;
-  const partnerWallet = isPartnerA ? wallets.personalB : wallets.personalA;
+  const myConverted = isPartnerA ? convertedBalances.personalA : convertedBalances.personalB;
+  // Balances follow the currency picked in the header (like the dashboard);
+  // the wallet's own amount is shown underneath.
+  const shownIn = (walletCurrency: string, rateAvailable: boolean) =>
+    walletCurrency !== reportingCurrency && rateAvailable ? reportingCurrency : walletCurrency;
 
   // Filter transactions for shared vs personal
   const sharedTransactions = transactions.filter((t) => t.wallet === "shared");
@@ -57,11 +77,11 @@ export function WalletsView() {
               <div className="text-lg font-bold text-[#2a2b2f]">
                 {partnerBName} owes {partnerAName}{" "}
                 <span className="text-[#B45529] font-serif">
-                  {formatMoney(settlement.partnerBOwesA, wallets.shared.currency, locale)}
+                  {formatMoney(settlement.partnerBOwesA, settlementCurrency, locale)}
                 </span>
-                {wallets.shared.currency !== reportingCurrency && (
+                {settlementCurrency !== reportingCurrency && (
                   <span className="text-xs text-[#808988] font-serif block">
-                    ≈ {formatMoneyConverted(settlement.partnerBOwesA, wallets.shared.currency, reportingCurrency, locale)}
+                    ≈ {formatMoneyConverted(settlement.partnerBOwesA, settlementCurrency, reportingCurrency, locale)}
                   </span>
                 )}
               </div>
@@ -69,11 +89,11 @@ export function WalletsView() {
               <div className="text-lg font-bold text-[#2a2b2f]">
                 {partnerAName} owes {partnerBName}{" "}
                 <span className="text-[#B45529] font-serif">
-                  {formatMoney(settlement.partnerAOwesB, wallets.shared.currency, locale)}
+                  {formatMoney(settlement.partnerAOwesB, settlementCurrency, locale)}
                 </span>
-                {wallets.shared.currency !== reportingCurrency && (
+                {settlementCurrency !== reportingCurrency && (
                   <span className="text-xs text-[#808988] font-serif block">
-                    ≈ {formatMoneyConverted(settlement.partnerAOwesB, wallets.shared.currency, reportingCurrency, locale)}
+                    ≈ {formatMoneyConverted(settlement.partnerAOwesB, settlementCurrency, reportingCurrency, locale)}
                   </span>
                 )}
               </div>
@@ -88,11 +108,27 @@ export function WalletsView() {
           </div>
         </div>
 
-        {(settlement.partnerBOwesA > 0 || settlement.partnerAOwesB > 0) && (
-          <Button variant="primary" size="sm" onClick={settleUp} className="shrink-0 text-xs">
+        {owedAmount > 0 && !confirmSettle && (
+          <Button variant="primary" size="sm" onClick={() => setConfirmSettle(true)} className="shrink-0 text-xs">
             <SolarIcon name="check" size={14} />
             Settle Up Now
           </Button>
+        )}
+        {owedAmount > 0 && confirmSettle && (
+          <div role="alertdialog" aria-label="Confirm settlement" className="w-full sm:w-auto sm:max-w-xs p-3 rounded-[12px] bg-[#fef9ef] border border-[#B45529]/30 space-y-2">
+            <p className="text-xs text-[#2a2b2f] leading-snug">
+              Mark {formatMoney(owedAmount, settlementCurrency, locale)} from {debtorName} to {creditorName} as paid?
+              Only do this after the money has actually been transferred.
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setConfirmSettle(false)} disabled={isSettling} className="text-xs">
+                Cancel
+              </Button>
+              <Button variant="primary" size="sm" onClick={handleSettleUp} disabled={isSettling} className="text-xs">
+                {isSettling ? "Settling..." : "Yes, it's paid"}
+              </Button>
+            </div>
+          </div>
         )}
       </div>
 
@@ -113,22 +149,24 @@ export function WalletsView() {
           <div className="flex justify-between items-center mb-3.5">
             <div className="flex items-center gap-2.5">
               <img
-                src="/dashboard/Profile-Card-Shared.png"
+                src="/dashboard/Profile-Card-Shared.webp"
                 alt="Shared pool avatar"
                 className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover shrink-0 shadow-2xs border border-[#ecd9c7]"
               />
               <span className="text-xs sm:text-[13px] font-semibold text-[#5e2714] tracking-tight">{wallets.shared.label}</span>
             </div>
             <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-[#fef9ef]/95 text-[#8f3916] border border-[#e8baa3]/80 shadow-2xs">
-              {wallets.shared.currency}
+              {shownIn(wallets.shared.currency, convertedBalances.shared.available)}
             </span>
           </div>
           <div className="text-2xl font-extrabold text-[#2a2b2f] font-serif">
-            {formatMoney(wallets.shared.balance, wallets.shared.currency, locale)}
+            {shownIn(wallets.shared.currency, convertedBalances.shared.available) === wallets.shared.currency
+              ? formatMoney(wallets.shared.balance, wallets.shared.currency, locale)
+              : formatMoney(convertedBalances.shared.amount, reportingCurrency, locale)}
           </div>
           {wallets.shared.currency !== reportingCurrency && (
             <p className="text-[11px] text-[#6b3522] mt-1">
-              ≈ {formatMoney(convertedBalances.shared.amount, reportingCurrency, locale)} ({reportingCurrency})
+              {formatMoney(wallets.shared.balance, wallets.shared.currency, locale)} in wallet · estimated rate
             </p>
           )}
           <p className="text-[11px] text-[#8c5745] mt-1.5">
@@ -151,7 +189,7 @@ export function WalletsView() {
           <div className="flex justify-between items-center mb-3.5">
             <div className="flex items-center gap-2.5">
               <img
-                src={isPartnerA ? "/dashboard/Profile-Card-Man.png" : "/dashboard/Profile-Card-Women.png"}
+                src={isPartnerA ? "/dashboard/Profile-Card-Man.webp" : "/dashboard/Profile-Card-Women.webp"}
                 alt="Your avatar"
                 style={{ transform: !isPartnerA ? "scaleX(-1)" : "none" }}
                 className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover shrink-0 shadow-2xs border border-[#ecd9c7] transition-transform duration-300"
@@ -161,19 +199,17 @@ export function WalletsView() {
               </span>
             </div>
             <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-[#fef9ef]/95 text-[#734a1a] border border-[#e5d0ad]/80 shadow-2xs">
-              {myWallet.currency}
+              {shownIn(myWallet.currency, myConverted.available)}
             </span>
           </div>
           <div className="text-2xl font-extrabold text-[#2a2b2f] font-serif">
-            {formatMoney(myWallet.balance, myWallet.currency, locale)}
+            {shownIn(myWallet.currency, myConverted.available) === myWallet.currency
+              ? formatMoney(myWallet.balance, myWallet.currency, locale)
+              : formatMoney(myConverted.amount, reportingCurrency, locale)}
           </div>
           {myWallet.currency !== reportingCurrency && (
             <p className="text-[11px] text-[#634a2e] mt-1">
-              ≈ {formatMoney(
-                isPartnerA ? convertedBalances.personalA.amount : convertedBalances.personalB.amount,
-                reportingCurrency,
-                locale
-              )} ({reportingCurrency})
+              {formatMoney(myWallet.balance, myWallet.currency, locale)} in wallet · estimated rate
             </p>
           )}
           <p className="text-[11px] text-[#8a7259] mt-1.5">
@@ -196,34 +232,26 @@ export function WalletsView() {
           <div className="flex justify-between items-center mb-3.5">
             <div className="flex items-center gap-2.5">
               <img
-                src={isPartnerA ? "/dashboard/Profile-Card-Women.png" : "/dashboard/Profile-Card-Man.png"}
+                src={isPartnerA ? "/dashboard/Profile-Card-Women.webp" : "/dashboard/Profile-Card-Man.webp"}
                 alt="Partner avatar"
                 style={{ transform: !isPartnerA ? "scaleX(-1)" : "none" }}
                 className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover shrink-0 shadow-2xs border border-[#ecd9c7] transition-transform duration-300"
               />
               <span className="text-xs sm:text-[13px] font-semibold text-[#27472c] tracking-tight">
-                Partner Balance ({partnerName})
+                {partnerProfile ? `${partnerLabel}’s balance` : "Partner balance"}
               </span>
             </div>
-            <Badge variant="deny">
+            <Badge variant="deny" aria-label="Private wallet">
               <SolarIcon name="lock-keyhole" size={11} />
-              Total Only
             </Badge>
           </div>
-          <div className="text-2xl font-extrabold text-[#2a2b2f] font-serif">
-            {formatMoney(partnerWallet.balance, partnerWallet.currency, locale)}
+          <div className="text-2xl font-extrabold text-[#808988] font-serif inline-flex items-center gap-2">
+            <SolarIcon name="lock-keyhole" size={20} />
+            Private
           </div>
-          {partnerWallet.currency !== reportingCurrency && (
-            <p className="text-[11px] text-[#36573c] mt-1">
-              ≈ {formatMoney(
-                !isPartnerA ? convertedBalances.personalA.amount : convertedBalances.personalB.amount,
-                reportingCurrency,
-                locale
-              )} ({reportingCurrency})
-            </p>
-          )}
+          {/* The partner’s personal wallet is never sent to this browser (RLS). */}
           <p className="text-[11px] text-[#59785e] mt-1.5">
-            Itemized history protected by Couple Contract
+            {partnerProfile ? "Balance and purchases stay private to them" : "Waiting for your partner to join"}
           </p>
         </div>
       </div>
@@ -237,11 +265,11 @@ export function WalletsView() {
                 ? "Shared Wallet Transactions"
                 : selectedWalletTab === "personal"
                 ? "Your Personal Wallet Transactions"
-                : `${partnerName}’s Protected Wallet View`}
+                : `${partnerLabel}’s wallet`}
             </h3>
             <p className="text-xs text-[#515151]">
               {selectedWalletTab === "partner"
-                ? "Privacy rule: Partner cannot inspect your individual itemized purchases."
+                ? "Personal purchases stay private. You see only the total, and your partner sees only yours."
                 : "Synchronized with Dual-Key Gateway."}
             </p>
           </div>
@@ -254,18 +282,16 @@ export function WalletsView() {
               <SolarIcon name="lock-keyhole" size={26} />
             </div>
             <h4 className="text-base font-serif font-normal text-[#2a2b2f]">
-              {partnerName}’s Detailed Transactions are Protected
+              {partnerLabel}’s transactions are private
             </h4>
             <p className="text-xs text-[#515151] max-w-md mx-auto leading-relaxed">
-              Under your mutual Couple Contract, partners agree to share total savings visibility (
-              <strong className="font-serif text-[#2a2b2f]">
-                {formatMoney(partnerWallet.balance, partnerWallet.currency, locale)}
-              </strong>
-              ) while preserving personal autonomy and individual purchase privacy.
+              Their personal balance and purchases are visible only to them, and the same rule protects your
+              personal wallet. Spending from the shared wallet is visible to both of you.
             </p>
             <div className="pt-2">
-              <span className="text-[11px] text-[#808988] font-mono bg-[#f5eee1] px-3.5 py-1 rounded-full shadow-xs">
-                Rule: CONTRACT_SEC_PARTNER_TOTAL_ONLY_ENFORCED
+              <span className="inline-flex items-center gap-1.5 text-[11px] text-[#2d5232] bg-[#edf3ec] px-3.5 py-1 rounded-full">
+                <SolarIcon name="shield-check" size={12} />
+                Protected by Seiya’s privacy rules
               </span>
             </div>
           </div>

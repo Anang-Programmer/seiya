@@ -10,7 +10,7 @@ import { useApp, BillItem } from "@/lib/store";
 import { ApprovalDialog } from "@/components/modals/approval-dialog";
 import { BillDialog } from "@/components/modals/bill-dialog";
 
-export function BillsView() {
+export function BillsView({ onNavigate }: { onNavigate?: (tab: "seiya") => void }) {
   const {
     bills,
     reportingCurrency,
@@ -21,8 +21,14 @@ export function BillsView() {
     partnerBName,
     deleteBill,
     requestPayBill,
-    sendChatMessage,
+    setPendingDirectChat,
   } = useApp();
+
+  // "Add via Seiya": Seiya asks for the details and prepares a bill card to confirm.
+  const addBillWithSeiya = () => {
+    setPendingDirectChat({ message: "I want to add a new recurring bill. Please ask me for the details.", mode: "personal" });
+    onNavigate?.("seiya");
+  };
 
   const duplicateBillGroups = Object.values(
     bills
@@ -75,7 +81,7 @@ export function BillsView() {
 
   const totalUpcoming = bills.reduce((acc, b) => {
     if (b.status === "paid") return acc;
-    const conv = convertMoney(b.amount, b.currency || "USD", reportingCurrency);
+    const conv = convertMoney(b.amount, b.currency || reportingCurrency, reportingCurrency);
     return acc + (conv.available ? conv.convertedAmount : b.amount);
   }, 0);
 
@@ -104,7 +110,7 @@ export function BillsView() {
             Monthly Bills & Reminders
           </h2>
           <p className="text-xs text-[#515151]">
-            Recurring shared obligations. Settling requires manual dual-key ACC confirmation.
+            Shared recurring bills. Marking one as paid needs your partner’s confirmation.
           </p>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
@@ -120,9 +126,7 @@ export function BillsView() {
           <Button
             variant="primary"
             size="sm"
-            onClick={() =>
-              sendChatMessage("I want to add a recurring monthly bill reminder for our shared electricity & water.")
-            }
+            onClick={addBillWithSeiya}
             className="text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs"
           >
             <SeiyaIcon size={14} color="#fef9ef" />
@@ -135,7 +139,9 @@ export function BillsView() {
       <div className="p-4 sm:p-5 rounded-[12px] bg-[#f5eee1] shadow-xs flex items-center justify-between">
         <div>
           <span className="text-xs text-[#808988] font-medium block">Total Upcoming Obligations</span>
-          <span className="text-xs text-[#515151]">September 2026 Billing Cycle</span>
+          <span className="text-xs text-[#515151]">
+            {new Date().toLocaleDateString(locale, { month: "long", year: "numeric" })} · unpaid bills
+          </span>
         </div>
         <div className="text-right">
           <span className="text-xl sm:text-2xl font-bold font-serif text-[#2a2b2f]">

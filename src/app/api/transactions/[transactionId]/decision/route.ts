@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { validateTransactionDecision } from "@/backend/validators/transaction";
 import { decideSimulatedTransaction } from "@/backend/services/transaction.service";
+import { pinFailure } from "@/backend/services/pin.service";
 
 type RouteContext = { params: Promise<{ transactionId: string }> };
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -31,6 +32,13 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ success: false, message: "Login required." }, { status: 401 });
     }
 
+    // Same rule as /api/approvals/:id/decision: approving needs the approver's
+    // PIN. The RPC checks it and the wrong-PIN lockout.
+    if (validation.data.decision === "approved" && !validation.data.pin) {
+      const { status, message } = pinFailure("pin_required");
+      return NextResponse.json({ success: false, message }, { status });
+    }
+
     const { data, error } = await decideSimulatedTransaction(supabase, transactionId, validation.data);
     if (error) {
       console.error("[transactions/decision] RPC failed:", error);
@@ -46,7 +54,13 @@ export async function POST(request: Request, context: RouteContext) {
         : NextResponse.json({ success: false, message: "Unable to process transaction decision." }, { status: 500 });
     }
 
-    const result = data as { status?: string } | null;
+    const decided = data as { ok?: boolean; reason?: string; transaction?: { status?: string } } | null;
+    if (decided?.ok === false) {
+      const { status, message } = pinFailure(decided.reason);
+      return NextResponse.json({ success: false, message }, { status });
+    }
+
+    const result = decided?.transaction ?? null;
     return NextResponse.json({
       success: true,
       message: result?.status === "executed"
@@ -56,7 +70,7 @@ export async function POST(request: Request, context: RouteContext) {
           : validation.data.decision === "rejected"
             ? "Transaction rejected."
             : "Transaction decision recorded.",
-      transaction: data,
+      transaction: result,
     });
   } catch (error) {
     console.error("[transactions/decision] Unexpected error:", error);

@@ -269,7 +269,11 @@ export const apiSignIn = (fullName: string, password: string) =>
 
 export const apiSignOut = () => request("/api/auth/signout", { method: "POST" });
 
-export const apiGetMe = () => request<ApiMeResponse>("/api/auth/me");
+/** Resolves to null when nobody is signed in. */
+export const apiGetMe = async (): Promise<ApiMeResponse | null> => {
+  const res = await request<ApiMeResponse | { success: true; authenticated: false }>("/api/auth/me?optional=1");
+  return "authenticated" in res && res.authenticated === false ? null : (res as ApiMeResponse);
+};
 
 export const apiSetupPin = (pin: string) => request("/api/auth/pin/setup", { body: { pin } });
 
@@ -343,8 +347,8 @@ export const apiUndoTransaction = (transactionId: string) =>
 export const apiExecuteHeldTransaction = (transactionId: string) =>
   request<{ success: true; message: string }>(`/api/transactions/${transactionId}/execute`, { method: "POST" });
 
-export const apiDecideTransaction =(transactionId: string, decision: "approved" | "rejected", note?: string) =>
-  request(`/api/transactions/${transactionId}/decision`, { body: { decision, note: note ?? null } });
+export const apiDecideTransaction = (transactionId: string, decision: "approved" | "rejected", note?: string, pin?: string) =>
+  request(`/api/transactions/${transactionId}/decision`, { body: { decision, note: note ?? null, ...(pin ? { pin } : {}) } });
 
 // ---------------------------------------------------------------------------
 // Bills
@@ -429,6 +433,12 @@ export const apiDecideApproval = (
     body: { decision, ...(pin ? { pin } : {}), ...(reason ? { reason } : {}) },
   });
 
+export const apiCancelApproval = (approvalId: string) =>
+  request<{ success: true; status: string; message: string }>(`/api/approvals/${approvalId}/cancel`, { method: "POST" });
+
+export const apiSetApprovalNotes = (approvalId: string, notes: string) =>
+  request<{ success: true; notes: string | null }>(`/api/approvals/${approvalId}/notes`, { body: { notes } });
+
 // ---------------------------------------------------------------------------
 // Plans & goals
 // ---------------------------------------------------------------------------
@@ -441,8 +451,8 @@ export interface PlanInput {
   currency: string;
   targetDate: string;
   recommendedMonthly: number;
-  // Sent as an object: the validator only accepts 0-100 for the flat
-  // splitPartnerA/B fields, but plans store per-partner monthly amounts.
+  // Per-partner monthly amounts. The server stores their ratio as
+  // percentages and returns amounts derived from recommendedMonthly.
   splitRecommendation: { partnerB: number; partnerA: number };
   walletFunding: string;
   status: string;
@@ -460,9 +470,6 @@ export const apiUpdatePlan = (hid: string, planId: string, data: Partial<PlanInp
     method: "PATCH",
     body: data,
   });
-
-export const apiDeletePlan = (hid: string, planId: string) =>
-  request(`/api/households/${hid}/plans/${planId}`, { method: "DELETE" });
 
 export const apiRequestDeletePlan = (hid: string, planId: string, partnerAPin?: string, partnerBPin?: string) =>
   request<{ success: true; requiresApproval?: boolean; message?: string }>(
@@ -533,6 +540,34 @@ export interface PromiseStatus {
   responses: Array<{ user_id: string; selected: PromiseClause[]; submitted_at: string }>;
 }
 
+// ---------------------------------------------------------------------------
+// Ask Seiya chat history (served from our domain, not straight from Supabase)
+// ---------------------------------------------------------------------------
+
+export interface ChatHistoryRow {
+  conversations: Array<{
+    id: string;
+    user_id: string;
+    title: string | null;
+    visibility: "private" | "shared";
+    updated_at: string | null;
+    created_at: string;
+  }>;
+  messages: Array<{ id: string; conversation_id: string; role: string; content: string; created_at: string }>;
+}
+
+export const apiGetChatHistory = (hid: string) =>
+  request<{ success: true } & ChatHistoryRow>(`/api/households/${hid}/chat-history`);
+
+export const apiUpdateConversation = (
+  hid: string,
+  conversationId: string,
+  changes: { title?: string; visibility?: "private" | "shared" }
+) => request<{ success: true }>(`/api/households/${hid}/chat-history/${conversationId}`, { method: "PATCH", body: changes });
+
+export const apiDeleteConversation = (hid: string, conversationId: string) =>
+  request<{ success: true }>(`/api/households/${hid}/chat-history/${conversationId}`, { method: "DELETE" });
+
 export const apiGetPromise = (hid: string) =>
   request<{ success: true; myUserId: string; status: PromiseStatus }>(`/api/households/${hid}/promise`);
 
@@ -580,7 +615,6 @@ export const apiCreateHeldPurchase = (data: {
   currency: string;
   wallet: "shared" | "personal_a" | "personal_b";
   requesterRole: "partner_a" | "partner_b";
-  holdUntil?: string;
   reason: string;
 }) => request<{ success: true; heldPurchase: ApiHeldPurchase }>("/api/waiting-list", { body: data });
 

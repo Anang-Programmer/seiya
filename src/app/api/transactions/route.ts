@@ -185,7 +185,6 @@ export async function POST(request: Request) {
     await recordHouseholdActivity(supabase, householdId, {
       title,
       category,
-      actor: paidBy,
       status: ACTIVITY_STATUS[tx.status] ?? "INFO",
       amount: absAmount,
       currency: tx.currency,

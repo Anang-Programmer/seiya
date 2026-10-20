@@ -328,7 +328,6 @@ export function AllApprovalsModal({ open, onOpenChange }: AllApprovalsModalProps
               >
                 {isAuthorizing ? "Signing..." : "Sign & Approve"}
               </Button>
-              <span className="text-[11px] text-[#808988] ml-2">Hint: 123456 / 654321</span>
             </form>
             {pinError && <p className="text-xs text-[#a34426] font-semibold">{pinError}</p>}
           </div>

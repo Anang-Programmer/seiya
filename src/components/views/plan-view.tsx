@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
-import { formatMoney, convertAmount } from "@/lib/utils";
+import { formatMoney, convertAmount, planMonthlyShares } from "@/lib/utils";
+import { SUPPORTED_CURRENCIES } from "@/lib/currency";
+import { parseAmount } from "@/lib/receipt-text";
 import { SolarIcon } from "@/components/icons/solar";
 import { SeiyaIcon } from "@/components/icons/seiya-logo";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +17,7 @@ import { DeletePlanDialog } from "@/components/modals/delete-plan-dialog";
 import { AdjustPlanDialog } from "@/components/modals/adjust-plan-dialog";
 
 export function PlanView({ onNavigate }: { onNavigate?: (tab: any) => void }) {
-  const { plans, wallets, bills, reportingCurrency, locale, partnerAName, partnerBName, sendChatMessage } = useApp();
+  const { plans, wallets, bills, reportingCurrency, locale, partnerAName, partnerBName, setPendingDirectChat } = useApp();
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -32,15 +34,26 @@ export function PlanView({ onNavigate }: { onNavigate?: (tab: any) => void }) {
   };
 
   // Affordability check state
-  const [purchaseItem, setPurchaseItem] = useState("New M3 Laptop");
-  const [purchaseAmount, setPurchaseAmount] = useState(2400);
-  const [purchaseCurrency, setPurchaseCurrency] = useState(reportingCurrency);
+  const [purchaseItem, setPurchaseItem] = useState("");
+  const [purchaseAmountText, setPurchaseAmountText] = useState("");
+  // Follows the household currency until the user picks another one.
+  const [pickedCurrency, setPickedCurrency] = useState<string | null>(null);
+  const purchaseCurrency = pickedCurrency ?? wallets.shared.currency ?? reportingCurrency;
   const [affordabilityResult, setAffordabilityResult] = useState<any>(null);
+  const [affordabilityError, setAffordabilityError] = useState("");
 
   const handleRunAffordabilityCheck = () => {
+    const purchaseAmount = parseAmount(purchaseAmountText) ?? 0;
+    if (!purchaseItem.trim() || purchaseAmount <= 0) {
+      setAffordabilityError("Enter what you want to buy and its price.");
+      setAffordabilityResult(null);
+      return;
+    }
+    setAffordabilityError("");
     const priceInShared = convertAmount(purchaseAmount, purchaseCurrency, wallets.shared.currency);
     const totalBills = bills.reduce(
-      (acc, b) => acc + (b.status !== "paid" ? convertAmount(b.amount, b.currency || "USD", wallets.shared.currency) : 0),
+      (acc, b) =>
+        acc + (b.status !== "paid" ? convertAmount(b.amount, b.currency || wallets.shared.currency, wallets.shared.currency) : 0),
       0
     );
     const sharedBal = wallets.shared.balance;
@@ -96,7 +109,10 @@ export function PlanView({ onNavigate }: { onNavigate?: (tab: any) => void }) {
             <Button
               variant="primary"
               size="sm"
-              onClick={() => sendChatMessage("We want to save $15,000 for our trip to Kyoto in 10 months.")}
+              onClick={() => {
+                setPendingDirectChat({ message: "Help us plan a new savings goal. Please ask me what it is for, the amount and the target date.", mode: "personal" });
+                onNavigate?.("seiya");
+              }}
               className="text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs"
             >
               <SeiyaIcon size={14} color="#fef9ef" />
@@ -135,7 +151,7 @@ export function PlanView({ onNavigate }: { onNavigate?: (tab: any) => void }) {
                   currentAmount={p.currentAmount}
                   horizon={p.targetDate}
                   monthlyTarget={p.recommendedMonthly}
-                  split={`${partnerBName} ${formatMoney(p.splitRecommendation.partnerB, planCurr, locale)} • ${partnerAName} ${formatMoney(p.splitRecommendation.partnerA, planCurr, locale)}`}
+                  split={`${partnerBName} ${formatMoney(planMonthlyShares(p).partnerB, planCurr, locale)} • ${partnerAName} ${formatMoney(planMonthlyShares(p).partnerA, planCurr, locale)}`}
                   fundingWallet={p.walletFunding}
                   assumptions={p.assumptions}
                   status={p.status}
@@ -174,31 +190,32 @@ export function PlanView({ onNavigate }: { onNavigate?: (tab: any) => void }) {
             <Input
               value={purchaseItem}
               onChange={(e) => setPurchaseItem(e.target.value)}
-              placeholder="e.g. New M3 Laptop"
+              placeholder="e.g. New laptop"
+              maxLength={80}
             />
           </div>
           <div className="sm:col-span-3">
             <label className="text-xs font-semibold text-[#333333] block mb-1">Price</label>
             <Input
-              type="number"
-              value={purchaseAmount}
-              onChange={(e) => setPurchaseAmount(Number(e.target.value))}
-              placeholder="2400"
+              type="text"
+              inputMode="decimal"
+              value={purchaseAmountText}
+              onChange={(e) => setPurchaseAmountText(e.target.value)}
+              placeholder={purchaseCurrency === "IDR" ? "e.g. 15.000.000" : "e.g. 1,200"}
             />
           </div>
           <div className="sm:col-span-2">
             <label className="text-xs font-semibold text-[#333333] block mb-1">Currency</label>
             <select
               value={purchaseCurrency}
-              onChange={(e) => setPurchaseCurrency(e.target.value)}
+              onChange={(e) => setPickedCurrency(e.target.value)}
               className="w-full h-11 px-4 rounded-full border border-[#d1c9bf] bg-[#fef9ef] text-xs font-mono font-bold text-[#2a2b2f] focus:outline-none focus:ring-2 focus:ring-[#B45529]/30"
             >
-              <option value="USD">USD</option>
-              <option value="EUR">EUR</option>
-              <option value="GBP">GBP</option>
-              <option value="IDR">IDR</option>
-              <option value="SGD">SGD</option>
-              <option value="JPY">JPY</option>
+              {Object.keys(SUPPORTED_CURRENCIES).map((code) => (
+                <option key={code} value={code}>
+                  {code}
+                </option>
+              ))}
             </select>
           </div>
           <div className="sm:col-span-3">
@@ -212,6 +229,8 @@ export function PlanView({ onNavigate }: { onNavigate?: (tab: any) => void }) {
             </Button>
           </div>
         </div>
+
+        {affordabilityError && <p className="text-xs text-[#a34426]">{affordabilityError}</p>}
 
         {/* Calculation Result */}
         {affordabilityResult && (

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CreatePlanInput, UpdatePlanInput } from "@/backend/validators/plan";
-import { getHouseholdRole, otherPartnerRole, type PartnerRole } from "./activity.service";
+import { getHouseholdRole, otherPartnerRole, recordHouseholdActivity, type PartnerRole, type RpcError } from "./activity.service";
 
 export async function listHouseholdPlans(supabase: SupabaseClient, householdId: string) {
   return supabase
@@ -47,11 +47,9 @@ export async function createHouseholdPlan(
     .single();
 
   if (!error && data) {
-    await supabase.from("activities").insert({
-      household_id: householdId,
+    await recordHouseholdActivity(supabase, householdId, {
       title: `New Goal Added: ${input.title}`,
       category: "Plan",
-      actor: await getHouseholdRole(supabase, householdId, userId),
       status: "INFO",
       amount: input.targetAmount,
       currency: input.currency,
@@ -62,16 +60,69 @@ export async function createHouseholdPlan(
   return { data, error };
 }
 
+export interface PlanRow {
+  id: string;
+  household_id: string;
+  title: string;
+  category: string;
+  target_amount: number | string;
+  current_amount: number | string;
+  currency: string;
+  target_date: string;
+  recommended_monthly: number | string;
+  split_partner_a: number | string;
+  split_partner_b: number | string;
+  wallet_funding: string;
+  status: string;
+  assumptions: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// split_partner_a/b hold the ratio as percentages; the app shows each
+// partner's share of recommended_monthly (A rounded, B the remainder, as the
+// goal dialogs compute it).
+export function toApiPlan(row: PlanRow) {
+  const monthly = Number(row.recommended_monthly) || 0;
+  const a = Number(row.split_partner_a) || 0;
+  const b = Number(row.split_partner_b) || 0;
+  const shareA = a + b > 0 ? a / (a + b) : 0.5;
+  const partnerA = Math.round(monthly * shareA);
+  return {
+    id: row.id,
+    title: row.title,
+    category: row.category,
+    targetAmount: Number(row.target_amount),
+    currentAmount: Number(row.current_amount),
+    currency: row.currency,
+    targetDate: row.target_date,
+    recommendedMonthly: monthly,
+    splitRecommendation: { partnerB: monthly - partnerA, partnerA },
+    splitPercent: { partnerB: b, partnerA: a },
+    walletFunding: row.wallet_funding,
+    status: row.status,
+    assumptions: row.assumptions,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+// update_household_plan applies solo fields (title, contributions, dates,
+// notes, status other than Archived) at once. Target, currency, split ratio and
+// archiving become a GOAL approval for the partner (pendingApprovalId), unless
+// there is no partner yet or the caller is still drafting their own goal.
 export async function updateHouseholdPlan(
   supabase: SupabaseClient,
   householdId: string,
   planId: string,
-  input: UpdatePlanInput,
-  userId: string
-) {
-  const payload: Record<string, unknown> = {
-    updated_at: new Date().toISOString(),
-  };
+  input: UpdatePlanInput
+): Promise<{ data: PlanRow | null; pendingApprovalId: string | null; error: RpcError }> {
+  const { data: existing } = await getHouseholdPlan(supabase, householdId, planId);
+  if (!existing) {
+    return { data: null, pendingApprovalId: null, error: { code: "P0002", message: "Goal not found." } };
+  }
+
+  const payload: Record<string, unknown> = {};
 
   if (input.title !== undefined) payload.title = input.title;
   if (input.category !== undefined) payload.category = input.category;
@@ -86,63 +137,17 @@ export async function updateHouseholdPlan(
   if (input.status !== undefined) payload.status = input.status;
   if (input.assumptions !== undefined) payload.assumptions = input.assumptions;
 
-  const { data, error } = await supabase
-    .from("plans")
-    .update(payload)
-    .eq("household_id", householdId)
-    .eq("id", planId)
-    .select()
-    .single();
+  const { data, error } = await supabase.rpc("update_household_plan", {
+    p_plan_id: planId,
+    p_changes: payload,
+  });
 
-  if (!error && data) {
-    await supabase.from("activities").insert({
-      household_id: householdId,
-      title: `Goal Adjusted: ${data.title}`,
-      category: "Plan",
-      actor: await getHouseholdRole(supabase, householdId, userId),
-      status: "INFO",
-      amount: data.target_amount,
-      currency: data.currency,
-      reason: `Goal terms and allocation adjusted for "${data.title}".`,
-    });
+  const result = data as { plan?: PlanRow; pending_approval_id?: string | null } | null;
+  if (error || !result?.plan) {
+    return { data: null, pendingApprovalId: null, error: error ?? { message: "Unable to update goal." } };
   }
 
-  return { data, error };
-}
-
-export async function deleteHouseholdPlan(
-  supabase: SupabaseClient,
-  householdId: string,
-  planId: string,
-  userId: string
-) {
-  const { data: existing } = await supabase
-    .from("plans")
-    .select("title, target_amount, currency")
-    .eq("household_id", householdId)
-    .eq("id", planId)
-    .maybeSingle();
-
-  const { error } = await supabase
-    .from("plans")
-    .delete()
-    .eq("household_id", householdId)
-    .eq("id", planId);
-
-  if (!error && existing) {
-    await supabase.from("activities").insert({
-      household_id: householdId,
-      title: `Goal Deleted: ${existing.title}`,
-      category: "Plans",
-      actor: await getHouseholdRole(supabase, householdId, userId),
-      status: "INFO",
-      amount: existing.target_amount,
-      currency: existing.currency,
-      reason: `Goal "${existing.title}" removed from household planning.`,
-    });
-  }
-
-  return { error };
+  return { data: result.plan, pendingApprovalId: result.pending_approval_id ?? null, error: null };
 }
 
 export async function requestDeleteHouseholdPlan(
@@ -244,11 +249,9 @@ export async function requestDeleteHouseholdPlan(
     return { success: false, message: "Failed to dispatch approval request." };
   }
 
-  await supabase.from("activities").insert({
-    household_id: householdId,
+  await recordHouseholdActivity(supabase, householdId, {
     title: `Goal Deletion Proposed: ${plan.title}`,
     category: "Plans",
-    actor: requesterRole,
     status: "NEED_APPROVAL",
     amount: plan.target_amount,
     currency: plan.currency,

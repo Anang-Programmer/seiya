@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SolarIcon } from "@/components/icons/solar";
 import { useApp, BillItem } from "@/lib/store";
+import { parseAmount } from "@/lib/receipt-text";
 
 interface BillDialogProps {
   open: boolean;
@@ -22,15 +23,27 @@ const CATEGORY_OPTIONS = [
   { label: "Other Recurring", icon: "calendar" },
 ];
 
+// Local calendar date as YYYY-MM-DD (toISOString would shift it to UTC).
+function isoDay(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function daysFromToday(days: number) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return isoDay(d);
+}
+
 export function BillDialog({ open, onOpenChange, billToEdit }: BillDialogProps) {
-  const { addBill, editBill, reportingCurrency, currentUser, partnerAName, partnerBName } = useApp();
+  const { addBill, editBill, household, wallets, currentUser, partnerAName, partnerBName } = useApp();
+  // Bills are paid from the shared wallet, and the database only accepts the
+  // household's base currency for them.
+  const currency = household?.baseCurrency || wallets.shared.currency || "IDR";
 
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("Utilities & Electricity");
   const [amount, setAmount] = useState<string>("");
-  const [currency, setCurrency] = useState("USD");
-  const [dueDate, setDueDate] = useState("Every 15th");
-  const [wallet, setWallet] = useState<"shared" | "personal_a" | "personal_b">("shared");
+  const [dueDate, setDueDate] = useState(daysFromToday(14));
   const [isRecurring, setIsRecurring] = useState(true);
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
@@ -42,24 +55,21 @@ export function BillDialog({ open, onOpenChange, billToEdit }: BillDialogProps) 
       setTitle(billToEdit.title);
       setCategory(billToEdit.category || "Utilities & Electricity");
       setAmount(billToEdit.amount.toString());
-      setCurrency(billToEdit.currency || reportingCurrency);
-      setDueDate(billToEdit.dueDate);
-      setWallet(billToEdit.wallet || "shared");
+      // dueDate is a display string; daysRemaining gives the exact day back.
+      setDueDate(daysFromToday(billToEdit.daysRemaining));
       setIsRecurring(billToEdit.isRecurring !== false);
       setNotes(billToEdit.notes || "");
     } else {
       setTitle("");
       setCategory("Utilities & Electricity");
       setAmount("");
-      setCurrency(reportingCurrency || "USD");
-      setDueDate("Every 15th");
-      setWallet("shared");
+      setDueDate(daysFromToday(14));
       setIsRecurring(true);
       setNotes("");
     }
     setError("");
     setSuccessMsg("");
-  }, [billToEdit, open, reportingCurrency]);
+  }, [billToEdit, open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,9 +81,18 @@ export function BillDialog({ open, onOpenChange, billToEdit }: BillDialogProps) 
       return;
     }
 
-    const numAmount = parseFloat(amount);
+    const numAmount = parseAmount(amount) ?? NaN;
     if (isNaN(numAmount) || numAmount <= 0) {
       setError("Please enter a valid amount greater than 0.");
+      return;
+    }
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
+      setError("Please pick the next due date.");
+      return;
+    }
+    if (!billToEdit && dueDate < daysFromToday(0)) {
+      setError("The next due date can't be in the past.");
       return;
     }
 
@@ -86,7 +105,7 @@ export function BillDialog({ open, onOpenChange, billToEdit }: BillDialogProps) 
         amount: numAmount,
         currency,
         dueDate: dueDate.trim() || "Monthly",
-        wallet,
+        wallet: "shared",
         isRecurring,
         notes: notes.trim(),
       });
@@ -98,7 +117,7 @@ export function BillDialog({ open, onOpenChange, billToEdit }: BillDialogProps) 
         amount: numAmount,
         currency,
         dueDate: dueDate.trim() || "Monthly",
-        wallet,
+        wallet: "shared",
         status: "upcoming",
         isRecurring,
         notes: notes.trim(),
@@ -221,11 +240,11 @@ export function BillDialog({ open, onOpenChange, billToEdit }: BillDialogProps) 
                   Amount *
                 </label>
                 <Input
-                  type="number"
-                  step="any"
+                  type="text"
+                  inputMode="decimal"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  placeholder="e.g. 150 or 500000"
+                  placeholder={currency === "IDR" ? "e.g. 350.000" : "e.g. 45.00"}
                   className="text-xs font-mono font-bold bg-[#fef9ef]"
                 />
               </div>
@@ -233,18 +252,10 @@ export function BillDialog({ open, onOpenChange, billToEdit }: BillDialogProps) 
                 <label className="text-xs font-semibold text-[#2a2b2f] block mb-1">
                   Currency
                 </label>
-                <select
-                  value={currency}
-                  onChange={(e) => setCurrency(e.target.value)}
-                  className="w-full h-9 px-2 rounded-full border border-[#d1c9bf] bg-[#fef9ef] text-xs font-mono font-bold text-[#2a2b2f] focus:outline-none focus:ring-2 focus:ring-[#B45529]/30"
-                >
-                  <option value="USD">USD ($)</option>
-                  <option value="IDR">IDR (Rp)</option>
-                  <option value="EUR">EUR (€)</option>
-                  <option value="GBP">GBP (£)</option>
-                  <option value="SGD">SGD (S$)</option>
-                  <option value="JPY">JPY (¥)</option>
-                </select>
+                {/* Fixed to the household currency the shared wallet pays in */}
+                <div className="w-full h-9 px-3 rounded-full border border-[#d1c9bf] bg-[#f5eee1] text-xs font-mono font-bold text-[#2a2b2f] flex items-center">
+                  {currency}
+                </div>
               </div>
             </div>
 
@@ -252,35 +263,30 @@ export function BillDialog({ open, onOpenChange, billToEdit }: BillDialogProps) 
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-xs font-semibold text-[#2a2b2f] block mb-1">
-                  Due Schedule
+                  {isRecurring ? "Next Due Date" : "Due Date"}
                 </label>
                 <Input
+                  type="date"
                   value={dueDate}
+                  min={billToEdit ? undefined : daysFromToday(0)}
                   onChange={(e) => setDueDate(e.target.value)}
-                  placeholder="e.g. Every 15th, End of month"
                   className="text-xs bg-[#fef9ef]"
                 />
               </div>
               <div>
                 <label className="text-xs font-semibold text-[#2a2b2f] block mb-1">
-                  Source Wallet
+                  Paid From
                 </label>
-                <select
-                  value={wallet}
-                  onChange={(e) => setWallet(e.target.value as any)}
-                  className="w-full h-9 px-2 rounded-full border border-[#d1c9bf] bg-[#fef9ef] text-xs font-medium text-[#2a2b2f] focus:outline-none focus:ring-2 focus:ring-[#B45529]/30"
-                >
-                  <option value="shared">Shared Joint Wallet</option>
-                  <option value="personal_a">{partnerAName}&apos;s Personal Card</option>
-                  <option value="personal_b">{partnerBName}&apos;s Personal Card</option>
-                </select>
+                <div className="w-full h-9 px-3 rounded-full border border-[#d1c9bf] bg-[#f5eee1] text-xs font-medium text-[#2a2b2f] flex items-center">
+                  Shared wallet
+                </div>
               </div>
             </div>
 
             {/* Recurring Toggle & Dual-Key notice */}
             <div className="p-3 rounded-[12px] bg-[#fef9ef] border border-[#d1c9bf]/60 space-y-2">
               <label className="flex items-center justify-between cursor-pointer">
-                <span className="text-xs font-medium text-[#2a2b2f]">Monthly Recurring Obligation</span>
+                <span className="text-xs font-medium text-[#2a2b2f]">Repeats every month on this date</span>
                 <input
                   type="checkbox"
                   checked={isRecurring}
