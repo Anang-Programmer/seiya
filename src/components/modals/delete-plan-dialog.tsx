@@ -192,10 +192,9 @@ export function DeletePlanDialog({ plan, open, onOpenChange, onDeleted }: Delete
                       maxLength={6}
                       value={partnerAPin}
                       onChange={(e) => setPartnerAPin(e.target.value.replace(/\D/g, ""))}
-                      placeholder="123456"
+                      placeholder="••••••"
                       className="w-full h-10 px-3 rounded-[10px] border border-[#d1c9bf] bg-[#fef9ef] text-center font-mono text-sm tracking-widest text-[#2a2b2f] focus:outline-none focus:ring-2 focus:ring-[#B45529]/30"
                     />
-                    <span className="text-[10px] text-[#808988] block text-center mt-1">Hint: 123456</span>
                   </div>
                   <div>
                     <label className="text-[11px] font-semibold text-[#2a2b2f] block mb-1">
@@ -206,10 +205,9 @@ export function DeletePlanDialog({ plan, open, onOpenChange, onDeleted }: Delete
                       maxLength={6}
                       value={partnerBPin}
                       onChange={(e) => setPartnerBPin(e.target.value.replace(/\D/g, ""))}
-                      placeholder="654321"
+                      placeholder="••••••"
                       className="w-full h-10 px-3 rounded-[10px] border border-[#d1c9bf] bg-[#fef9ef] text-center font-mono text-sm tracking-widest text-[#2a2b2f] focus:outline-none focus:ring-2 focus:ring-[#B45529]/30"
                     />
-                    <span className="text-[10px] text-[#808988] block text-center mt-1">Hint: 654321</span>
                   </div>
                 </div>
 

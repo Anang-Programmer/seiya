@@ -40,8 +40,8 @@ export function ApprovalsView() {
       : history;
 
   const tabItems = [
-    { key: "waiting_me", label: "Waiting for me", badge: waitingForMe.length },
-    { key: "waiting_partner", label: "Waiting for partner", badge: waitingForPartner.length },
+    { key: "waiting_me", label: "Waiting for me", shortLabel: "For me", badge: waitingForMe.length },
+    { key: "waiting_partner", label: "Waiting for partner", shortLabel: "For partner", badge: waitingForPartner.length },
     { key: "history", label: "History", badge: history.length },
   ];
 

@@ -48,7 +48,8 @@ export function Tabs({
   onChange,
   className,
 }: {
-  items: { key: string; label: string; badge?: string | number }[];
+  /** shortLabel replaces label on phones so every tab fits without scrolling. */
+  items: { key: string; label: string; shortLabel?: string; badge?: string | number }[];
   activeKey: string;
   onChange: (key: string) => void;
   className?: string;
@@ -62,13 +63,20 @@ export function Tabs({
             key={item.key}
             onClick={() => onChange(item.key)}
             className={cn(
-              "px-4 py-1.5 text-xs font-semibold rounded-full transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5",
+              "px-3 sm:px-4 py-1.5 text-xs font-semibold rounded-full transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5",
               isActive
                 ? "bg-[#B45529] text-[#fef9ef] shadow-xs"
                 : "text-[#515151] hover:text-[#2a2b2f] hover:bg-[#ece3d3]"
             )}
           >
-            {item.label}
+            {item.shortLabel ? (
+              <>
+                <span className="sm:hidden">{item.shortLabel}</span>
+                <span className="hidden sm:inline">{item.label}</span>
+              </>
+            ) : (
+              item.label
+            )}
             {item.badge !== undefined && (
               <span
                 className={cn(

@@ -1649,6 +1649,7 @@ export function AuthView({
                   src="/images/auth/auth-mascot.png"
                   alt="Seiya Mascot on Laptop"
                   fill
+                  sizes="(min-width: 1024px) 40vw, 1px"
                   priority
                   className="object-contain"
                 />
@@ -3860,6 +3861,7 @@ export function AuthView({
                   src="/images/auth/auth-mascot.png"
                   alt="Seiya Financial Mediator"
                   fill
+                  sizes="64px"
                   className="object-contain"
                 />
               </div>

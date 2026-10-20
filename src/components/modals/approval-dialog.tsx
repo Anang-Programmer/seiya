@@ -193,19 +193,9 @@ export function ApprovalDialog({ request, open, onOpenChange }: ApprovalDialogPr
                 setPin(val);
                 setErrorMessage("");
               }}
-              placeholder="Or type PIN (default: 123456)"
+              placeholder="Or type your PIN"
               className="text-center text-xs px-3 py-1.5 rounded-full border border-[#d1c9bf] bg-[#fef9ef] text-[#2a2b2f] placeholder-[#808988] focus:outline-none focus:ring-1 focus:ring-[#B45529]"
             />
-            <button
-              type="button"
-              onClick={() => {
-                setPin("123456");
-                setErrorMessage("");
-              }}
-              className="text-[11px] font-semibold text-[#B45529] hover:underline px-2 py-1 cursor-pointer"
-            >
-              Auto 123456
-            </button>
           </div>
 
           {/* Numeric Keypad with Lora font-serif digits */}

@@ -144,7 +144,7 @@ export function WalletsView() {
           <div className="flex justify-between items-center mb-3.5">
             <div className="flex items-center gap-2.5">
               <img
-                src="/dashboard/Profile-Card-Shared.png"
+                src="/dashboard/Profile-Card-Shared.webp"
                 alt="Shared pool avatar"
                 className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover shrink-0 shadow-2xs border border-[#ecd9c7]"
               />
@@ -182,7 +182,7 @@ export function WalletsView() {
           <div className="flex justify-between items-center mb-3.5">
             <div className="flex items-center gap-2.5">
               <img
-                src={isPartnerA ? "/dashboard/Profile-Card-Man.png" : "/dashboard/Profile-Card-Women.png"}
+                src={isPartnerA ? "/dashboard/Profile-Card-Man.webp" : "/dashboard/Profile-Card-Women.webp"}
                 alt="Your avatar"
                 style={{ transform: !isPartnerA ? "scaleX(-1)" : "none" }}
                 className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover shrink-0 shadow-2xs border border-[#ecd9c7] transition-transform duration-300"
@@ -227,7 +227,7 @@ export function WalletsView() {
           <div className="flex justify-between items-center mb-3.5">
             <div className="flex items-center gap-2.5">
               <img
-                src={isPartnerA ? "/dashboard/Profile-Card-Women.png" : "/dashboard/Profile-Card-Man.png"}
+                src={isPartnerA ? "/dashboard/Profile-Card-Women.webp" : "/dashboard/Profile-Card-Man.webp"}
                 alt="Partner avatar"
                 style={{ transform: !isPartnerA ? "scaleX(-1)" : "none" }}
                 className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover shrink-0 shadow-2xs border border-[#ecd9c7] transition-transform duration-300"
