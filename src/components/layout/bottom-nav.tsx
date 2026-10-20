@@ -22,7 +22,8 @@ const MORE_ITEMS: { tab: NavTab; label: string; icon: SolarIconName }[] = [
 ];
 
 export function BottomNav({ currentTab, onTabChange, onOpenProfile }: BottomNavProps) {
-  const { approvals, currentUser } = useApp();
+  const { approvals, currentUser, contractMeta } = useApp();
+  const contractNeedsMe = contractMeta.pendingNeedsMyApproval;
   const [moreOpen, setMoreOpen] = useState(false);
   const waitingForMe = approvals.filter((a) => a.status === "pending" && a.approver === currentUser).length;
   const moreActive = MORE_ITEMS.some((item) => item.tab === currentTab);
@@ -37,6 +38,7 @@ export function BottomNav({ currentTab, onTabChange, onOpenProfile }: BottomNavP
   const openFromMore = (tab: NavTab) => {
     setMoreOpen(false);
     if (tab === "profile") onOpenProfile();
+    // onOpenProfile opens the contract tab when a change waits for this person.
     else onTabChange(tab);
   };
 
@@ -57,6 +59,9 @@ export function BottomNav({ currentTab, onTabChange, onOpenProfile }: BottomNavP
               >
                 <SolarIcon name={item.icon} size={18} className="text-[#B45529]" />
                 {item.label}
+                {item.tab === "profile" && contractNeedsMe && (
+                  <span className="ml-auto text-[10px] font-bold text-white bg-[#d4380d] px-2 py-0.5 rounded-full">Contract to sign</span>
+                )}
               </button>
             ))}
           </div>
@@ -127,10 +132,15 @@ export function BottomNav({ currentTab, onTabChange, onOpenProfile }: BottomNavP
           className={`flex-1 min-h-[44px] flex flex-col items-center justify-center gap-1 transition-all cursor-pointer active:scale-95 ${
             moreActive || moreOpen ? "text-[#B45529]" : "text-[#808988] hover:text-[#2a2b2f]"
           }`}
-          aria-label="More pages"
+          aria-label={contractNeedsMe ? "More pages, a contract change needs your signature" : "More pages"}
           aria-expanded={moreOpen}
         >
-          <SolarIcon name="dots-menu" size={20} variant="bold" />
+          <span className="relative">
+            <SolarIcon name="dots-menu" size={20} variant="bold" />
+            {contractNeedsMe && (
+              <span className="absolute -top-1 -right-1.5 w-2.5 h-2.5 rounded-full bg-[#d4380d] border-2 border-[#fefcf6]" aria-hidden="true" />
+            )}
+          </span>
           <span className="text-[10px] font-semibold tracking-tight">More</span>
         </button>
       </nav>

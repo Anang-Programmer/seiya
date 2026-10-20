@@ -275,7 +275,8 @@ export const apiGetMe = async (): Promise<ApiMeResponse | null> => {
   return "authenticated" in res && res.authenticated === false ? null : (res as ApiMeResponse);
 };
 
-export const apiSetupPin = (pin: string) => request("/api/auth/pin/setup", { body: { pin } });
+export const apiSetupPin = (pin: string, currentPin?: string) =>
+  request("/api/auth/pin/setup", { body: currentPin ? { pin, currentPin } : { pin } });
 
 export const apiVerifyPin = (pin: string, userId?: string) =>
   request<{ success: true; valid: boolean }>("/api/auth/pin/verify", {

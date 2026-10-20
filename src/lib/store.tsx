@@ -64,6 +64,9 @@ export interface ApprovalRequest {
   notes?: string;
 }
 
+export type AddMoneyWallet = "shared" | "mine";
+export type PinSetupMode = "create" | "change";
+
 export interface HeldPurchase {
   id: string;
   title: string;
@@ -242,6 +245,14 @@ interface AppContextType {
   // Verifies the caller's 6-digit PIN; the first use saves it as their PIN.
   // Resolves to an error message, or null when accepted.
   verifySecurityPin: (pin: string) => Promise<string | null>;
+  /** Opens the Create / Change PIN dialog. */
+  pinSetupMode: PinSetupMode | null;
+  openPinSetup: (mode?: PinSetupMode) => void;
+  closePinSetup: () => void;
+  /** True when the user has a PIN; otherwise opens Create PIN and returns false. */
+  ensurePin: () => boolean;
+  /** Saves a new PIN (currentPin is required to change an existing one). Resolves to an error message or null. */
+  savePin: (pin: string, currentPin?: string) => Promise<string | null>;
   dataStatus: { loading: boolean; loaded: boolean; error: string | null };
   notices: AppNotice[];
   notify: (kind: AppNotice["kind"], message: string) => void;
@@ -313,6 +324,12 @@ interface AppContextType {
   continueHeldPurchase: (heldId: string) => Promise<void>;
   cancelHeldPurchase: (heldId: string) => Promise<void>;
   recordTransaction: (tx: Omit<Transaction, "id" | "date" | "timestamp">) => Promise<Transaction | null>;
+  /** Records money coming in (salary, top-up) on the shared wallet or the caller's own wallet. */
+  addMoney: (wallet: AddMoneyWallet, amount: number, note: string) => Promise<boolean>;
+  /** Set while the Add money dialog is open; any screen can open it. */
+  addMoneyRequest: { wallet: AddMoneyWallet; id: number } | null;
+  openAddMoney: (wallet?: AddMoneyWallet) => void;
+  closeAddMoney: () => void;
   undoTransaction: (txId: string) => Promise<boolean>;
   proposeContractChange: (
     newThreshold: number,
@@ -928,13 +945,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return walletIds.mine;
   };
 
+  // PIN creation is its own step (Create PIN dialog, typed twice), never a side
+  // effect of the first approval: a typo there used to become the PIN.
+  const [pinSetupMode, setPinSetupMode] = useState<PinSetupMode | null>(null);
+  const openPinSetup: AppContextType["openPinSetup"] = (mode) => setPinSetupMode(mode ?? (hasPin ? "change" : "create"));
+  const closePinSetup: AppContextType["closePinSetup"] = () => setPinSetupMode(null);
+  const ensurePin: AppContextType["ensurePin"] = () => {
+    if (hasPin) return true;
+    setPinSetupMode("create");
+    return false;
+  };
+
+  const savePin: AppContextType["savePin"] = async (pin, currentPin) => {
+    try {
+      await api.apiSetupPin(pin, currentPin);
+      setHasPin(true);
+      notify("success", currentPin ? "Your security PIN was changed." : "Your security PIN is ready.");
+      return null;
+    } catch (error) {
+      return errorMessage(error, "Unable to save your PIN.");
+    }
+  };
+
   const verifySecurityPin: AppContextType["verifySecurityPin"] = async (pin) => {
     try {
       if (!hasPin) {
-        await api.apiSetupPin(pin);
-        setHasPin(true);
-        notify("info", "Your 6-digit security PIN has been saved for future approvals.");
-        return null;
+        setPinSetupMode("create");
+        return "Create your security PIN first.";
       }
       await api.apiVerifyPin(pin);
       return null;
@@ -976,6 +1013,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const [addMoneyRequest, setAddMoneyRequest] = useState<{ wallet: AddMoneyWallet; id: number } | null>(null);
+  const openAddMoney: AppContextType["openAddMoney"] = (wallet = "shared") => setAddMoneyRequest({ wallet, id: Date.now() });
+  const closeAddMoney: AppContextType["closeAddMoney"] = () => setAddMoneyRequest(null);
+
+  const addMoney: AppContextType["addMoney"] = async (wallet, amount, note) => {
+    try {
+      const hid = requireHousehold();
+      const walletId = wallet === "shared" ? walletIds.shared : walletIds.mine;
+      if (!walletId) {
+        throw new ApiError("Your wallets open after you and your partner agree on Seiya's Promise.", 409);
+      }
+      await api.apiCreateTransaction(hid, {
+        walletId,
+        transactionType: "income",
+        amount: round2(amount),
+        description: note.trim().slice(0, 250) || "Money added",
+        category: "Income",
+      });
+      notify("success", "Money added.");
+      await refreshData();
+      return true;
+    } catch (error) {
+      notify("error", errorMessage(error, "Unable to add money right now."));
+      return false;
+    }
+  };
+
   const undoTransaction: AppContextType["undoTransaction"] = async (txId) => {
     try {
       await api.apiUndoTransaction(txId);
@@ -996,11 +1060,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      // First approval with a PIN doubles as PIN setup for accounts without one.
-      if (pin && !hasPin) {
-        await api.apiSetupPin(pin);
-        setHasPin(true);
-        notify("info", "Your 6-digit security PIN has been saved for future approvals.");
+      if (!hasPin) {
+        setPinSetupMode("create");
+        return { ok: false, message: "Create your security PIN first, then approve." };
       }
 
       // Optimistic update; refreshData below reconciles with the server.
@@ -1564,7 +1626,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const unreadNotificationsCount =
     approvals.filter((a) => a.status === "pending" && a.approver === currentUser).length +
     heldPurchases.filter((h) => h.status === "held").length +
-    bills.filter((b) => b.status !== "paid" && b.daysRemaining <= 3).length;
+    bills.filter((b) => b.status !== "paid" && b.daysRemaining <= 3).length +
+    (contractMeta.pendingNeedsMyApproval ? 1 : 0);
 
   return (
     <AppContext.Provider
@@ -1576,6 +1639,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         household,
         myRole: currentUser,
         hasPin,
+        pinSetupMode,
+        openPinSetup,
+        closePinSetup,
+        ensurePin,
+        savePin,
         partnerProfile,
         refreshSession,
         refreshData,
@@ -1625,6 +1693,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         continueHeldPurchase,
         cancelHeldPurchase,
         recordTransaction,
+        addMoney,
+        addMoneyRequest,
+        openAddMoney,
+        closeAddMoney,
         undoTransaction,
         proposeContractChange,
         approveContractChange,

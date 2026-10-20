@@ -28,6 +28,7 @@ export function AllApprovalsModal({ open, onOpenChange }: AllApprovalsModalProps
     locale,
     approveApprovalRequest,
     declineApprovalRequest,
+    ensurePin,
   } = useApp();
 
   const partnerName = currentUser === "partner_a" ? partnerBName : partnerAName;
@@ -101,6 +102,7 @@ export function AllApprovalsModal({ open, onOpenChange }: AllApprovalsModalProps
   }, [approvals, scopeFilter, currentUser]);
 
   const handleStartPinApproval = (item: ApprovalRequest) => {
+    if (!ensurePin()) return;
     setPinPromptItem(item);
     setPinInput("");
     setPinError("");

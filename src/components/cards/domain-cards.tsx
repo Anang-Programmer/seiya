@@ -27,6 +27,8 @@ export interface ActionCardProps {
     waitingFor?: string;
     safeAlternative?: string;
     txId?: string;
+    /** Income recorded by Ask Seiya (shows "Money added" instead of "Approved"). */
+    income?: boolean;
     heldId?: string;
     approvalId?: string;
   };
@@ -98,7 +100,7 @@ export function ActionCard({
         </div>
         <Badge variant={config.badgeVariant}>
           <SolarIcon name="shield-check" size={12} className="opacity-70" />
-          {config.badge}
+          {details?.income ? "Money added" : config.badge}
         </Badge>
       </div>
 
@@ -253,7 +255,7 @@ export function PlanCard({
   onAdjust,
   onDelete,
 }: PlanCardProps) {
-  const { reportingCurrency, locale, verifySecurityPin } = useApp();
+  const { reportingCurrency, locale, verifySecurityPin, ensurePin } = useApp();
   const planCurrency = currency || reportingCurrency;
   const [activeStatus, setActiveStatus] = useState(status);
   const [showPinModal, setShowPinModal] = useState(false);
@@ -371,7 +373,7 @@ export function PlanCard({
           <Button
             variant="primary"
             size="sm"
-            onClick={() => setShowPinModal(true)}
+            onClick={() => ensurePin() && setShowPinModal(true)}
           >
             Approve & Activate
           </Button>
@@ -389,7 +391,7 @@ export function PlanCard({
           <Button
             variant="primary"
             size="sm"
-            onClick={() => setShowPinModal(true)}
+            onClick={() => ensurePin() && setShowPinModal(true)}
           >
             Resume plan
           </Button>

@@ -80,6 +80,7 @@ Rules:
 - Do not fabricate balances, transactions, budgets, bills, dates, or agreements. For actual household data, use the available tools. If data cannot be retrieved or is empty, state so clearly.
 - Tools are generally read-only. The sole exception is record_expense: call it when the user reports a REAL expense that already occurred and specifies a clear amount (e.g. "today I spent 20 million on a trip to Japan"). If the amount and purpose are clear, you MUST call record_expense once; do not answer as if it was recorded without calling the tool. Do not record plans, desires, questions, hypotheticals, stories of other people, or messages without amounts; if in doubt, ask for the amount and purpose without calling the tool.
 - Wallet choice in record_expense: default "shared" (shared wallet) for all household expenses, including vacations, shopping, bills, and dining together. Use "personal" only when the user explicitly specifies their own money (e.g. "from my personal money"). Balances are not visible in this turn, so do not guess; follow this default rule.
+- Money coming in (salary, bonus, refund, top-up, starting balance) that the user says ALREADY arrived: call record_income once with the full amount. Default wallet is the user's personal wallet; use shared only if they say so. Never record expected or future income.
 - Adding bills: when the user wants to add a bill or bill reminder, call draft_bill once with all the bills they named as soon as you know what each is and its amount (ask only for what is missing; the due day is optional). draft_bill saves nothing: say the draft is ready and ask them to check it and press "Add bill". Never claim a bill was added.
 - Never approve, reject, pay, or execute transactions. Partner approval and cooling-off execution are outside chat. After record_expense succeeds, state the exact status returned by the tool: executed, pending partner approval, or on cooling-off hold.
 - If record_expense fails (ok:false), state the failure as-is along with alternatives (e.g. recording to shared wallet if personal balance is insufficient). NEVER claim money left, was recorded, or was moved when no transaction was created.
@@ -139,6 +140,16 @@ function asksForData(message: string): boolean {
 function isFollowUpMessage(message: string): boolean {
   const text = message.trim();
   return text.length <= 140 && /\b(that|earlier|details?|compare|how about|what about|then|explain more|itu|tadi|tersebut|lanjut|detailnya|lebih detail|bandingkan|bagaimana dengan|gimana dengan|kalau begitu|yang tadi|jelaskan lagi|kenapa begitu)\b/i.test(text);
+}
+
+/** "Gaji 8 juta masuk", "got paid 1,500", "add 2 juta to the shared wallet". */
+function looksLikeIncomeReport(message: string): boolean {
+  const text = message.trim();
+  const income =
+    /\b(gaji|salary|paycheck|payday|income|pemasukan|bonus|thr|refund|uang masuk|dana masuk|transfer masuk|masuk ke|dapat uang|dapet uang|terima uang|received|got paid|top ?up|isi saldo|tambah saldo|add money|saldo awal|starting balance)\b/i.test(text);
+  if (!income || !/\d/.test(text)) return false;
+  const notYet = /\b(will|expect|next month|bulan depan|nanti|akan|rencana|berapa|how much|kapan|when)\b/i.test(text);
+  return !notYet;
 }
 
 function looksLikeExpenseReport(message: string): boolean {
@@ -203,7 +214,11 @@ function selectRelevantTools(message: string, history: AgentHistoryMessage[]) {
     add("get_wallet_summary");
     add("get_budget_summary");
   }
-  if (looksLikeExpenseReport(intentText) && !wantsToAddBill(message)) {
+  const reportsIncome = looksLikeIncomeReport(message);
+  if (reportsIncome) {
+    add("record_income");
+  }
+  if (looksLikeExpenseReport(intentText) && !wantsToAddBill(message) && !reportsIncome) {
     add("record_expense");
     add("get_wallet_summary");
   }
@@ -468,6 +483,23 @@ export async function runSeiyaAgent(input: RunSeiyaAgentInput): Promise<RunSeiya
 
   let cardType: RunSeiyaAgentResult["cardType"];
   let cardData: Record<string, unknown> | undefined;
+
+  for (const tr of toolResults) {
+    if (tr.name !== "record_income" || !tr.rawResult || typeof tr.rawResult !== "object") continue;
+    const raw = tr.rawResult as { ok?: boolean; transaction?: Record<string, unknown>; status_note?: string };
+    if (raw.ok && raw.transaction) {
+      cardType = "ACTION_ALLOW";
+      cardData = {
+        title: raw.transaction.description || "Money added",
+        category: "Income",
+        amount: raw.transaction.amount,
+        currency: raw.transaction.currency,
+        wallet: raw.transaction.wallet_name || "Wallet",
+        statusNote: raw.status_note || "Money added",
+        income: true,
+      };
+    }
+  }
 
   const billDrafts = toolResults
     .filter((tr) => tr.name === "draft_bill" && tr.rawResult && typeof tr.rawResult === "object" && (tr.rawResult as { ok?: unknown }).ok)

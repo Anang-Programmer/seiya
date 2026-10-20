@@ -68,6 +68,7 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
     contract,
     wallets,
     proposeExpense,
+    openAddMoney,
   } = useApp();
 
   const activeProposer = currentUser === "partner_a" ? partnerAName : partnerBName;
@@ -319,7 +320,20 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
             {error && (
               <div className="p-3 rounded-[12px] bg-[#fcf0ee] text-[#a34426] text-xs flex items-center gap-2 border border-[#a34426]/20">
                 <SolarIcon name="danger-triangle" size={16} className="shrink-0" />
-                <span>{error}</span>
+                <span className="flex-1">{error}</span>
+                {/not enough money|insufficient/i.test(error) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // The form stays filled; send it again after adding money.
+                      setError("");
+                      openAddMoney(wallet === "shared" ? "shared" : "mine");
+                    }}
+                    className="shrink-0 px-3 py-1 rounded-full bg-[#2d5232] hover:bg-[#244228] text-white text-[11px] font-semibold cursor-pointer"
+                  >
+                    Add money
+                  </button>
+                )}
               </div>
             )}
 

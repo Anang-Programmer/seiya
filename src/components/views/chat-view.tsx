@@ -1475,7 +1475,7 @@ export function ChatView() {
                     currency={msg.cardData.currency || reportingCurrency}
                     category={msg.cardData.category}
                     wallet={msg.cardData.wallet}
-                    reason="Checked against your budget and Seiya's Promise."
+                    reason={msg.cardData.income ? "Money added. Income never needs your partner's approval." : "Checked against your budget and Seiya's Promise."}
                     details={msg.cardData}
                   />
                 )}

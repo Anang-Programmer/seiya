@@ -22,7 +22,24 @@ export function WalletsView() {
     partnerAName,
     partnerBName,
     partnerProfile,
+    openAddMoney,
+    walletsReady,
   } = useApp();
+
+  const addMoneyButton = (wallet: "shared" | "mine") =>
+    walletsReady ? (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          openAddMoney(wallet);
+        }}
+        className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/80 hover:bg-white border border-[#d1c9bf] text-[11px] font-semibold text-[#2a2b2f] cursor-pointer transition-colors"
+      >
+        <SolarIcon name="plus" size={12} className="text-[#2d5232]" />
+        Add money
+      </button>
+    ) : null;
 
   const [selectedWalletTab, setSelectedWalletTab] = useState<"shared" | "personal" | "partner">("shared");
   // Settling clears the balance for both partners, so it takes a second, explicit click.
@@ -172,6 +189,7 @@ export function WalletsView() {
           <p className="text-[11px] text-[#8c5745] mt-1.5">
             Joint household funds • Dual-Key protected
           </p>
+          {addMoneyButton("shared")}
         </div>
 
         {/* My Personal Wallet */}
@@ -215,6 +233,7 @@ export function WalletsView() {
           <p className="text-[11px] text-[#8a7259] mt-1.5">
             Full itemized records visible to you
           </p>
+          {addMoneyButton("mine")}
         </div>
 
         {/* Partner Personal Wallet (TOTAL ONLY) */}

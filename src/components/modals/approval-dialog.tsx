@@ -17,7 +17,7 @@ interface ApprovalDialogProps {
 type ApprovalStep = "details" | "pin" | "approved";
 
 export function ApprovalDialog({ request, open, onOpenChange }: ApprovalDialogProps) {
-  const { currentUser, approveRequest, declineRequest, reportingCurrency, locale, partnerAName, partnerBName } = useApp();
+  const { currentUser, approveRequest, declineRequest, reportingCurrency, locale, partnerAName, partnerBName, ensurePin } = useApp();
   const [step, setStep] = useState<ApprovalStep>("details");
   const [pin, setPin] = useState("");
   const [isAuthorizing, setIsAuthorizing] = useState(false);
@@ -75,6 +75,8 @@ export function ApprovalDialog({ request, open, onOpenChange }: ApprovalDialogPr
       setErrorMessage("Dual-Key Security Rule: A requester cannot approve their own financial request.");
       return;
     }
+    // No PIN yet: create it first (typed twice), then come back and approve.
+    if (!ensurePin()) return;
     setErrorMessage("");
     setPin("");
     setStep("pin");

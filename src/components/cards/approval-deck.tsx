@@ -23,6 +23,7 @@ export function ApprovalDeck({ onViewAll, onSelectApproval }: ApprovalDeckProps)
     locale,
     approveApprovalRequest,
     declineApprovalRequest,
+    ensurePin,
   } = useApp();
 
   const partnerName = currentUser === "partner_a" ? partnerBName : partnerAName;
@@ -56,6 +57,7 @@ export function ApprovalDeck({ onViewAll, onSelectApproval }: ApprovalDeckProps)
   };
 
   const handleApproveClick = (item: ApprovalRequest) => {
+    if (!ensurePin()) return;
     setActiveItemForPin(item);
     setPinModalOpen(true);
   };

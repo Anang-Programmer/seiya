@@ -51,7 +51,7 @@ export async function createHouseholdHeldPurchase(
 const CONTINUE_ERRORS: Record<string, string> = {
   P0002: "Held purchase not found.",
   "42501": "Only the member who requested this purchase can continue it.",
-  P1001: "Insufficient available simulated balance.",
+  P1001: "Not enough money in this wallet. Add money first, or choose another wallet.",
   P1002: "The active finance agreement has invalid transaction settings.",
 };
 
