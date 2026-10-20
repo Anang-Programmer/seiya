@@ -48,6 +48,11 @@ export function WalletsView() {
   const partnerLabel = partnerName.charAt(0).toUpperCase() + partnerName.slice(1);
 
   const myWallet = isPartnerA ? wallets.personalA : wallets.personalB;
+  const myConverted = isPartnerA ? convertedBalances.personalA : convertedBalances.personalB;
+  // Balances follow the currency picked in the header (like the dashboard);
+  // the wallet's own amount is shown underneath.
+  const shownIn = (walletCurrency: string, rateAvailable: boolean) =>
+    walletCurrency !== reportingCurrency && rateAvailable ? reportingCurrency : walletCurrency;
 
   // Filter transactions for shared vs personal
   const sharedTransactions = transactions.filter((t) => t.wallet === "shared");
@@ -151,15 +156,17 @@ export function WalletsView() {
               <span className="text-xs sm:text-[13px] font-semibold text-[#5e2714] tracking-tight">{wallets.shared.label}</span>
             </div>
             <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-[#fef9ef]/95 text-[#8f3916] border border-[#e8baa3]/80 shadow-2xs">
-              {wallets.shared.currency}
+              {shownIn(wallets.shared.currency, convertedBalances.shared.available)}
             </span>
           </div>
           <div className="text-2xl font-extrabold text-[#2a2b2f] font-serif">
-            {formatMoney(wallets.shared.balance, wallets.shared.currency, locale)}
+            {shownIn(wallets.shared.currency, convertedBalances.shared.available) === wallets.shared.currency
+              ? formatMoney(wallets.shared.balance, wallets.shared.currency, locale)
+              : formatMoney(convertedBalances.shared.amount, reportingCurrency, locale)}
           </div>
           {wallets.shared.currency !== reportingCurrency && (
             <p className="text-[11px] text-[#6b3522] mt-1">
-              ≈ {formatMoney(convertedBalances.shared.amount, reportingCurrency, locale)} ({reportingCurrency})
+              {formatMoney(wallets.shared.balance, wallets.shared.currency, locale)} in wallet · estimated rate
             </p>
           )}
           <p className="text-[11px] text-[#8c5745] mt-1.5">
@@ -192,19 +199,17 @@ export function WalletsView() {
               </span>
             </div>
             <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-[#fef9ef]/95 text-[#734a1a] border border-[#e5d0ad]/80 shadow-2xs">
-              {myWallet.currency}
+              {shownIn(myWallet.currency, myConverted.available)}
             </span>
           </div>
           <div className="text-2xl font-extrabold text-[#2a2b2f] font-serif">
-            {formatMoney(myWallet.balance, myWallet.currency, locale)}
+            {shownIn(myWallet.currency, myConverted.available) === myWallet.currency
+              ? formatMoney(myWallet.balance, myWallet.currency, locale)
+              : formatMoney(myConverted.amount, reportingCurrency, locale)}
           </div>
           {myWallet.currency !== reportingCurrency && (
             <p className="text-[11px] text-[#634a2e] mt-1">
-              ≈ {formatMoney(
-                isPartnerA ? convertedBalances.personalA.amount : convertedBalances.personalB.amount,
-                reportingCurrency,
-                locale
-              )} ({reportingCurrency})
+              {formatMoney(myWallet.balance, myWallet.currency, locale)} in wallet · estimated rate
             </p>
           )}
           <p className="text-[11px] text-[#8a7259] mt-1.5">

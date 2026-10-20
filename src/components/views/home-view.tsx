@@ -318,6 +318,13 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
     return null;
   };
 
+  // Cards show the currency picked in the header when a rate is available;
+  // the wallet's own amount stays visible underneath.
+  const displayCurrency = (card: { id: string; currency: string; converted: { available: boolean } }) =>
+    card.currency !== reportingCurrency && card.converted.available
+      ? reportingCurrency
+      : card.currency;
+
   const walletCards = [
     // 1. Your Balance (Always leftmost / paling kiri)
     {
@@ -734,7 +741,7 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
               <span
                 className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full border shadow-2xs ${card.badgeClass}`}
               >
-                {card.currency}
+                {displayCurrency(card)}
               </span>
             </div>
 
@@ -746,6 +753,9 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
                       <SolarIcon name="lock-keyhole" size={20} />
                       Private
                     </span>
+                  ) : displayCurrency(card) === reportingCurrency && card.currency !== reportingCurrency ? (
+                    // Follows the currency picked in the header, like Monthly Overview.
+                    formatMoney(card.converted.amount, reportingCurrency, locale)
                   ) : (
                     formatMoney(card.balance, card.currency, locale)
                   )}
@@ -757,11 +767,11 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
                   {card.currency !== reportingCurrency && card.id !== "partner-wallet" && (
                     <span className="text-[11px] text-[#808988] font-medium">
                       {!card.converted.available ? (
-                        <span className="text-[#a34426]">FX unavail.</span>
+                        <span className="text-[#a34426]">No {reportingCurrency} rate for {card.currency}</span>
                       ) : (
                         <span>
-                          ≈ {formatMoney(card.converted.amount, reportingCurrency, locale)}{" "}
-                          <span className="text-[#a3abaa] font-normal">est.</span>
+                          {formatMoney(card.balance, card.currency, locale)} in wallet{" "}
+                          <span className="text-[#a3abaa] font-normal">· estimated rate</span>
                         </span>
                       )}
                     </span>
