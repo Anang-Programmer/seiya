@@ -64,6 +64,8 @@ export interface ApprovalRequest {
   notes?: string;
 }
 
+export type AddMoneyWallet = "shared" | "mine";
+
 export interface HeldPurchase {
   id: string;
   title: string;
@@ -313,6 +315,12 @@ interface AppContextType {
   continueHeldPurchase: (heldId: string) => Promise<void>;
   cancelHeldPurchase: (heldId: string) => Promise<void>;
   recordTransaction: (tx: Omit<Transaction, "id" | "date" | "timestamp">) => Promise<Transaction | null>;
+  /** Records money coming in (salary, top-up) on the shared wallet or the caller's own wallet. */
+  addMoney: (wallet: AddMoneyWallet, amount: number, note: string) => Promise<boolean>;
+  /** Set while the Add money dialog is open; any screen can open it. */
+  addMoneyRequest: { wallet: AddMoneyWallet; id: number } | null;
+  openAddMoney: (wallet?: AddMoneyWallet) => void;
+  closeAddMoney: () => void;
   undoTransaction: (txId: string) => Promise<boolean>;
   proposeContractChange: (
     newThreshold: number,
@@ -976,6 +984,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const [addMoneyRequest, setAddMoneyRequest] = useState<{ wallet: AddMoneyWallet; id: number } | null>(null);
+  const openAddMoney: AppContextType["openAddMoney"] = (wallet = "shared") => setAddMoneyRequest({ wallet, id: Date.now() });
+  const closeAddMoney: AppContextType["closeAddMoney"] = () => setAddMoneyRequest(null);
+
+  const addMoney: AppContextType["addMoney"] = async (wallet, amount, note) => {
+    try {
+      const hid = requireHousehold();
+      const walletId = wallet === "shared" ? walletIds.shared : walletIds.mine;
+      if (!walletId) {
+        throw new ApiError("Your wallets open after you and your partner agree on Seiya's Promise.", 409);
+      }
+      await api.apiCreateTransaction(hid, {
+        walletId,
+        transactionType: "income",
+        amount: round2(amount),
+        description: note.trim().slice(0, 250) || "Money added",
+        category: "Income",
+      });
+      notify("success", "Money added.");
+      await refreshData();
+      return true;
+    } catch (error) {
+      notify("error", errorMessage(error, "Unable to add money right now."));
+      return false;
+    }
+  };
+
   const undoTransaction: AppContextType["undoTransaction"] = async (txId) => {
     try {
       await api.apiUndoTransaction(txId);
@@ -1625,6 +1660,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         continueHeldPurchase,
         cancelHeldPurchase,
         recordTransaction,
+        addMoney,
+        addMoneyRequest,
+        openAddMoney,
+        closeAddMoney,
         undoTransaction,
         proposeContractChange,
         approveContractChange,

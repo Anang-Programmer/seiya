@@ -13,6 +13,7 @@ type ToolName =
   | "get_household_rules"
   | "get_wallet_summary"
   | "record_expense"
+  | "record_income"
   | "draft_bill";
 
 export interface SeiyaToolContext {
@@ -103,6 +104,34 @@ export const RECORD_EXPENSE_TOOL: AIToolDefinition = {
 };
 
 /**
+ * Records money coming in (salary, bonus, top-up, starting balance). Like
+ * record_expense it goes through the simulated transaction engine; income never
+ * needs partner approval.
+ */
+export const RECORD_INCOME_TOOL: AIToolDefinition = {
+  name: "record_income",
+  description:
+    "Record ONE amount of money that came in, stated by the user in this message (salary, bonus, refund, transfer received, top-up, starting balance). " +
+    "Do not use for expenses, plans, expected or future income, or questions. Convert units to full numbers: 8 juta = 8000000. " +
+    "wallet: 'personal' is the DEFAULT (salary usually goes to the earner); use 'shared' only if the user says it goes to the shared/joint wallet. Call once per amount.",
+  parameters: {
+    type: "object",
+    properties: {
+      amount: { type: "number", description: "Full amount in the wallet currency, e.g. 8000000." },
+      description: { type: "string", description: "Short label in user language, max 120 characters, e.g. 'Gaji Oktober'." },
+      wallet: {
+        type: "string",
+        enum: ["personal", "shared"],
+        description: "personal (DEFAULT) or shared if the user says so.",
+      },
+      currency: { type: "string", description: "Currency code mentioned by the user, if any. Must match the wallet currency." },
+    },
+    required: ["amount", "description", "wallet"],
+    additionalProperties: false,
+  },
+};
+
+/**
  * Prepares a bill for the user to review. Nothing is saved: the chat shows an
  * editable card and the bill is created only when the user presses "Add bill".
  */
@@ -145,6 +174,7 @@ export const DRAFT_BILL_TOOL: AIToolDefinition = {
 export const SEIYA_TOOL_DEFINITIONS: AIToolDefinition[] = [
   ...SEIYA_READ_TOOLS,
   RECORD_EXPENSE_TOOL,
+  RECORD_INCOME_TOOL,
   DRAFT_BILL_TOOL,
 ];
 
@@ -154,6 +184,7 @@ const ALLOWED_TOOL_NAMES = new Set<ToolName>([
   "get_household_rules",
   "get_wallet_summary",
   "record_expense",
+  "record_income",
   "draft_bill",
 ]);
 
@@ -569,6 +600,71 @@ async function recordExpense(
   };
 }
 
+async function recordIncome(args: Record<string, unknown>, context: SeiyaToolContext): Promise<unknown> {
+  if (!isPlainRecord(args)) return { ok: false, recorded: false, message: "Invalid record_income arguments." };
+  const amount = numeric(args.amount);
+  const description = typeof args.description === "string" ? args.description.trim().replace(/\s+/g, " ").slice(0, 120) : "";
+  const walletKind = args.wallet === "shared" ? "shared" : "personal";
+  const currency = typeof args.currency === "string" && args.currency.trim() ? args.currency.trim().toUpperCase() : null;
+  if (amount === null || amount <= 0 || amount > 999_999_999_999 || Math.round(amount * 100) / 100 !== amount) {
+    return { ok: false, recorded: false, message: "Ask the user for the exact amount that came in." };
+  }
+
+  const { data: walletRows, error: walletError } = await context.supabase
+    .from("wallets")
+    .select("id, wallet_type, owner_user_id, name, currency, simulated_balance")
+    .eq("household_id", context.householdId)
+    .eq("status", "active")
+    .limit(5);
+  if (walletError) {
+    return { ok: false, recorded: false, message: "Wallet list is temporarily unavailable. Do not claim anything was recorded." };
+  }
+  const wallets = (walletRows ?? []) as WalletRow[];
+  const wallet = walletKind === "shared"
+    ? wallets.find((item) => item.wallet_type === "shared")
+    : wallets.find((item) => item.wallet_type === "personal" && item.owner_user_id === context.userId);
+  if (!wallet) {
+    return {
+      ok: false,
+      recorded: false,
+      message: "Wallets are not open yet (they open once both partners agree on Seiya's Promise). Nothing was recorded.",
+    };
+  }
+  if (currency && currency !== wallet.currency) {
+    return { ok: false, recorded: false, message: `The user said ${currency} but this wallet uses ${wallet.currency}. Ask for the amount in ${wallet.currency}.` };
+  }
+  if (wallet.currency === "IDR" && amount < 1_000) {
+    return { ok: false, recorded: false, message: `Amount ${amount} looks too small for IDR; convert units (8 juta = 8000000) and call again.` };
+  }
+
+  const idempotencyKey = `ai-income-${createHash("sha256")
+    .update(`${context.expenseSeed}\n${walletKind}\n${amount.toFixed(2)}`)
+    .digest("hex")
+    .slice(0, 56)}`;
+  const { data, error } = await requestSimulatedTransaction(context.supabase, context.householdId, {
+    walletId: wallet.id,
+    transactionType: "income",
+    amount,
+    description: description || "Money added",
+    category: "income",
+    idempotencyKey,
+  });
+  if (error && error.code !== "P1003") {
+    console.warn("[Seiya Agent] record_income failed", { code: error.code ?? "unknown" });
+    return { ok: false, recorded: false, message: "Recording failed. Do not claim the money was added; suggest Add money on the Wallets page." };
+  }
+  const payload = isPlainRecord(data) ? data : {};
+  return {
+    ok: true,
+    recorded: !error,
+    duplicate: Boolean(error) || payload.idempotent_replay === true,
+    transaction: toTransactionSummary(payload.transaction ?? { amount, currency: wallet.currency, description, status: "executed" }, wallet.name),
+    status_note: error
+      ? "This income was already recorded from the same message and was not added twice."
+      : `Added to ${wallet.name}. New balance is about ${formatAmount((numeric(wallet.simulated_balance) ?? 0) + amount, wallet.currency)}.`,
+  };
+}
+
 /** Next date (YYYY-MM-DD, from `today`) that falls on `dueDay`, clamped to short months. */
 function nextDueDate(today: string, dueDay: number | null): string {
   const [y, m, d] = today.split("-").map(Number);
@@ -656,6 +752,7 @@ export async function executeSeiyaTool(
       case "get_household_rules": return await getHouseholdRules(context);
       case "get_wallet_summary": return await getWalletSummary(context);
       case "record_expense": return await recordExpense(args, context);
+      case "record_income": return await recordIncome(args, context);
       case "draft_bill": return await draftBill(args, context);
     }
   } catch {

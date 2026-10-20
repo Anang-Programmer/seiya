@@ -16,7 +16,7 @@ function transactionErrorResponse(code?: string) {
     "P0002": { status: 404, message: "Household or wallet not found." },
     "22023": { status: 409, message: "Household, wallet, or active finance agreement is not ready for this transaction." },
     "23505": { status: 409, message: "A conflicting transaction request already exists." },
-    P1001: { status: 409, message: "Insufficient available simulated balance." },
+    P1001: { status: 409, message: "Not enough money in this wallet. Add money first, or choose another wallet." },
     P1002: { status: 409, message: "The active finance agreement has invalid transaction settings." },
     P1003: { status: 409, message: "Idempotency key was already used for a different request." },
   };

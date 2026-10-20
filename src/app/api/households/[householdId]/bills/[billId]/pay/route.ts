@@ -12,7 +12,7 @@ function paymentError(code?: string) {
     "P0002": { status: 404, message: "Bill, household, or wallet not found." },
     "22023": { status: 409, message: "The bill cannot be paid with these details or its current status." },
     "23505": { status: 409, message: "This bill has already been paid." },
-    "P1001": { status: 409, message: "Insufficient available simulated balance." },
+    "P1001": { status: 409, message: "Not enough money in this wallet. Add money first, or choose another wallet." },
     "P1002": { status: 409, message: "The active transaction rules are invalid." },
     "P1003": { status: 409, message: "Idempotency key was already used for a different request." },
   };

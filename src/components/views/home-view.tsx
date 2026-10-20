@@ -178,6 +178,9 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
     partnerAName,
     partnerBName,
     setPendingDirectChat,
+    openAddMoney,
+    householdId,
+    authUser,
     settlement,
     budgetSummary,
     walletsReady,
@@ -185,6 +188,33 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
     hideAmounts,
     household,
   } = useApp();
+
+  // New wallets start at zero, so once they open Seiya asks for a starting
+  // balance (once per person and household; it can be dismissed).
+  const startKey = householdId && authUser ? `seiya.startingBalanceDone.${householdId}.${authUser.id}` : null;
+  const [startDismissed, setStartDismissed] = useState(true);
+  useEffect(() => {
+    if (!startKey) return;
+    let done = false;
+    try {
+      done = window.localStorage.getItem(startKey) === "1";
+    } catch {
+      // Storage unavailable: keep showing the prompt.
+    }
+    const timer = window.setTimeout(() => setStartDismissed(done), 0);
+    return () => window.clearTimeout(timer);
+  }, [startKey]);
+  const myWalletState = currentUser === "partner_a" ? wallets.personalA : wallets.personalB;
+  const showStartingBalance =
+    walletsReady && !startDismissed && wallets.shared.balance === 0 && myWalletState.balance === 0 && transactions.length === 0;
+  const dismissStartingBalance = () => {
+    setStartDismissed(true);
+    try {
+      if (startKey) window.localStorage.setItem(startKey, "1");
+    } catch {
+      // Not remembered; the prompt may show again next visit.
+    }
+  };
 
   // Opens Ask Seiya with this question; the chat view sends it and shows the reply.
   const askSeiya = (message: string) => {
@@ -497,6 +527,31 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
 
               {/* Action List */}
               <div className="py-2 space-y-1">
+                {/* 0. Add money (income / starting balance) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    openAddMoney("shared");
+                    setShowQuickActions(false);
+                  }}
+                  className="w-full flex items-center justify-between p-2.5 rounded-[14px] hover:bg-[#f5eee1] transition-all text-left group cursor-pointer"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-full bg-[#edf3ec] text-[#2d5232] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                      <SolarIcon name="wallet" size={18} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold text-[#2a2b2f] group-hover:text-[#B45529] transition-colors truncate">
+                        Add Money
+                      </div>
+                      <div className="text-[11px] text-[#808988] truncate">
+                        Record a salary, top-up or starting balance
+                      </div>
+                    </div>
+                  </div>
+                  <SolarIcon name="arrow-right" size={14} className="text-[#808988] group-hover:text-[#B45529] group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
+                </button>
+
                 {/* 1. Propose Shared Expense */}
                 <button
                   type="button"
@@ -716,6 +771,42 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
       </div>
 
       {notice}
+
+      {showStartingBalance && (
+        <div className="p-4 sm:p-5 rounded-[16px] bg-[#edf3ec] border border-[#2d5232]/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-full bg-white text-[#2d5232] flex items-center justify-center shrink-0">
+              <SolarIcon name="wallet" size={18} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-[#2a2b2f]">Set your starting balance</p>
+              <p className="text-xs text-[#515151] mt-0.5 leading-relaxed">
+                Your wallets are open and empty. Add what is in your shared and personal money today, so Seiya can check
+                expenses against real numbers.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={dismissStartingBalance}
+              className="px-3 py-1.5 rounded-full text-xs font-semibold text-[#515151] hover:bg-white/70 cursor-pointer"
+            >
+              Later
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                dismissStartingBalance();
+                openAddMoney("shared");
+              }}
+              className="px-4 py-1.5 rounded-full bg-[#2d5232] hover:bg-[#244228] text-white text-xs font-semibold cursor-pointer"
+            >
+              Add money
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 1. THREE DISTINCTIVE WHITE CARDS WITH BORDER & COLORED CHARTS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">

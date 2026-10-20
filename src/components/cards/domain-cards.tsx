@@ -27,6 +27,8 @@ export interface ActionCardProps {
     waitingFor?: string;
     safeAlternative?: string;
     txId?: string;
+    /** Income recorded by Ask Seiya (shows "Money added" instead of "Approved"). */
+    income?: boolean;
     heldId?: string;
     approvalId?: string;
   };
@@ -98,7 +100,7 @@ export function ActionCard({
         </div>
         <Badge variant={config.badgeVariant}>
           <SolarIcon name="shield-check" size={12} className="opacity-70" />
-          {config.badge}
+          {details?.income ? "Money added" : config.badge}
         </Badge>
       </div>
 

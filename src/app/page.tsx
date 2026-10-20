@@ -22,6 +22,7 @@ import { AuthView, AuthMode } from "@/components/views/auth-view";
 import { SeiyaLogo } from "@/components/icons/seiya-logo";
 import { SolarIcon } from "@/components/icons/solar";
 import { readPendingInvite, storePendingInvite } from "@/lib/invite";
+import { AddMoneyDialog } from "@/components/modals/add-money-dialog";
 
 function FullScreenLoader() {
   return (
@@ -398,6 +399,7 @@ export default function Page() {
     <AppProvider>
       <MainApp />
       <NoticeStack />
+      <AddMoneyDialog />
     </AppProvider>
   );
 }
