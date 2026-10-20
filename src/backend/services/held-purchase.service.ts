@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CreateHeldPurchaseInput } from "@/backend/validators/held-purchase";
-import { getHouseholdRole, recordHouseholdActivity } from "./activity.service";
+import { recordHouseholdActivity } from "./activity.service";
 
 export async function listHouseholdHeldPurchases(supabase: SupabaseClient, householdId: string) {
   return supabase
@@ -17,8 +17,6 @@ export async function createHouseholdHeldPurchase(
   userId: string,
   input: CreateHeldPurchaseInput
 ) {
-  const requesterRole = await getHouseholdRole(supabase, householdId, userId);
-
   // hold_until, status and requester_role are set by the
   // held_purchases_set_server_fields trigger from the active agreement's
   // cooling-off duration; the client cannot shorten the hold.
@@ -40,7 +38,6 @@ export async function createHouseholdHeldPurchase(
     await recordHouseholdActivity(supabase, householdId, {
       title: `Expense Held by Safeguard: ${input.title}`,
       category: "Safeguard",
-      actor: requesterRole,
       status: "HOLD",
       amount: input.amount,
       currency: input.currency,
@@ -103,26 +100,36 @@ export async function cancelHouseholdHeldPurchase(
 ) {
   const { data: item } = await supabase
     .from("held_purchases")
-    .select("title")
+    .select("title, requester_id")
     .eq("household_id", householdId)
     .eq("id", heldId)
     .maybeSingle();
 
-  const { error } = await supabase
+  if (!item) {
+    return { success: false, status: 404, message: "Held purchase not found." };
+  }
+  if (item.requester_id !== userId) {
+    return { success: false, status: 403, message: "Only the member who requested this purchase can cancel it." };
+  }
+
+  // RLS also limits DELETE to the requester's own rows.
+  const { data: deleted, error } = await supabase
     .from("held_purchases")
     .delete()
     .eq("household_id", householdId)
-    .eq("id", heldId);
+    .eq("id", heldId)
+    .select("id");
 
-  if (!error) {
-    await recordHouseholdActivity(supabase, householdId, {
-      title: `Held Purchase Cancelled: ${item?.title || "Item"}`,
-      category: "Safeguard",
-      actor: await getHouseholdRole(supabase, householdId, userId),
-      status: "INFO",
-      reason: "Cancelled by user after cooling-off review.",
-    });
+  if (error || !deleted?.length) {
+    return { success: false, status: 400, message: "Unable to cancel this held purchase." };
   }
 
-  return { success: !error, error };
+  await recordHouseholdActivity(supabase, householdId, {
+    title: `Held Purchase Cancelled: ${item.title || "Item"}`,
+    category: "Safeguard",
+    status: "INFO",
+    reason: "Cancelled by user after cooling-off review.",
+  });
+
+  return { success: true, status: 200, message: "Held purchase cancelled." };
 }

@@ -37,7 +37,7 @@ export async function POST(_request: Request, context: RouteContext) {
     }
 
     const result = await cancelHouseholdHeldPurchase(supabase, householdId, user.id, heldId);
-    return NextResponse.json(result, { status: result.success ? 200 : 400 });
+    return NextResponse.json({ success: result.success, message: result.message }, { status: result.status });
   } catch (error) {
     console.error("[waiting-list/cancel] Unexpected error:", error);
     return NextResponse.json({ success: false, message: "An unexpected error occurred." }, { status: 500 });
