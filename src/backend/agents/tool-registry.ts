@@ -501,13 +501,28 @@ async function recordExpense(
         personalWallet ? `wallet 'personal' (${personalWallet.name}) has ${formatAmount(personalWallet.simulated_balance, personalWallet.currency)}` : null,
       ].filter(Boolean).join("; ");
 
+      // Requests waiting for approval or on cooling-off hold reserve part of the
+      // balance, so "balance 34M is not enough for 20M" needs that explained.
+      const { data: reservedRows } = await context.supabase
+        .from("transactions")
+        .select("amount")
+        .eq("wallet_id", wallet.id)
+        .eq("transaction_type", "expense")
+        .in("status", ["pending_approval", "on_hold"]);
+      const reserved = (reservedRows ?? []).reduce((sum, row) => sum + (numeric(row.amount) ?? 0), 0);
+      const balance = numeric(wallet.simulated_balance) ?? 0;
+      const reservedNote = reserved > 0
+        ? ` ${formatAmount(reserved, wallet.currency)} of it is reserved by expenses waiting for partner approval or on cooling-off hold, ` +
+          `so only ${formatAmount(Math.max(0, balance - reserved), wallet.currency)} is available. Mention this reservation to the user.`
+        : "";
+
       console.warn("[Seiya Agent] record_expense insufficient balance", { wallet: input.wallet, code: error.code });
       return {
         ok: false,
         recorded: false,
         message:
           `Not recorded: ${wallet.name} (${input.wallet}) balance ${formatAmount(wallet.simulated_balance, wallet.currency)} ` +
-          `is insufficient for ${formatAmount(input.amount, wallet.currency)}. Currently ${alternatives}. ` +
+          `is not enough for ${formatAmount(input.amount, wallet.currency)}.${reservedNote} Currently ${alternatives}. ` +
           "Do not claim money has left or transaction has been recorded. " +
           "Household expenses are generally billed to the shared wallet; explain the condition to user and ask them to confirm the intended wallet.",
       };

@@ -2,7 +2,11 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-export async function GET() {
+export async function GET(request: Request) {
+  // The app's session check passes ?optional=1: a visitor who is not signed in
+  // is a normal state there, so it gets 200 instead of a 401 console error.
+  const optional = new URL(request.url).searchParams.get("optional") === "1";
+
   try {
     const supabase = await createClient();
 
@@ -13,13 +17,9 @@ export async function GET() {
     } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Login required.",
-        },
-        { status: 401 }
-      );
+      return optional
+        ? NextResponse.json({ success: true, authenticated: false })
+        : NextResponse.json({ success: false, message: "Login required." }, { status: 401 });
     }
 
     // Load the user's own Seiya profile.

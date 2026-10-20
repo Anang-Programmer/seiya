@@ -99,7 +99,7 @@ async function main() {
   checks.check(commitData.success === true, "commit success true");
   checks.check(commitData.importedCount === 5, `imported 5 transactions (actual: ${commitData.importedCount})`);
 
-  const listRes = await fetch(`${BASE_URL}/api/households/${context.householdId}/transactions?limit=10`, {
+  const listRes = await fetch(`${BASE_URL}/api/households/${context.householdId}/transactions?limit=100`, {
     headers: { cookie: context.cookiesA },
   });
   const listData = await listRes.json();

@@ -15,6 +15,7 @@ import {
   transformActivity,
   transformApproval,
   transformBill,
+  withBillIncreaseAnomalies,
   transformHeldPurchase,
   transformPlan,
   transformTransaction,
@@ -580,6 +581,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const refreshSession = useCallback(async (): Promise<api.ApiMeResponse | null> => {
     try {
       const me = await api.apiGetMe();
+      if (!me) {
+        clearSession();
+        return null;
+      }
       applyMe(me);
       return me;
     } catch (error) {
@@ -702,7 +707,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (billsRes.status === "fulfilled") {
-        setBills(billsRes.value.bills.map((b) => transformBill(b, ctx)));
+        const billRows = billsRes.value.bills;
+        setBills(withBillIncreaseAnomalies(billRows, billRows.map((b) => transformBill(b, ctx))));
       }
       if (plansRes.status === "fulfilled") {
         setPlans(plansRes.value.plans.map(transformPlan));

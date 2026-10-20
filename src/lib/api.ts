@@ -269,7 +269,11 @@ export const apiSignIn = (fullName: string, password: string) =>
 
 export const apiSignOut = () => request("/api/auth/signout", { method: "POST" });
 
-export const apiGetMe = () => request<ApiMeResponse>("/api/auth/me");
+/** Resolves to null when nobody is signed in. */
+export const apiGetMe = async (): Promise<ApiMeResponse | null> => {
+  const res = await request<ApiMeResponse | { success: true; authenticated: false }>("/api/auth/me?optional=1");
+  return "authenticated" in res && res.authenticated === false ? null : (res as ApiMeResponse);
+};
 
 export const apiSetupPin = (pin: string) => request("/api/auth/pin/setup", { body: { pin } });
 

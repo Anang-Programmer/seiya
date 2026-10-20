@@ -48,7 +48,6 @@ export function WalletsView() {
   const partnerLabel = partnerName.charAt(0).toUpperCase() + partnerName.slice(1);
 
   const myWallet = isPartnerA ? wallets.personalA : wallets.personalB;
-  const partnerWallet = isPartnerA ? wallets.personalB : wallets.personalA;
 
   // Filter transactions for shared vs personal
   const sharedTransactions = transactions.filter((t) => t.wallet === "shared");
@@ -237,25 +236,17 @@ export function WalletsView() {
                 {partnerProfile ? `${partnerLabel}’s balance` : "Partner balance"}
               </span>
             </div>
-            <Badge variant="deny">
+            <Badge variant="deny" aria-label="Private wallet">
               <SolarIcon name="lock-keyhole" size={11} />
-              Total Only
             </Badge>
           </div>
-          <div className="text-2xl font-extrabold text-[#2a2b2f] font-serif">
-            {formatMoney(partnerWallet.balance, partnerWallet.currency, locale)}
+          <div className="text-2xl font-extrabold text-[#808988] font-serif inline-flex items-center gap-2">
+            <SolarIcon name="lock-keyhole" size={20} />
+            Private
           </div>
-          {partnerWallet.currency !== reportingCurrency && (
-            <p className="text-[11px] text-[#36573c] mt-1">
-              ≈ {formatMoney(
-                !isPartnerA ? convertedBalances.personalA.amount : convertedBalances.personalB.amount,
-                reportingCurrency,
-                locale
-              )} ({reportingCurrency})
-            </p>
-          )}
+          {/* The partner’s personal wallet is never sent to this browser (RLS). */}
           <p className="text-[11px] text-[#59785e] mt-1.5">
-            {partnerProfile ? "Only the total is shared with you" : "Waiting for your partner to join"}
+            {partnerProfile ? "Balance and purchases stay private to them" : "Waiting for your partner to join"}
           </p>
         </div>
       </div>
@@ -289,11 +280,8 @@ export function WalletsView() {
               {partnerLabel}’s transactions are private
             </h4>
             <p className="text-xs text-[#515151] max-w-md mx-auto leading-relaxed">
-              You can see their personal balance (
-              <strong className="font-serif text-[#2a2b2f]">
-                {formatMoney(partnerWallet.balance, partnerWallet.currency, locale)}
-              </strong>
-              ), but not what they bought or where. The same rule protects your personal wallet.
+              Their personal balance and purchases are visible only to them, and the same rule protects your
+              personal wallet. Spending from the shared wallet is visible to both of you.
             </p>
             <div className="pt-2">
               <span className="inline-flex items-center gap-1.5 text-[11px] text-[#2d5232] bg-[#edf3ec] px-3.5 py-1 rounded-full">

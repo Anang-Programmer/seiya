@@ -93,30 +93,30 @@ export async function analyzeHouseholdBills(supabase: SupabaseClient, householdI
   if (error || !bills) return { anomalies: [], bills: [] };
 
   const anomalies: Array<{ billId: string; type: "duplicate" | "increase"; message: string }> = [];
-  const seenTitles = new Map<string, string>();
+  const norm = (title: string) => title.trim().toLowerCase();
 
+  // Duplicate: two unpaid bills with the same name.
+  const unpaidByTitle = new Map<string, string>();
   for (const bill of bills) {
-    const normTitle = bill.title.toLowerCase().replace(/[^a-z0-9]/g, "");
-
-    if (normTitle.includes("streaming") || normTitle.includes("netflix") || normTitle.includes("spotify")) {
-      const existing = seenTitles.get("streaming");
-      if (existing) {
-        anomalies.push({
-          billId: bill.id,
-          type: "duplicate",
-          message: `Duplicate streaming plan detected with "${existing}".`,
-        });
-      } else {
-        seenTitles.set("streaming", bill.title);
-      }
+    if (bill.status === "paid" || bill.status === "cancelled") continue;
+    const existing = unpaidByTitle.get(norm(bill.title));
+    if (existing) {
+      anomalies.push({ billId: bill.id, type: "duplicate", message: `Possible duplicate of "${existing}".` });
+    } else {
+      unpaidByTitle.set(norm(bill.title), bill.title);
     }
+  }
 
-    if (normTitle.includes("internet") || normTitle.includes("wifi")) {
-      anomalies.push({
-        billId: bill.id,
-        type: "increase",
-        message: "Bill increased +15% from last month (promotional discount ended).",
-      });
+  // Increase: over 10% more than the last paid bill with the same name and currency.
+  for (const bill of bills) {
+    if (bill.status === "paid" || bill.status === "cancelled") continue;
+    const previous = bills
+      .filter((b) => b.status === "paid" && norm(b.title) === norm(bill.title) && b.currency === bill.currency)
+      .sort((x, y) => (x.due_date < y.due_date ? 1 : -1))[0];
+    const prevAmount = previous ? Number(previous.amount) : 0;
+    if (previous && prevAmount > 0 && Number(bill.amount) > prevAmount * 1.1) {
+      const pct = Math.round(((Number(bill.amount) - prevAmount) / prevAmount) * 100);
+      anomalies.push({ billId: bill.id, type: "increase", message: `Up ${pct}% from the last payment of this bill.` });
     }
   }
 

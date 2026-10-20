@@ -313,6 +313,8 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
   const walletStatus = (cardId: string) => {
     if (cardId === "partner-wallet" && !partnerProfile) return "Waiting for your partner to join";
     if (!walletsReady) return "Opens after Seiya's Promise";
+    // The partner's personal wallet is never sent to this browser (RLS).
+    if (cardId === "partner-wallet") return "Only your partner can see this";
     return null;
   };
 
@@ -739,13 +741,20 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
             <div className="flex items-end justify-between gap-3 mt-2">
               <div className="min-w-0">
                 <div className="text-2xl sm:text-[28px] font-bold text-[#2a2b2f] tracking-tight font-serif leading-none">
-                  {formatMoney(card.balance, card.currency, locale)}
+                  {card.id === "partner-wallet" && partnerProfile && walletsReady ? (
+                    <span className="inline-flex items-center gap-2 text-[#808988]">
+                      <SolarIcon name="lock-keyhole" size={20} />
+                      Private
+                    </span>
+                  ) : (
+                    formatMoney(card.balance, card.currency, locale)
+                  )}
                 </div>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
                   {walletStatus(card.id) && (
                     <span className="text-[11px] text-[#808988] font-medium">{walletStatus(card.id)}</span>
                   )}
-                  {card.currency !== reportingCurrency && (
+                  {card.currency !== reportingCurrency && card.id !== "partner-wallet" && (
                     <span className="text-[11px] text-[#808988] font-medium">
                       {!card.converted.available ? (
                         <span className="text-[#a34426]">FX unavail.</span>
