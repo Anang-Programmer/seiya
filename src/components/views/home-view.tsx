@@ -448,6 +448,17 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
             <span>Propose Expense</span>
           </button>
 
+          {/* 1b. Add Money (salary, top-up, starting balance) */}
+          <button
+            type="button"
+            onClick={() => openAddMoney("shared")}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white hover:bg-[#f3f8f2] text-[#2a2b2f] border border-[#e8dfd5] text-xs font-semibold shadow-2xs hover:shadow-xs hover:border-[#2d5232]/40 transition-all cursor-pointer active:scale-97 shrink-0"
+            title="Add money to a wallet"
+          >
+            <SolarIcon name="wallet" size={14} className="text-[#2d5232]" />
+            <span>Add Money</span>
+          </button>
+
           {/* 2. Add Goal */}
           <button
             type="button"
@@ -463,7 +474,7 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
           <button
             type="button"
             onClick={() => setAddBillModalOpen(true)}
-            className="hidden md:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white hover:bg-[#fcf7ee] text-[#2a2b2f] border border-[#e8dfd5] text-xs font-semibold shadow-2xs hover:shadow-xs hover:border-[#B45529]/40 transition-all cursor-pointer active:scale-97 shrink-0"
+            className="hidden lg:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white hover:bg-[#fcf7ee] text-[#2a2b2f] border border-[#e8dfd5] text-xs font-semibold shadow-2xs hover:shadow-xs hover:border-[#B45529]/40 transition-all cursor-pointer active:scale-97 shrink-0"
             title="Add a recurring bill reminder"
           >
             <SolarIcon name="receipt" size={14} className="text-[#B45529]" />
