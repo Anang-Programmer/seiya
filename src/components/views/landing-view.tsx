@@ -791,14 +791,6 @@ export function LandingView({ onEnterApp }: LandingViewProps) {
               </button>
             ))}
           </nav>
-          <div className="hidden items-center gap-2 sm:flex">
-            <Button variant="outline" size="sm" onClick={() => setAuthMode("login")} className="rounded-full font-jakarta text-xs">
-              Sign In
-            </Button>
-            <Button variant="primary" size="sm" onClick={() => setAuthMode("register")} className="rounded-full font-jakarta text-xs">
-              Create Account
-            </Button>
-          </div>
         </div>
       </header>
 
