@@ -3,7 +3,7 @@
  *
  * Run:
  *   npm run test:wellness
- *   node --env-file=.env.local scripts/test-wellness.mjs
+ *   node --env-file=.env.local scripts/test/wellness.mjs
  *
  * What it proves:
  *   1. stress and crisis replies carry no currency numbers, no emoji styling, no tools.

@@ -86,6 +86,22 @@ npm run dev                  # http://localhost:3000
 
 Environment variables, database, deployment, the full API reference and the test scripts are in the **[Developer guide](docs/DEVELOPER.md)**.
 
+## Project structure
+
+```text
+seiya/
+├── src/
+│   ├── app/            # pages and API routes (Next.js App Router)
+│   ├── backend/        # services, validators, AI agent and RAG
+│   ├── components/     # views, layout, modals, cards, UI
+│   └── lib/            # API client, app store, helpers
+├── supabase/migrations # database schema, RLS and RPCs
+├── knowledge/seiya     # what Seiya's AI knows (RAG)
+├── public/             # logo, images, videos
+├── scripts/            # build, seed, test and tools
+└── docs/               # developer guide, design system, diagrams
+```
+
 ---
 
 <div align="center">

@@ -5,7 +5,7 @@
  * Reads .env.local first, then .env, from the current directory or this file's directory.
  *
  * Run:
- *   node ai-fallback.mjs "Tes"
+ *   node scripts/tools/ai-fallback.mjs "Tes"
  */
 
 import fs from 'node:fs';

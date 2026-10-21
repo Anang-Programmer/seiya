@@ -3,7 +3,7 @@
  *
  * Run:
  *   npm run test:personalization
- *   node --env-file=.env.local scripts/test-personalization.mjs
+ *   node --env-file=.env.local scripts/test/personalization.mjs
  *
  * What it proves:
  *   1. Every reply is personalization-free of internal labels (never shown to the user).

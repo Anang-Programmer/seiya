@@ -301,7 +301,7 @@ function MainApp() {
             >
               <div className="w-full mt-0 lg:-mt-[4%]">
                 <img
-                  src="/dashboard/SeiyaBG-Landscape.webp"
+                  src="/images/dashboard/SeiyaBG-Landscape.webp"
                   alt="Seiya Landscape Background"
                   className="w-full h-auto block"
                 />

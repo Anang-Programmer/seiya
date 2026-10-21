@@ -110,7 +110,7 @@ function AskSeiyaDirectChatBox({
       <div className="relative">
         <div className="flex justify-center -mb-[5px] relative z-10 pointer-events-none select-none">
           <img
-            src="/dashboard/CuriousSeiya-Dashboard.webp"
+            src="/images/dashboard/CuriousSeiya-Dashboard.webp"
             alt="Curious Seiya"
             className="w-40 sm:w-44 h-auto object-contain block drop-shadow-xs"
           />
@@ -385,7 +385,7 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
     // 1. Your Balance (Always leftmost / paling kiri)
     {
       id: "your-wallet",
-      avatar: isPartnerA ? "/dashboard/Profile-Card-Man.webp" : "/dashboard/Profile-Card-Women.webp",
+      avatar: isPartnerA ? "/images/dashboard/Profile-Card-Man.webp" : "/images/dashboard/Profile-Card-Women.webp",
       alt: `${isPartnerA ? partnerAName : partnerBName} avatar`,
       shouldFlip: !isPartnerA, // When cewe is on the left, reverse horizontal so she faces right towards partner
       label: "Your balance",
@@ -407,7 +407,7 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
     // 2. Partner Balance (Middle)
     {
       id: "partner-wallet",
-      avatar: isPartnerA ? "/dashboard/Profile-Card-Women.webp" : "/dashboard/Profile-Card-Man.webp",
+      avatar: isPartnerA ? "/images/dashboard/Profile-Card-Women.webp" : "/images/dashboard/Profile-Card-Man.webp",
       alt: `${isPartnerA ? partnerBName : partnerAName} avatar`,
       shouldFlip: !isPartnerA, // When partner is cowo, reverse horizontal so he faces left towards partner
       label: "Partner balance",
@@ -429,7 +429,7 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
     // 3. Shared Balance (Rightmost / full width on mobile)
     {
       id: "shared-wallet",
-      avatar: "/dashboard/Profile-Card-Shared.webp",
+      avatar: "/images/dashboard/Profile-Card-Shared.webp",
       alt: "Shared pool avatar",
       shouldFlip: false,
       label: "Shared balance",

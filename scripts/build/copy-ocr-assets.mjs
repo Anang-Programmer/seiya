@@ -6,7 +6,7 @@ import { copyFile, mkdir, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const nm = join(root, "node_modules");
 const out = join(root, "public", "ocr");
 

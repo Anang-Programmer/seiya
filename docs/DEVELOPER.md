@@ -116,8 +116,8 @@ Supply these in the shell session when running a script; do not keep them in `.e
 
 | Variable | Script |
 |---|---|
-| `SEIYA_RAG_SEED_KEY` | `scripts/seed-seiya-rag.mjs` (falls back to `SUPABASE_SERVICE_ROLE_KEY`) |
-| `SUPABASE_SECRET_KEY`, `SEIYA_DUMMY_PASSWORD` | `scripts/seed-dummy-users.mjs` |
+| `SEIYA_RAG_SEED_KEY` | `scripts/seed/seiya-rag.mjs` (falls back to `SUPABASE_SERVICE_ROLE_KEY`) |
+| `SUPABASE_SECRET_KEY`, `SEIYA_DUMMY_PASSWORD` | `scripts/seed/dummy-users.mjs` |
 
 ## 5. Database (Supabase)
 
@@ -149,7 +149,7 @@ Seiya is built for a competition in China, where Google services are blocked and
 |---|---|
 | Login | Full name + password through our own API. No Google sign-in. |
 | Fonts | `next/font` downloads Lora, Inter and Plus Jakarta Sans at build time and serves them from `/_next/static/media`; no runtime request to Google Fonts. |
-| Receipt OCR (tesseract.js) | Worker, engine (WASM) and `eng`/`ind` language data are served from `/ocr` on our domain, not `cdn.jsdelivr.net`. `scripts/copy-ocr-assets.mjs` copies them from the pinned npm packages (`tesseract.js`, `tesseract.js-core`, `@tesseract.js-data/eng`, `@tesseract.js-data/ind`) before every `dev`/`build`; `public/ocr/` is git-ignored. Verified: with `/ocr` removed the OCR fails instead of falling back to the CDN, and with it present the sample receipt reads in about 1 s. |
+| Receipt OCR (tesseract.js) | Worker, engine (WASM) and `eng`/`ind` language data are served from `/ocr` on our domain, not `cdn.jsdelivr.net`. `scripts/build/copy-ocr-assets.mjs` copies them from the pinned npm packages (`tesseract.js`, `tesseract.js-core`, `@tesseract.js-data/eng`, `@tesseract.js-data/ind`) before every `dev`/`build`; `public/ocr/` is git-ignored. Verified: with `/ocr` removed the OCR fails instead of falling back to the CDN, and with it present the sample receipt reads in about 1 s. |
 | Supabase | Only the server talks to Supabase. Chat history, the last direct browser read, now goes through `GET /api/households/[householdId]/chat-history`. |
 | AI providers (Groq, Mistral, OpenRouter, Cloudflare) | Called only from the Vercel server, outside China. |
 | Analytics / trackers | None. |
@@ -169,7 +169,7 @@ src/
   app/
     page.tsx                 # app shell: auth gating, onboarding, dashboard tabs
     invite/page.tsx          # partner invitation landing (stores the token, then redirects)
-    api/**/route.ts          # HTTP endpoints (51 routes)
+    api/**/route.ts          # HTTP endpoints
   proxy.ts                   # Supabase session refresh (Next 16 replacement for middleware)
   backend/
     services/                # business logic (auth, households, promise, transactions, …)
@@ -177,9 +177,9 @@ src/
     agents/                  # AI provider router and chat agent
     rag/                     # knowledge retrieval
   components/
-    views/                   # screens (auth/onboarding, home, bills, chat, profile, …)
+    views/                   # screens (landing, auth/onboarding, home, bills, chat, profile, …)
     onboarding/promise-ui.tsx# Figma building blocks for the promise flow
-    modals/, cards/, ui/
+    layout/, modals/, cards/, icons/, ui/
   lib/
     api.ts                   # typed client for every API route
     store.tsx                # AppContext backed by the API (session, household, data, polling)
@@ -187,7 +187,21 @@ src/
     country-currency.ts      # country detection and per-currency amounts
 supabase/migrations/         # database schema, RLS and RPCs
 knowledge/seiya/*.md         # RAG knowledge (each `##` section is one chunk)
-public/images/               # auth and onboarding illustrations
+public/
+  seiya-logo.svg, seiya-icon.svg
+  images/                    # auth, onboarding and dashboard artwork (WebP/PNG/SVG)
+  videos/                    # Seiya mascot animations
+  ocr/                       # tesseract.js files, copied at dev/build time (git-ignored)
+scripts/
+  build/                     # run by npm: copy OCR assets (pre dev/build), patch orb-ui (postinstall)
+  seed/                      # seed the RAG knowledge and dummy users
+  test/                      # end-to-end checks against a running server (section 30)
+  tools/                     # AI provider smoke test, README image generator
+docs/
+  DEVELOPER.md               # this guide
+  DESIGN.md                  # brand, colours, typography, UX copy
+  FINTECHATHON.pdf           # competition brief
+  images/                    # README banner and flow diagrams
 ```
 
 > `knowledge/seiya/` is read by the RAG seed script. Keep only product knowledge there; private working notes in that folder are git-ignored but would still be embedded if you seed from your machine.
@@ -571,7 +585,7 @@ Exact request fields and full response body: confirm in `src/backend/validators/
 
 ## 18. Couple Goals & Plans (`/api/plans` & `/api/households/[householdId]/plans`)
 
-Provides collaborative long-term goal planning and dual-key dissolution matching FINTECHATHON.pdf specifications:
+Provides collaborative long-term goal planning and dual-key dissolution matching the [FINTECHATHON.pdf](FINTECHATHON.pdf) specifications:
 
 - `GET /api/plans` or `GET /api/households/[householdId]/plans`: returns all household plans with `targetAmount`, `currentAmount`, `currency`, `recommendedMonthly`, `splitRecommendation`, `walletFunding`, `status`, `assumptions`.
 - `POST /api/plans` or `POST /api/households/[householdId]/plans`: creates a financial plan (`CreatePlanInput`).
@@ -623,7 +637,7 @@ Cryptographic 6-digit PIN protection for sensitive financial decisions (dissolvi
 
 ## 24. Deterministic Gateway Decision API (`/api/gateway/decision`)
 
-Direct HTTP endpoint for the 8-step Rule Engine specified in FINTECHATHON.pdf (pages 26-27):
+Direct HTTP endpoint for the 8-step Rule Engine specified in [FINTECHATHON.pdf](FINTECHATHON.pdf) (pages 26-27):
 
 - `POST /api/gateway/decision`: evaluates `actionType` (`EXPENSE` | `BILL_PAY` | `PURCHASE` | `EXTERNAL_TRANSFER` | `PRIVACY_REQUEST`), `title`, `amount`, `currency`, `wallet`, `timeOfDay`, and `category`.
 - Returns `{ success: true, decision: { outcome, reason_code, reason, details } }`:
@@ -741,7 +755,7 @@ Knowledge source of truth is in `knowledge/seiya/*.md`. Each `##` section is a c
 1. Preview parsing:
 
    ```powershell
-   node scripts/seed-seiya-rag.mjs --dry-run
+   node scripts/seed/seiya-rag.mjs --dry-run
    ```
 
 2. Copy the rotated Supabase seed key into clipboard and run seed (keep the key out of Git, source files, logs, and chat):
@@ -749,7 +763,7 @@ Knowledge source of truth is in `knowledge/seiya/*.md`. Each `##` section is a c
    ```powershell
    $env:SEIYA_RAG_SEED_KEY = (Get-Clipboard -Raw).Trim()
    try {
-       node --env-file=.env.local scripts/seed-seiya-rag.mjs
+       node --env-file=.env.local scripts/seed/seiya-rag.mjs
    }
    finally {
        Remove-Item Env:SEIYA_RAG_SEED_KEY -ErrorAction SilentlyContinue
@@ -816,7 +830,7 @@ Before release, the frontend and backend developers should cross-check the exact
 
 ## 30. Manual terminal tests
 
-Six scripts in `scripts/` drive the real API (sign-in cookies + RLS-scoped Supabase reads) and print PASS/WARN/FAIL per assertion. They run against the dev server, not a mock, and they create real rows in the development Supabase project.
+Six scripts in `scripts/test/` drive the real API (sign-in cookies + RLS-scoped Supabase reads) and print PASS/WARN/FAIL per assertion. They run against the dev server, not a mock, and they create real rows in the development Supabase project.
 
 **Prerequisite:** the dev server must be running first.
 

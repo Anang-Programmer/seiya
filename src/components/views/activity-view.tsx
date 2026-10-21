@@ -130,13 +130,13 @@ export function ActivityView() {
                   <div className="flex items-center gap-2.5 min-w-0">
                     {isPartnerA ? (
                       <img
-                        src="/dashboard/Profile-Card-Man.webp"
+                        src="/images/dashboard/Profile-Card-Man.webp"
                         alt={actorName}
                         className="w-8 h-8 rounded-full object-cover border border-[#ecd9c7] shadow-2xs shrink-0"
                       />
                     ) : isPartnerB ? (
                       <img
-                        src="/dashboard/Profile-Card-Women.webp"
+                        src="/images/dashboard/Profile-Card-Women.webp"
                         alt={actorName}
                         className="w-8 h-8 rounded-full object-cover border border-[#ecd9c7] shadow-2xs shrink-0"
                       />

@@ -1,11 +1,11 @@
 // Generates the README banner and flow diagrams (SVG + 2x PNG).
-// Usage: node scripts/generate-readme-images.mjs
+// Usage: node scripts/tools/generate-readme-images.mjs
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const require = createRequire(path.join(root, "package.json"));
 const sharp = require("sharp");
 const out = path.join(root, "docs", "images");
@@ -170,8 +170,13 @@ notes.forEach(([t, d], i) => {
   const x = 56 + i * 396;
   f2 += box(x, 826, 376, 92, { fill: "#FBF4E8", r: 14 });
   f2 += text(x + 20, 858, t, { size: 15, weight: 700 });
-  const words = d.split(" "), lines = [""];
-  for (const w of words) (lines[lines.length - 1] + " " + w).trim().length > 46 ? lines.push(w) : (lines[lines.length - 1] = (lines[lines.length - 1] + " " + w).trim());
+  // Wrap the description at about 46 characters per line.
+  const lines = [""];
+  for (const w of d.split(" ")) {
+    const next = `${lines[lines.length - 1]} ${w}`.trim();
+    if (next.length > 46) lines.push(w);
+    else lines[lines.length - 1] = next;
+  }
   f2 += text(x + 20, 882, lines, { size: 13.5, fill: C.muted });
 });
 const flow2 = svg(1280, 950, f2, markers(C.muted, C.amber, C.terra, C.green, C.red));

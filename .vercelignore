@@ -2,3 +2,5 @@
 # node_modules and renders) and local scratch. Keeps uploads small.
 knowledge/
 .claude/
+# Documentation and README images are for GitHub, not the deployed app.
+docs/
