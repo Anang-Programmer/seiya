@@ -3,7 +3,7 @@
  *
  * Run:
  *   npm run test:expense
- *   node --env-file=.env.local scripts/test-expense.mjs
+ *   node --env-file=.env.local scripts/test/expense.mjs
  *
  * What it proves:
  *   1. "hari ini aku habis Rp20 juta untuk liburan ke Jepang" is recorded with category travel.

@@ -5,7 +5,7 @@ import { parseReceiptText, type ReceiptFields } from "@/lib/receipt-text";
 // On-device OCR for receipt photos with tesseract.js (WebAssembly). The photo
 // never leaves the browser and no AI tokens are used. The worker, engine and
 // Indonesian/English language data are served from our own domain (/ocr,
-// copied by scripts/copy-ocr-assets.mjs), not from cdn.jsdelivr.net, which is
+// copied by scripts/build/copy-ocr-assets.mjs), not from cdn.jsdelivr.net, which is
 // unreliable in mainland China. They are downloaded once and then cached.
 
 type OcrWorker = {

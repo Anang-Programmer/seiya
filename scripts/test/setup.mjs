@@ -3,7 +3,7 @@
  *
  * Run:
  *   npm run test:setup
- *   node --env-file=.env.local scripts/test-setup.mjs
+ *   node --env-file=.env.local scripts/test/setup.mjs
  *
  * Creates (or reuses) the test accounts, household, partner membership, active finance agreement,
  * and wallets, then prints the ids. Run this first when another test script fails during setup.

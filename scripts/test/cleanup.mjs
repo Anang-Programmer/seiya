@@ -6,8 +6,8 @@
  * goals, chats) is deleted through ON DELETE CASCADE.
  *
  * Run:
- *   node --env-file=.env.local scripts/cleanup-test-data.mjs            # dry run: shows what would go
- *   node --env-file=.env.local scripts/cleanup-test-data.mjs --confirm  # deletes it
+ *   node --env-file=.env.local scripts/test/cleanup.mjs            # dry run: shows what would go
+ *   node --env-file=.env.local scripts/test/cleanup.mjs --confirm  # deletes it
  *
  * Afterwards `npm run test:setup` creates a fresh, empty QA household.
  * Needs SUPABASE_SERVICE_ROLE_KEY in .env.local. Deletion is permanent.

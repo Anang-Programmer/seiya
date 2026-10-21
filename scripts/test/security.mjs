@@ -7,7 +7,7 @@
  *
  * Run (dev server must be running):
  *   npm run test:security
- *   node --env-file=.env.local scripts/test-security.mjs
+ *   node --env-file=.env.local scripts/test/security.mjs
  *
  * Uses the two harness accounts (Partner A and Partner B) in their test household.
  */

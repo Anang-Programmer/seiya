@@ -256,7 +256,7 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
                 className="relative overflow-hidden shrink-0 select-none mx-auto flex items-center justify-center my-0"
               >
                 <video
-                  src="/other/ApprovedSeiya.webm"
+                  src="/videos/ApprovedSeiya.webm"
                   autoPlay
                   loop
                   muted

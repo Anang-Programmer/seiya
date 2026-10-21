@@ -310,7 +310,7 @@ export function ApprovalDialog({ request, open, onOpenChange }: ApprovalDialogPr
           >
             <video
               ref={videoRef}
-              src="/other/ApprovedSeiya.webm"
+              src="/videos/ApprovedSeiya.webm"
               autoPlay
               loop
               muted
