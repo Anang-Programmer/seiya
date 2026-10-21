@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="400" viewBox="0 0 1280 400">
+<defs><radialGradient id="glowA"><stop stop-color="#C98A4F" stop-opacity="0.22"/><stop offset="1" stop-color="#C98A4F" stop-opacity="0"/></radialGradient>
+<radialGradient id="glowB"><stop stop-color="#B45529" stop-opacity="0.14"/><stop offset="1" stop-color="#B45529" stop-opacity="0"/></radialGradient></defs>
+<rect width="1280" height="400" rx="28" fill="#FEF9EF"/>
+
+<circle cx="1150" cy="40" r="260" fill="url(#glowA)"/>
+<circle cx="160" cy="380" r="240" fill="url(#glowB)"/>
+<g transform="translate(96 92) scale(2.8)">
+<defs><linearGradient id="bm" x1="78" y1="39" x2="0" y2="39" gradientUnits="userSpaceOnUse"><stop stop-color="#C98A4F"/><stop offset="0.585611" stop-color="#B45529"/></linearGradient></defs>
+<path d="M39 0C49.7321 20.12 58.1747 28.776 78 39C60.7707 49.2804 52.1813 57.8009 39 78C27.0845 56.1032 17.9936 49.4122 0 39C20.5219 28.266 29.2136 19.856 39 0Z" fill="url(#bm)"/>
+<ellipse cx="32.5" cy="39" rx="7.5" ry="13" fill="white"/>
+<path d="M30.5 32C31.1743 32 31.8135 32.1493 32.3877 32.415L31.9717 32.9053C31.4353 33.5366 31.5122 34.4832 32.1436 35.0195C32.7749 35.5558 33.7215 35.479 34.2578 34.8477L34.5391 34.5156C34.8337 35.1143 35 35.7876 35 36.5C35 38.9853 32.9853 41 30.5 41C28.0147 41 26 38.9853 26 36.5C26 34.0147 28.0147 32 30.5 32Z" fill="black"/>
+<ellipse cx="46.5" cy="39" rx="7.5" ry="13" fill="white"/>
+<path d="M44.5 32C45.1743 32 45.8135 32.1493 46.3877 32.415L45.9717 32.9053C45.4353 33.5366 45.5122 34.4832 46.1436 35.0195C46.7749 35.5558 47.7215 35.479 48.2578 34.8477L48.5391 34.5156C48.8337 35.1143 49 35.7876 49 36.5C49 38.9853 46.9853 41 44.5 41C42.0147 41 40 38.9853 40 36.5C40 34.0147 42.0147 32 44.5 32Z" fill="black"/>
+</g>
+<text x="400" y="168" font-family="Georgia, 'Times New Roman', serif" font-size="92" font-weight="400" fill="#2A2B2F" text-anchor="start"><tspan x="400" dy="0">Seiya</tspan></text>
+<text x="404" y="222" font-family="Georgia, 'Times New Roman', serif" font-size="32" font-weight="400" fill="#B45529" text-anchor="start" font-style="italic"><tspan x="404" dy="0">Money decisions, made together.</tspan></text>
+<text x="404" y="268" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="19" font-weight="400" fill="#6B6F6E" text-anchor="start"><tspan x="404" dy="0">An AI co-pilot for couples: agree on your money rules once, and Seiya keeps the promise.</tspan></text>
+<rect x="404" y="300" width="154" height="31" rx="15.5" fill="#FAEADE"/><text x="481" y="319" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15" font-weight="600" fill="#B45529" text-anchor="middle"><tspan x="481" dy="0">Seiya's Promise</tspan></text>
+<rect x="568" y="300" width="179" height="31" rx="15.5" fill="#FAEADE"/><text x="657.5" y="319" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15" font-weight="600" fill="#B45529" text-anchor="middle"><tspan x="657.5" dy="0">Dual-key approvals</tspan></text>
+<rect x="756" y="300" width="171" height="31" rx="15.5" fill="#FAEADE"/><text x="841.5" y="319" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15" font-weight="600" fill="#B45529" text-anchor="middle"><tspan x="841.5" dy="0">Cooling-off holds</tspan></text>
+<rect x="936" y="300" width="129" height="31" rx="15.5" fill="#FAEADE"/><text x="1000.5" y="319" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="15" font-weight="600" fill="#B45529" text-anchor="middle"><tspan x="1000.5" dy="0">Ask Seiya AI</tspan></text>
+
+</svg>
