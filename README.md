@@ -9,7 +9,7 @@
 ![Supabase](https://img.shields.io/badge/Supabase-Postgres%20%2B%20RLS-2D5232?style=for-the-badge&logo=supabase&logoColor=white)
 ![Vercel](https://img.shields.io/badge/Vercel-sin1-2A2B2F?style=for-the-badge&logo=vercel&logoColor=white)
 
-**[Open the app](https://seiya.web.id)** · [How it works](#how-it-works) · [Features](#features) · [Run it locally](#run-it-locally) · [Developer guide](docs/DEVELOPER.md)
+**[Open the app](https://seiya.web.id)** · [Demo video](#demo-video) · [How it works](#how-it-works) · [Features](#features) · [Run it locally](#run-it-locally) · [Developer guide](docs/DEVELOPER.md)
 
 </div>
 
@@ -27,6 +27,16 @@ Money fights between couples rarely start with big decisions. They start with sm
 - 💬 **Just ask.** Log spending, scan a receipt or add a bill by chatting with Seiya.
 
 > All money in this MVP is **simulated**. No endpoint moves real money.
+
+## Demo video
+
+<div align="center">
+
+[![Watch the Seiya demo on YouTube](docs/images/demo-video.jpg)](https://youtu.be/eRDdkp4D1XI)
+
+▶️ **[Watch on YouTube](https://youtu.be/eRDdkp4D1XI)**
+
+</div>
 
 ## How it works
 
