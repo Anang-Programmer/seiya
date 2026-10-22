@@ -319,7 +319,7 @@ interface AppContextType {
     reason: string;
     details?: any;
   }>;
-  approveRequest: (approvalId: string) => Promise<void>;
+  approveRequest: (approvalId: string, pin?: string) => Promise<void>;
   declineRequest: (approvalId: string) => Promise<void>;
   continueHeldPurchase: (heldId: string) => Promise<void>;
   cancelHeldPurchase: (heldId: string) => Promise<void>;
@@ -1106,8 +1106,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const approveRequest = async (approvalId: string) => {
-    const result = await approveApprovalRequest(approvalId);
+  const approveRequest = async (approvalId: string, pin?: string) => {
+    const result = await approveApprovalRequest(approvalId, pin);
     if (!result.ok && result.message) notify("error", result.message);
   };
 
