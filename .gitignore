@@ -35,6 +35,7 @@ yarn-error.log*
 
 # env files — block everything, then whitelist the safe template
 .env*
+.env.local
 !.env.example
 
 # agent orchestrator staging folder (contains duplicate source, not for repo)

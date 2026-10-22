@@ -17,7 +17,7 @@ interface ApprovalDialogProps {
 type ApprovalStep = "details" | "pin" | "approved";
 
 export function ApprovalDialog({ request, open, onOpenChange }: ApprovalDialogProps) {
-  const { currentUser, approveRequest, declineRequest, reportingCurrency, locale, partnerAName, partnerBName, ensurePin } = useApp();
+  const { currentUser, approveApprovalRequest, declineRequest, reportingCurrency, locale, partnerAName, partnerBName, ensurePin } = useApp();
   const [step, setStep] = useState<ApprovalStep>("details");
   const [pin, setPin] = useState("");
   const [isAuthorizing, setIsAuthorizing] = useState(false);
@@ -99,7 +99,7 @@ export function ApprovalDialog({ request, open, onOpenChange }: ApprovalDialogPr
     setErrorMessage("");
   };
 
-  const handleVerifyPin = () => {
+  const handleVerifyPin = async () => {
     if (pin.length !== 6) {
       setErrorMessage("Security PIN required: Please enter all 6 digits.");
       return;
@@ -108,12 +108,18 @@ export function ApprovalDialog({ request, open, onOpenChange }: ApprovalDialogPr
     setIsAuthorizing(true);
     setErrorMessage("");
 
-    // Gateway passkey cryptographic verification delay
-    setTimeout(() => {
+    try {
+      const result = await approveApprovalRequest(request.id, pin);
       setIsAuthorizing(false);
-      approveRequest(request.id);
-      setStep("approved");
-    }, 1200);
+      if (result.ok) {
+        setStep("approved");
+      } else {
+        setErrorMessage(result.message || "Invalid security PIN or unable to authorize.");
+      }
+    } catch {
+      setIsAuthorizing(false);
+      setErrorMessage("An unexpected error occurred while authorizing.");
+    }
   };
 
   const handleDecline = () => {
