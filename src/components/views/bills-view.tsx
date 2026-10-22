@@ -113,21 +113,22 @@ export function BillsView({ onNavigate }: { onNavigate?: (tab: "seiya") => void 
             Shared recurring bills. Marking one as paid needs your partner’s confirmation.
           </p>
         </div>
-        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+        <div className="grid grid-cols-2 gap-2 w-full sm:w-auto sm:flex sm:items-center self-start sm:self-auto sm:flex-wrap">
           <Button
             variant="outline"
             size="sm"
             onClick={handleOpenAddBill}
-            className="text-xs border-[#B45529]/40 hover:bg-[#faeade] text-[#B45529] font-semibold flex items-center gap-1.5 cursor-pointer shadow-2xs"
+            className="h-10 sm:h-auto justify-center text-xs border-[#B45529]/40 hover:bg-[#faeade] text-[#B45529] font-semibold flex items-center gap-1.5 cursor-pointer shadow-2xs"
           >
             <SolarIcon name="plus" size={14} className="text-[#B45529]" />
-            <span>Add Bill Manually</span>
+            <span className="sm:hidden">Add Manually</span>
+            <span className="hidden sm:inline">Add Bill Manually</span>
           </Button>
           <Button
             variant="primary"
             size="sm"
             onClick={addBillWithSeiya}
-            className="text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs"
+            className="h-10 sm:h-auto justify-center text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs"
           >
             <SeiyaIcon size={14} color="#fef9ef" />
             <span>Add via Seiya</span>
@@ -367,7 +368,7 @@ export function BillsView({ onNavigate }: { onNavigate?: (tab: "seiya") => void 
                         variant="primary"
                         size="sm"
                         onClick={() => handlePayBill(bill)}
-                        className="text-xs shadow-2xs px-4 w-full sm:w-auto"
+                        className="h-10 sm:h-auto text-xs shadow-2xs px-4 w-full sm:w-auto"
                       >
                         Pay Bill
                       </Button>

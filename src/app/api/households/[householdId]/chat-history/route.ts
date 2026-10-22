@@ -42,6 +42,9 @@ export async function GET(_request: Request, context: RouteContext) {
       .in("conversation_id", conversations.map((c) => c.id))
       .in("role", ["user", "assistant"])
       .order("created_at", { ascending: true })
+      // A turn stores the question and the reply in one transaction, so both
+      // share created_at; "user" sorts before "assistant" when descending.
+      .order("role", { ascending: false })
       .limit(400);
     if (messagesError) throw messagesError;
 

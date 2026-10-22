@@ -196,10 +196,12 @@ export function ActivityView() {
                   </Badge>
                 </div>
 
-                {/* Reason Description */}
-                <p className="text-xs text-[#515151] leading-relaxed bg-[#fcf8f2] rounded-[12px] p-2.5 sm:p-3 border border-[#e8dfd5]/60">
-                  {item.reason}
-                </p>
+                {/* Reason Description (skipped when the event has none, instead of an empty box) */}
+                {item.reason?.trim() && (
+                  <p className="text-xs text-[#515151] leading-relaxed bg-[#fcf8f2] rounded-[12px] p-2.5 sm:p-3 border border-[#e8dfd5]/60">
+                    {item.reason}
+                  </p>
+                )}
 
                 {/* Footer: Category & Amount */}
                 <div className="flex items-center justify-between gap-3 text-xs pt-0.5">

@@ -276,8 +276,8 @@ export function WalletsView() {
       </div>
 
       {/* 3. TRANSACTION DETAILS FOR SELECTED TAB (12px, borderless) */}
-      <div className="bg-[#f5eee1] rounded-[12px] shadow-sm p-5 sm:p-6 space-y-4">
-        <div className="flex items-center justify-between pb-3.5">
+      <div className="bg-[#f5eee1] rounded-[12px] shadow-sm p-4 sm:p-6 space-y-4">
+        <div className="flex items-center justify-between pb-1 sm:pb-3.5 px-1 sm:px-0">
           <div>
             <h3 className="text-base font-serif font-normal text-[#2a2b2f] capitalize">
               {selectedWalletTab === "shared"
@@ -326,20 +326,20 @@ export function WalletsView() {
                     setSelectedTransaction(tx);
                     setTransactionModalOpen(true);
                   }}
-                  className="p-3.5 rounded-[12px] hover:bg-[#ece3d3]/70 transition-colors flex items-center justify-between cursor-pointer group"
+                  className="px-2 py-3 sm:p-3.5 rounded-[12px] hover:bg-[#ece3d3]/70 transition-colors flex items-center justify-between gap-3 cursor-pointer group"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${visual.bgClass} ${visual.textClass} group-hover:scale-105 transition-transform shadow-2xs`}>
                       <SolarIcon name={visual.iconName} size={16} />
                     </div>
-                    <div>
-                      <h4 className="text-xs sm:text-sm font-semibold text-[#2a2b2f] group-hover:text-[#B45529] transition-colors">{tx.title}</h4>
-                      <span className="text-[11px] text-[#808988]">
+                    <div className="min-w-0">
+                      <h4 className="text-[13px] sm:text-sm font-semibold text-[#2a2b2f] group-hover:text-[#B45529] transition-colors truncate">{tx.title}</h4>
+                      <span className="block text-[11px] text-[#808988] truncate">
                         {tx.date} • Paid by {tx.paidBy === "partner_a" ? partnerAName : partnerBName}
                       </span>
                     </div>
                   </div>
-                  <div className="text-right flex items-center gap-2">
+                  <div className="text-right flex items-center gap-2 shrink-0 whitespace-nowrap">
                     <div className="text-right">
                       <div
                         className={`text-xs sm:text-sm font-bold font-serif ${

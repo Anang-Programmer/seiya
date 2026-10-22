@@ -510,8 +510,10 @@ export function ChatView() {
   };
 
   useEffect(() => {
+    // The welcome screen starts at the top; only a conversation follows its latest message.
+    if (!activeSession && !isProcessing) return;
     scrollToBottom();
-  }, [activeSession?.messages, isProcessing]);
+  }, [activeSession, activeSession?.messages, isProcessing]);
 
   // Handle direct chat shortcut initiated from dashboard
   useEffect(() => {
@@ -896,7 +898,7 @@ export function ChatView() {
         <>
           {/* Mobile backdrop */}
           <div
-            className="fixed inset-0 z-40 bg-neutral-900/40 backdrop-blur-xs md:hidden"
+            className="fixed inset-0 z-[45] bg-neutral-900/40 backdrop-blur-xs md:hidden"
             onClick={() => setShowHistory(false)}
           />
 
@@ -1351,12 +1353,12 @@ export function ChatView() {
 
         {/* Quick Prompts Bar (Hidden in voice mode for minimal clean focus) */}
         {!isVoiceChatActive && (
-          <div className="px-4 py-2 bg-[#f5eee1] border-b border-[#d1c9bf]/20 overflow-x-auto whitespace-nowrap flex gap-2 scrollbar-none">
+          <div className="px-4 py-2 bg-[#f5eee1] border-b border-[#d1c9bf]/20 overflow-x-auto whitespace-nowrap flex gap-2 no-scrollbar">
             {quickPrompts.map((p, idx) => (
               <button
                 key={idx}
                 onClick={() => handleSend(p.text)}
-                className="px-3 py-1 rounded-full bg-[#fef9ef] hover:text-[#B45529] hover:bg-[#ece3d3] text-[11px] font-semibold text-[#333333] transition-all cursor-pointer shrink-0 shadow-2xs"
+                className="px-3 py-1.5 sm:py-1 rounded-full bg-[#fef9ef] hover:text-[#B45529] hover:bg-[#ece3d3] text-xs sm:text-[11px] font-semibold text-[#333333] transition-all cursor-pointer shrink-0 shadow-2xs"
               >
                 {p.label}
               </button>
@@ -1372,11 +1374,11 @@ export function ChatView() {
               className={`flex flex-col items-center justify-center text-center max-w-lg mx-auto transition-all duration-700 ease-in-out ${
                 shouldHideLandingHero
                   ? "opacity-0 -translate-y-8 scale-95 max-h-0 overflow-hidden pointer-events-none py-0 mb-0"
-                  : "opacity-100 translate-y-0 scale-100 max-h-[1400px] pointer-events-auto py-8 sm:py-12"
+                  : "opacity-100 translate-y-0 scale-100 max-h-[1400px] pointer-events-auto py-2 sm:py-12"
               }`}
             >
-              <SeiyaVideoAvatar size={210} className="mb-2" />
-              <h2 className="text-2xl font-serif font-normal text-[#2a2b2f] mb-2">
+              <SeiyaVideoAvatar size={210} className="mb-2 max-sm:!w-[140px] max-sm:!h-[140px]" />
+              <h2 className="text-[22px] sm:text-2xl leading-snug font-serif font-normal text-[#2a2b2f] mb-2">
                 How can I help you today, {activeName}?
               </h2>
               <p className="text-xs sm:text-sm text-[#515151] leading-relaxed max-w-md mb-6">
@@ -1422,13 +1424,13 @@ export function ChatView() {
                   <button
                     key={card.title}
                     onClick={() => handleSend(card.text)}
-                    className="p-3 rounded-[14px] bg-[#fef9ef] hover:bg-[#fffdf9] border border-[#d1c9bf]/50 hover:border-[#B45529]/40 text-xs text-[#2a2b2f] shadow-2xs transition-all cursor-pointer group"
+                    className="w-full text-left p-3 rounded-[14px] bg-[#fef9ef] hover:bg-[#fffdf9] border border-[#d1c9bf]/50 hover:border-[#B45529]/40 text-xs text-[#2a2b2f] shadow-2xs transition-all cursor-pointer group"
                   >
                     <div className="flex items-center gap-2 font-semibold text-[#B45529] mb-1">
                       <SolarIcon name={card.icon as "calendar"} size={15} />
                       <span>{card.title}</span>
                     </div>
-                    <span className="text-[11px] text-[#515151]">{card.text}</span>
+                    <span className="block text-xs sm:text-[11px] text-[#515151]">{card.text}</span>
                   </button>
                 ))}
               </div>
@@ -1448,7 +1450,7 @@ export function ChatView() {
               <div className={`max-w-[85%] sm:max-w-xl ${msg.sender === "user" ? "items-end" : "items-start"}`}>
                 {/* Message bubble */}
                 <div
-                  className={`p-3.5 rounded-[22px] text-xs sm:text-sm leading-relaxed transition-all ${
+                  className={`p-3.5 rounded-[22px] text-[13px] sm:text-sm leading-relaxed transition-all ${
                     msg.sender === "user"
                       ? "bg-[#B45529] text-[#fef9ef] rounded-tr-xs shadow-xs"
                       : "bg-[#fef9ef] text-[#2a2b2f] rounded-tl-xs shadow-2xs border border-[#e5dcd0]/70"
