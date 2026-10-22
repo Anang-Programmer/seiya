@@ -148,7 +148,7 @@ export function ProfileView({ onLogout, initialTab = "overview" }: ProfileViewPr
         <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between gap-2 border-t sm:border-t-0 pt-3 sm:pt-0 border-[#d1c9bf]/30">
           <Badge
             variant={currentUser === "partner_a" ? "need_approval" : "neutral"}
-            className="text-xs px-3 py-1 font-semibold"
+            className="text-xs px-3 py-1 font-semibold whitespace-nowrap"
           >
             {currentUser === "partner_a" ? "Terracotta Key (Partner A)" : "Espresso Key (Partner B)"}
           </Badge>
@@ -157,11 +157,11 @@ export function ProfileView({ onLogout, initialTab = "overview" }: ProfileViewPr
       </div>
 
       {/* 3. NAVIGATION PILL TABS */}
-      <div className="flex items-center gap-1 p-1 bg-[#f5eee1] rounded-full border border-[#d1c9bf]/40 text-xs overflow-x-auto">
+      <div className="flex items-center gap-1 p-1 bg-[#f5eee1] rounded-full border border-[#d1c9bf]/40 text-xs overflow-x-auto no-scrollbar">
         <button
           type="button"
           onClick={() => setActiveTab("overview")}
-          className={`px-3.5 py-1.5 rounded-full font-semibold transition-all cursor-pointer shrink-0 ${
+          className={`px-3.5 py-2 sm:py-1.5 rounded-full font-semibold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
             activeTab === "overview"
               ? "bg-[#B45529] text-[#fef9ef] shadow-xs"
               : "text-[#515151] hover:text-[#2a2b2f]"
@@ -172,47 +172,47 @@ export function ProfileView({ onLogout, initialTab = "overview" }: ProfileViewPr
         <button
           type="button"
           onClick={() => setActiveTab("contract")}
-          className={`px-3.5 py-1.5 rounded-full font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+          className={`px-3.5 py-2 sm:py-1.5 rounded-full font-semibold whitespace-nowrap transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
             activeTab === "contract"
               ? "bg-[#B45529] text-[#fef9ef] shadow-xs"
               : "text-[#515151] hover:text-[#2a2b2f]"
           }`}
         >
-          <span>Couple Contract</span>
+          <span><span className="sm:hidden">Contract</span><span className="hidden sm:inline">Couple Contract</span></span>
           {isProposed && <span className="w-1.5 h-1.5 rounded-full bg-[#B45529] animate-ping" />}
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("security")}
-          className={`px-3.5 py-1.5 rounded-full font-semibold transition-all cursor-pointer shrink-0 ${
+          className={`px-3.5 py-2 sm:py-1.5 rounded-full font-semibold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
             activeTab === "security"
               ? "bg-[#B45529] text-[#fef9ef] shadow-xs"
               : "text-[#515151] hover:text-[#2a2b2f]"
           }`}
         >
-          Dual-Key Security
+          <span className="sm:hidden">Security</span><span className="hidden sm:inline">Dual-Key Security</span>
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("privacy")}
-          className={`px-3.5 py-1.5 rounded-full font-semibold transition-all cursor-pointer shrink-0 ${
+          className={`px-3.5 py-2 sm:py-1.5 rounded-full font-semibold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
             activeTab === "privacy"
               ? "bg-[#B45529] text-[#fef9ef] shadow-xs"
               : "text-[#515151] hover:text-[#2a2b2f]"
           }`}
         >
-          Privacy & Safeguards
+          <span className="sm:hidden">Privacy</span><span className="hidden sm:inline">Privacy & Safeguards</span>
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("preferences")}
-          className={`px-3.5 py-1.5 rounded-full font-semibold transition-all cursor-pointer shrink-0 ${
+          className={`px-3.5 py-2 sm:py-1.5 rounded-full font-semibold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
             activeTab === "preferences"
               ? "bg-[#B45529] text-[#fef9ef] shadow-xs"
               : "text-[#515151] hover:text-[#2a2b2f]"
           }`}
         >
-          System Preferences
+          <span className="sm:hidden">Preferences</span><span className="hidden sm:inline">System Preferences</span>
         </button>
       </div>
 

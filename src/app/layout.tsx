@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Lora, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
@@ -26,6 +26,15 @@ export const metadata: Metadata = {
   icons: {
     icon: "/seiya-icon.svg",
   },
+};
+
+// viewportFit "cover" lets the fixed bottom navigation use the safe-area inset
+// on phones with a home indicator; themeColor tints the mobile browser bar.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#fef9ef",
 };
 
 export default function RootLayout({

@@ -365,7 +365,7 @@ export function ProposeExpenseDialog({ open, onOpenChange, defaultTitle = "" }: 
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Weekly groceries, train tickets, a new sofa"
+                placeholder="e.g. Weekly groceries"
                 className="w-full text-xs"
               />
             </div>

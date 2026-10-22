@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { SolarIcon, SolarIconName } from "@/components/icons/solar";
 import { Badge } from "@/components/ui/badge";
@@ -11,72 +11,85 @@ import { formatMoney, getTransactionCategoryVisual } from "@/lib/utils";
 export interface TabHeaderConfig {
   title: string;
   shortTitle?: string;
+  /** One or two words, used on phones where the header is narrow. */
+  mobileTitle?: string;
   iconName?: SolarIconName;
   description?: string;
 }
 
 const TAB_HEADER_CONFIG: Record<string, TabHeaderConfig> = {
   home: {
+    mobileTitle: "Home",
     title: "Dashboard",
     shortTitle: "Dashboard",
     iconName: "home",
     description: "Your balance, your partner's and the shared wallet, plus this month's income and spending.",
   },
   plan: {
+    mobileTitle: "Plan",
     title: "Financial Planning & Couple Goals",
     shortTitle: "Financial Planning",
     iconName: "chart",
     description: "Set shared goals, track progress, and agree on them together.",
   },
   add_goal: {
+    mobileTitle: "New Goal",
     title: "Add New Couple Goal",
     shortTitle: "New Goal",
     iconName: "money-bag",
     description: "Create a shared goal: target, deadline and who contributes what.",
   },
   draft_goals: {
+    mobileTitle: "Draft Goals",
     title: "Draft Couple Goals",
     shortTitle: "Draft Goals",
     iconName: "edit",
     description: "Goals still being planned. Propose or revise them until you both agree.",
   },
   approvals: {
+    mobileTitle: "Approvals",
     title: "Dual-Key Approvals Center",
     shortTitle: "Dual-Key Approvals",
     iconName: "shield-check",
     description: "Shared spending above your limit needs approval from both of you.",
   },
   wallets: {
+    mobileTitle: "Wallets",
     title: "Wallets & Multi-Currency Balances",
     shortTitle: "Wallets & Balances",
     iconName: "wallet",
     description: "All your balances in one place, in any currency, with privacy kept.",
   },
   bills: {
+    mobileTitle: "Bills",
     title: "Upcoming Bills & Deadlines",
     shortTitle: "Upcoming Bills",
     iconName: "receipt",
     description: "Upcoming bills, due dates and price changes, so nothing gets missed.",
   },
   waiting_list: {
+    mobileTitle: "Waiting List",
     title: "Waiting List & Cooling-Off Holds",
     shortTitle: "Cooling-Off Holds",
     iconName: "clock-circle",
     description: "Late-night or large purchases wait here before they go through.",
   },
   activity: {
+    mobileTitle: "Activity",
     title: "Activity & Decision Audit Trail",
     shortTitle: "Activity & Audit",
     iconName: "calendar",
     description: "A record of every approval, hold and rule change.",
   },
   settings: {
+    mobileTitle: "Contract",
     title: "Couple Contract & Settings",
     shortTitle: "Couple Contract",
     iconName: "settings",
     description: "Your shared rules: approval limits, splits, currency and privacy.",
   },
   profile: {
+    mobileTitle: "Profile",
     title: "Partner Profile & Couple Contract",
     shortTitle: "Profile & Contract",
     iconName: "user",
@@ -107,6 +120,7 @@ export function Header({
     contractMeta,
     approvals,
     bills,
+    heldPurchases,
     transactions,
     plans,
     locale,
@@ -122,6 +136,20 @@ export function Header({
   const [searchFilter, setSearchFilter] = useState<"all" | "transactions" | "bills" | "plans" | "approvals">("all");
   const [mounted, setMounted] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const currencyMenuRef = useRef<HTMLDivElement>(null);
+  const notificationsRef = useRef<HTMLDivElement>(null);
+
+  // Tapping anywhere outside an open menu closes it (phones have no hover-out).
+  useEffect(() => {
+    if (!showCurrencyMenu && !showNotifications) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (showCurrencyMenu && !currencyMenuRef.current?.contains(target)) setShowCurrencyMenu(false);
+      if (showNotifications && !notificationsRef.current?.contains(target)) setShowNotifications(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [showCurrencyMenu, showNotifications]);
 
   useEffect(() => {
     setMounted(true);
@@ -225,13 +253,13 @@ export function Header({
     : "bg-transparent border-b border-transparent";
 
   return (
-    <header className={`sticky top-0 z-30 shrink-0 px-3 sm:px-8 ${isHome ? "pt-2.5 pb-1 sm:pt-4 sm:pb-2" : "pt-3 pb-2.5 sm:pt-7 sm:pb-5"} flex flex-col justify-center transition-all duration-200 ${headerBgClass}`}>
+    <header className={`sticky top-0 z-30 shrink-0 px-3.5 sm:px-8 ${isHome ? "pt-[calc(0.625rem+env(safe-area-inset-top))] pb-1.5 sm:pt-4 sm:pb-2" : "pt-[calc(0.75rem+env(safe-area-inset-top))] pb-2.5 sm:pt-7 sm:pb-5"} flex flex-col justify-center transition-[background-color,border-color,box-shadow] duration-200 ${headerBgClass}`}>
       <div className="w-full max-w-7xl mx-auto flex items-center justify-between gap-2 sm:gap-3">
         {/* Left: Page Title */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
           <div className="flex items-center gap-2 min-w-0">
             {currentConfig.iconName && (
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-[#f5eee1] flex items-center justify-center shrink-0 shadow-2xs">
+              <div className="hidden sm:flex w-10 h-10 rounded-full bg-[#f5eee1] items-center justify-center shrink-0 shadow-2xs">
                 <SolarIcon
                   name={currentConfig.iconName}
                   size={18}
@@ -240,9 +268,11 @@ export function Header({
               </div>
             )}
             <div className="min-w-0 flex items-center gap-1.5">
-              <h1 className="text-base sm:text-2xl font-serif text-[#2a2b2f] tracking-tight font-normal truncate">
-                <span className="sm:hidden">{currentConfig.shortTitle || currentConfig.title}</span>
-                <span className="hidden sm:inline">{currentConfig.title}</span>
+              <h1 className="text-[22px] leading-tight sm:text-2xl font-serif text-[#2a2b2f] tracking-tight font-normal truncate">
+                {/* Short title on phones and tablets (the sidebar narrows the header there). */}
+                <span className="sm:hidden">{currentConfig.mobileTitle || currentConfig.shortTitle || currentConfig.title}</span>
+                <span className="hidden sm:inline xl:hidden">{currentConfig.shortTitle || currentConfig.title}</span>
+                <span className="hidden xl:inline">{currentConfig.title}</span>
               </h1>
 
               {currentConfig.description && (
@@ -251,7 +281,7 @@ export function Header({
                   onClick={() => setShowInfo((prev) => !prev)}
                   aria-label={showInfo ? "Sembunyikan penjelasan" : "Lihat penjelasan halaman"}
                   title={showInfo ? "Tutup penjelasan" : "Lihat penjelasan halaman"}
-                  className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-2xs shrink-0 ${
+                  className={`w-7 h-7 sm:w-6 sm:h-6 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-2xs shrink-0 ${
                     showInfo
                       ? "bg-[#B45529] text-[#fef9ef] scale-105"
                       : "bg-[#f5eee1] text-[#808988] hover:text-[#B45529] hover:bg-[#ece3d3]"
@@ -270,12 +300,13 @@ export function Header({
           <button
             type="button"
             onClick={() => setShowSearch(true)}
-            className="w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 rounded-full bg-[#f5eee1] hover:bg-[#ece3d3] border border-[#d1c9bf]/60 text-xs font-semibold text-[#515151] hover:text-[#2a2b2f] flex items-center justify-center sm:gap-2 transition-all cursor-pointer shadow-2xs group shrink-0"
+            className="w-8 h-8 lg:w-auto lg:px-3 lg:py-1.5 rounded-full bg-[#f5eee1] hover:bg-[#ece3d3] border border-[#d1c9bf]/60 text-xs font-semibold text-[#515151] hover:text-[#2a2b2f] flex items-center justify-center lg:gap-2 transition-all cursor-pointer shadow-2xs group shrink-0"
             title="Search (⌘K)"
+            aria-label="Search"
           >
             <SolarIcon name="search" size={14} className="text-[#808988] group-hover:text-[#B45529] transition-colors shrink-0" />
-            <span className="hidden sm:inline text-xs font-medium text-[#808988] group-hover:text-[#2a2b2f]">Search...</span>
-            <kbd className="hidden md:inline-flex items-center px-1.5 py-0.5 text-[9px] font-mono font-bold text-[#808988] bg-[#fef9ef] border border-[#d1c9bf]/70 rounded shadow-2xs">
+            <span className="hidden lg:inline text-xs font-medium text-[#808988] group-hover:text-[#2a2b2f]">Search...</span>
+            <kbd className="hidden lg:inline-flex items-center px-1.5 py-0.5 text-[9px] font-mono font-bold text-[#808988] bg-[#fef9ef] border border-[#d1c9bf]/70 rounded shadow-2xs">
               ⌘K
             </kbd>
           </button>
@@ -297,19 +328,21 @@ export function Header({
           </button>
 
           {/* Reporting Currency Selector Dropdown */}
-          <div className="relative">
+          <div className="relative" ref={currencyMenuRef}>
             <button
               onClick={() => setShowCurrencyMenu(!showCurrencyMenu)}
-              className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-full bg-[#f5eee1] hover:bg-[#ece3d3] text-xs font-semibold text-[#2a2b2f] transition-all cursor-pointer shrink-0 border border-[#d1c9bf]/40"
+              className="h-8 flex items-center gap-1 px-2.5 sm:px-3 rounded-full bg-[#f5eee1] hover:bg-[#ece3d3] text-xs font-semibold text-[#2a2b2f] transition-all cursor-pointer shrink-0 border border-[#d1c9bf]/40"
               title="Change Couple Reporting Currency"
+              aria-label={`Reporting currency: ${reportingCurrency}`}
+              aria-expanded={showCurrencyMenu}
             >
-              <SolarIcon name="refresh" size={12} className="text-[#B45529]" />
+              <SolarIcon name="refresh" size={12} className="hidden sm:block text-[#B45529]" />
               <span className="font-mono text-[11px] font-bold">{reportingCurrency}</span>
               <SolarIcon name="arrow-down" size={10} className="text-[#808988]" />
             </button>
 
             {showCurrencyMenu && (
-              <div className="absolute right-0 mt-2 w-56 bg-[#fef9ef] rounded-[12px] shadow-xl p-2 z-50 animate-in fade-in-0 zoom-in-95">
+              <div className="absolute right-0 mt-2 w-56 bg-[#fef9ef] rounded-[12px] shadow-xl border border-[#e8dfd5] p-2 z-50 animate-in fade-in-0 zoom-in-95">
                 <div className="px-3 py-1.5 text-[11px] font-bold text-[#808988] uppercase tracking-wider">
                   Reporting Currency
                 </div>
@@ -321,7 +354,7 @@ export function Header({
                         setReportingCurrency(c.code);
                         setShowCurrencyMenu(false);
                       }}
-                      className={`w-full flex items-center justify-between px-3 py-1.5 rounded-full text-xs transition-colors cursor-pointer ${
+                      className={`w-full flex items-center justify-between px-3 py-2.5 sm:py-1.5 rounded-full text-xs transition-colors cursor-pointer ${
                         reportingCurrency === c.code
                           ? "bg-[#f5eee1] text-[#B45529] font-bold"
                           : "text-[#333333] hover:bg-[#f5eee1]/60"
@@ -343,7 +376,7 @@ export function Header({
           </div>
 
           {/* Notifications Icon with Dropdown */}
-          <div className="relative">
+          <div className="relative" ref={notificationsRef}>
             <button
               onClick={() => setShowNotifications(!showNotifications)}
               className="relative p-2 rounded-full text-[#515151] hover:bg-[#f5eee1] hover:text-[#2a2b2f] transition-colors cursor-pointer"
@@ -358,12 +391,17 @@ export function Header({
             </button>
 
             {showNotifications && (
-              <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-[#fef9ef] rounded-[12px] shadow-xl p-4 z-50 animate-in fade-in-0 zoom-in-95">
+              <div className="fixed left-3 right-3 top-[calc(3.75rem+env(safe-area-inset-top))] sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-96 bg-[#fef9ef] rounded-[16px] sm:rounded-[12px] shadow-xl border border-[#e8dfd5] p-4 z-50 animate-in fade-in-0 zoom-in-95">
                 <div className="flex items-center justify-between pb-3">
                   <span className="text-sm font-serif font-normal text-[#2a2b2f]">Notifications</span>
                   <span className="text-xs text-[#808988] font-mono">{unreadNotificationsCount} active</span>
                 </div>
                 <div className="space-y-1.5 max-h-80 overflow-y-auto">
+                  {unreadNotificationsCount === 0 && (
+                    <p className="py-3 text-xs text-[#808988] text-center">
+                      You&apos;re all caught up. Requests, bills due soon and contract changes show up here.
+                    </p>
+                  )}
                   {contractMeta.pendingNeedsMyApproval && (
                     <button
                       type="button"
@@ -388,6 +426,24 @@ export function Header({
                       </div>
                       <p className="text-[#515151] text-[11px]">{a.reason}</p>
                     </div>
+                  ))}
+                  {/* Held purchases are part of the count, so they are listed too. */}
+                  {heldPurchases.filter((h) => h.status === "held").map((h) => (
+                    <button
+                      key={h.id}
+                      type="button"
+                      onClick={() => {
+                        setShowNotifications(false);
+                        onNavigate?.("waiting_list");
+                      }}
+                      className="w-full text-left py-2.5 text-xs cursor-pointer hover:bg-[#f5eee1] rounded-[8px] px-1 -mx-1"
+                    >
+                      <div className="flex items-center justify-between gap-2 text-[#2a2b2f] font-semibold mb-0.5">
+                        <span className="truncate">On hold: {h.title}</span>
+                        <span className="text-[10px] text-[#C98A4F] font-semibold shrink-0">Waiting List</span>
+                      </div>
+                      <p className="text-[#515151] text-[11px]">Cooling-off until {h.holdUntil}.</p>
+                    </button>
                   ))}
                   {bills.filter(b => b.status !== "paid" && b.daysRemaining <= 3).map(b => (
                     <div key={b.id} className="py-2.5 text-xs">

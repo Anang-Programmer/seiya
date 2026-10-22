@@ -127,7 +127,7 @@ function AskSeiyaDirectChatBox({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className={`p-1.5 rounded-full transition-colors cursor-pointer shrink-0 ${
+            className={`p-2 sm:p-1.5 rounded-full transition-colors cursor-pointer shrink-0 ${
               attachedFile
                 ? "bg-[#B45529]/15 text-[#B45529]"
                 : "text-[#808988] hover:text-[#B45529] hover:bg-[#ece3d3]/60"
@@ -149,7 +149,7 @@ function AskSeiyaDirectChatBox({
           <button
             type="submit"
             disabled={!text.trim() && !attachedFile}
-            className="w-7 h-7 rounded-full bg-[#B45529] text-[#fef9ef] hover:bg-[#96421c] flex items-center justify-center shrink-0 disabled:opacity-35 disabled:cursor-not-allowed transition-all shadow-2xs cursor-pointer"
+            className="w-9 h-9 sm:w-7 sm:h-7 rounded-full bg-[#B45529] text-[#fef9ef] hover:bg-[#96421c] flex items-center justify-center shrink-0 disabled:opacity-35 disabled:cursor-not-allowed transition-all shadow-2xs cursor-pointer"
             title="Direct chat with Seiya"
             aria-label="Send direct message"
           >
@@ -447,7 +447,8 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
   return (
     <div className="space-y-6 pb-20 md:pb-12 max-w-7xl mx-auto">
       {/* 0. DASHBOARD HEADER & QUICK ACTIONS TOOLBAR */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pt-1 sm:pt-4 pb-2">
+      {/* Side by side only on wide screens; tablets and narrow laptops stack the greeting and actions. */}
+      <div className="flex flex-col 2xl:flex-row 2xl:items-end justify-between gap-4 pt-1 sm:pt-4 pb-2">
         <div>
           <h2 className="text-2xl sm:text-3xl lg:text-[34px] font-serif text-[#2a2b2f] font-normal tracking-tight leading-tight">
             {header ? header.parts.greeting : " "}
@@ -462,15 +463,16 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
         </div>
 
         {/* Action Buttons with Dropdown - positioned below mascots on uncropped wallpaper */}
-        <div className="relative flex items-center gap-2 self-start sm:self-auto sm:mt-16 lg:mt-20 flex-wrap sm:flex-nowrap" ref={quickActionsRef}>
+        {/* Phones: three equal tiles (icon over label); larger screens: a row of pills. */}
+        <div className="relative grid grid-cols-3 gap-2 w-full sm:w-auto sm:flex sm:items-center sm:flex-wrap self-start 2xl:self-auto 2xl:mt-20 2xl:flex-nowrap" ref={quickActionsRef}>
           {/* 1. Propose Expense */}
           <button
             type="button"
             onClick={() => setProposeExpenseModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white hover:bg-[#fcf7ee] text-[#2a2b2f] border border-[#e8dfd5] text-xs font-semibold shadow-2xs hover:shadow-xs hover:border-[#B45529]/40 transition-all cursor-pointer active:scale-97 shrink-0"
+            className="inline-flex items-center flex-col sm:flex-row justify-center gap-1 sm:gap-1.5 px-2 sm:px-3.5 py-2.5 sm:py-2 rounded-[16px] sm:rounded-full text-[11px] sm:text-xs bg-white hover:bg-[#fcf7ee] text-[#2a2b2f] border border-[#e8dfd5] font-semibold shadow-2xs hover:shadow-xs hover:border-[#B45529]/40 transition-all cursor-pointer active:scale-97 shrink-0"
             title="Propose a new expense"
           >
-            <SolarIcon name="plus" size={14} className="text-[#B45529]" />
+            <SolarIcon name="plus" size={16} className="text-[#B45529]" />
             <span>Propose Expense</span>
           </button>
 
@@ -478,10 +480,10 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
           <button
             type="button"
             onClick={() => openAddMoney("shared")}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white hover:bg-[#f3f8f2] text-[#2a2b2f] border border-[#e8dfd5] text-xs font-semibold shadow-2xs hover:shadow-xs hover:border-[#2d5232]/40 transition-all cursor-pointer active:scale-97 shrink-0"
+            className="inline-flex items-center flex-col sm:flex-row justify-center gap-1 sm:gap-1.5 px-2 sm:px-3.5 py-2.5 sm:py-2 rounded-[16px] sm:rounded-full text-[11px] sm:text-xs bg-white hover:bg-[#f3f8f2] text-[#2a2b2f] border border-[#e8dfd5] font-semibold shadow-2xs hover:shadow-xs hover:border-[#2d5232]/40 transition-all cursor-pointer active:scale-97 shrink-0"
             title="Add money to a wallet"
           >
-            <SolarIcon name="wallet" size={14} className="text-[#2d5232]" />
+            <SolarIcon name="wallet" size={16} className="text-[#2d5232]" />
             <span>Add Money</span>
           </button>
 
@@ -522,18 +524,20 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
           <button
             type="button"
             onClick={() => setShowQuickActions((prev) => !prev)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-[#B45529] hover:bg-[#9a461e] text-[#fef9ef] text-xs font-semibold shadow-[0_2px_10px_rgba(180,85,41,0.28)] hover:shadow-[0_4px_16px_rgba(180,85,41,0.38)] transition-all cursor-pointer active:scale-97 shrink-0"
+            className="inline-flex items-center flex-col sm:flex-row justify-center gap-1 sm:gap-1.5 px-2 sm:px-3.5 py-2.5 sm:py-2 rounded-[16px] sm:rounded-full text-[11px] sm:text-xs bg-[#B45529] hover:bg-[#9a461e] text-[#fef9ef] font-semibold shadow-[0_2px_10px_rgba(180,85,41,0.28)] hover:shadow-[0_4px_16px_rgba(180,85,41,0.38)] transition-all cursor-pointer active:scale-97 shrink-0"
             aria-expanded={showQuickActions}
             aria-haspopup="true"
             title="More couple actions"
           >
-            <SolarIcon name="bolt" size={14} className="text-[#fef9ef]" />
-            <span>More</span>
-            <SolarIcon
-              name="arrow-down"
-              size={12}
-              className={`text-[#fef9ef]/80 transition-transform duration-200 ${showQuickActions ? "rotate-180" : ""}`}
-            />
+            <SolarIcon name="bolt" size={16} className="text-[#fef9ef]" />
+            <span className="inline-flex items-center gap-1">
+              More
+              <SolarIcon
+                name="arrow-down"
+                size={12}
+                className={`text-[#fef9ef]/80 transition-transform duration-200 ${showQuickActions ? "rotate-180" : ""}`}
+              />
+            </span>
           </button>
 
           {/* Quick Actions Dropdown Menu */}
@@ -878,21 +882,21 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
       )}
 
       {/* 1. THREE DISTINCTIVE WHITE CARDS WITH BORDER & COLORED CHARTS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3.5">
         {walletCards.map((card, idx) => (
           <div
             key={card.id}
-            className={`p-5 sm:p-6 rounded-[22px] bg-white border border-[#e8dfd5] shadow-[0_2px_12px_-2px_rgba(42,43,47,0.06)] flex flex-col justify-between transition-all hover:translate-y-[-1px] hover:shadow-[0_8px_24px_-4px_rgba(42,43,47,0.09)] ${
+            className={`@container px-4 py-3.5 sm:p-6 rounded-[20px] sm:rounded-[22px] bg-white border border-[#e8dfd5] shadow-[0_2px_12px_-2px_rgba(42,43,47,0.06)] flex flex-col justify-between transition-all hover:translate-y-[-1px] hover:shadow-[0_8px_24px_-4px_rgba(42,43,47,0.09)] ${
               idx === 2 ? "sm:col-span-2 lg:col-span-1" : ""
             }`}
           >
-            <div className="flex items-center justify-between mb-3.5">
-              <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between mb-1.5 sm:mb-3.5">
+              <div className="flex items-center gap-2.5 sm:gap-3">
                 <img
                   src={card.avatar}
                   alt={card.alt}
                   style={{ transform: card.shouldFlip ? "scaleX(-1)" : "none" }}
-                  className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover shrink-0 shadow-2xs border border-[#ecd9c7] transition-transform duration-300"
+                  className="w-8 h-8 sm:w-11 sm:h-11 rounded-full object-cover shrink-0 shadow-2xs border border-[#ecd9c7] transition-transform duration-300"
                 />
                 <span className="text-xs sm:text-[13px] font-semibold text-[#515151] tracking-tight">
                   {card.label}
@@ -905,9 +909,10 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
               </span>
             </div>
 
-            <div className="flex items-end justify-between gap-3 mt-2">
+            <div className="flex items-end justify-between gap-3 mt-1 sm:mt-2">
               <div className="min-w-0">
-                <div className="text-2xl sm:text-[28px] font-bold text-[#2a2b2f] tracking-tight font-serif leading-none">
+                {/* Sized by the card's own width, so two- and three-column layouts never overlap. */}
+                <div className="text-xl @[12rem]:text-2xl @[17rem]:text-[28px] font-bold text-[#2a2b2f] tracking-tight font-serif leading-none whitespace-nowrap">
                   {card.id === "partner-wallet" && partnerProfile && walletsReady ? (
                     <span className="inline-flex items-center gap-2 text-[#808988]">
                       <SolarIcon name="lock-keyhole" size={20} />
@@ -920,7 +925,7 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
                     formatMoney(card.balance, card.currency, locale)
                   )}
                 </div>
-                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                <div className="flex items-center gap-2 mt-1.5 sm:mt-2 flex-wrap empty:hidden">
                   {walletStatus(card.id) && (
                     <span className="text-[11px] text-[#808988] font-medium">{walletStatus(card.id)}</span>
                   )}
@@ -941,7 +946,7 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
 
               {/* Decorative wave, shown only once the wallet holds money */}
               {card.balance > 0 && !walletStatus(card.id) && (
-                <div className="shrink-0 w-24 sm:w-28 h-10 sm:h-12">
+                <div className="hidden @[16rem]:block flex-1 min-w-12 max-w-28 h-8 sm:h-12">
                   <TrendSparkline
                     id={card.chartId}
                     color={card.chartColor}
@@ -960,10 +965,10 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
       {/* 3. MONTHLY OVERVIEW & ASK SEIYA (Side-by-side on desktop, stacked on mobile) */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-stretch">
         {/* Left / Main: Monthly Overview Stacked Bar Chart */}
-        <div className="xl:col-span-8 p-5 sm:p-7 rounded-[24px] bg-white border border-[#e8dfd5] shadow-[0_2px_14px_-2px_rgba(42,43,47,0.06)] flex flex-col justify-between">
+        <div className="xl:col-span-8 p-4 sm:p-7 rounded-[20px] sm:rounded-[24px] bg-white border border-[#e8dfd5] shadow-[0_2px_14px_-2px_rgba(42,43,47,0.06)] flex flex-col justify-between">
           {/* Header Row */}
-          <div className="flex items-start sm:items-center justify-between pb-4 border-b border-[#e8dfd5]/60 mb-5">
-            <div>
+          <div className="flex items-center justify-between gap-3 pb-4 border-b border-[#e8dfd5]/60 mb-5">
+            <div className="min-w-0">
               <h3 className="text-xl sm:text-2xl font-serif font-normal text-[#2a2b2f] tracking-tight">
                 Monthly Overview
               </h3>
@@ -973,9 +978,10 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
             </div>
             <button
               onClick={() => onNavigate("activity")}
-              className="text-xs font-semibold text-[#B45529] border border-[#B45529]/40 hover:bg-[#B45529]/10 rounded-full px-4 py-1.5 transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              className="shrink-0 whitespace-nowrap text-xs font-semibold text-[#B45529] border border-[#B45529]/40 hover:bg-[#B45529]/10 rounded-full px-3.5 sm:px-4 py-2 sm:py-1.5 transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
             >
-              <span>View Details</span>
+              <span className="sm:hidden">Details</span>
+              <span className="hidden sm:inline">View Details</span>
               <span className="text-sm leading-none">→</span>
             </button>
           </div>
@@ -1307,7 +1313,7 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
             <AskSeiyaDirectChatBox
               onNavigate={onNavigate}
               setPendingDirectChat={setPendingDirectChat}
-              placeholder="Ask Seiya or type an expense..."
+              placeholder="Ask or log an expense…"
             />
 
             <div className="text-[11px] text-[#515151] flex items-center gap-1.5 pt-2 border-t border-[#d1c9bf]/30">
@@ -1364,14 +1370,14 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
             </h3>
             <button
               onClick={() => onNavigate("activity")}
-              className="text-xs font-semibold text-[#B45529] hover:underline cursor-pointer"
+              className="py-2 -my-2 px-1 text-xs font-semibold text-[#B45529] hover:underline cursor-pointer"
             >
               View all
             </button>
           </div>
 
           {/* Filter Tabs */}
-          <div className="flex items-center gap-1.5 p-1 bg-[#f5eee1] rounded-full w-fit">
+          <div className="flex items-center gap-1.5 p-1 bg-[#f5eee1] rounded-full w-fit max-w-full overflow-x-auto no-scrollbar">
             {[
               { id: "all", label: "All" },
               { id: "shared", label: "Shared" },
@@ -1381,7 +1387,7 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
               <button
                 key={tab.id}
                 onClick={() => setTxFilter(tab.id as any)}
-                className={`px-3.5 py-1 text-xs font-semibold rounded-full capitalize transition-all cursor-pointer ${
+                className={`shrink-0 whitespace-nowrap px-3.5 py-1.5 sm:py-1 text-xs font-semibold rounded-full capitalize transition-all cursor-pointer ${
                   txFilter === tab.id
                     ? "bg-[#B45529] text-[#fef9ef] shadow-xs"
                     : "text-[#515151] hover:text-[#2a2b2f]"
@@ -1408,20 +1414,20 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
                     setSelectedTransaction(tx);
                     setTransactionModalOpen(true);
                   }}
-                  className="p-4 flex items-center justify-between hover:bg-[#ece3d3]/70 transition-colors cursor-pointer group"
+                  className="px-4 py-3.5 sm:p-4 flex items-center justify-between gap-3 hover:bg-[#ece3d3]/70 transition-colors cursor-pointer group"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${visual.bgClass} ${visual.textClass} group-hover:scale-105 transition-transform shadow-2xs`}>
                       <SolarIcon name={visual.iconName} size={18} />
                     </div>
-                    <div>
-                      <h4 className="text-xs sm:text-sm font-semibold text-[#2a2b2f] group-hover:text-[#B45529] transition-colors">{tx.title}</h4>
-                      <span className="text-[11px] text-[#515151]">
-                        {tx.date} • {tx.wallet.replace("_", " ")}
+                    <div className="min-w-0">
+                      <h4 className="text-[13px] sm:text-sm font-semibold text-[#2a2b2f] group-hover:text-[#B45529] transition-colors truncate">{tx.title}</h4>
+                      <span className="block text-[11px] text-[#515151] truncate">
+                        {tx.date} • {tx.wallet === "shared" ? "Shared" : tx.wallet === "personal_a" ? partnerAName : partnerBName}
                       </span>
                     </div>
                   </div>
-                  <div className="text-right flex items-center gap-2.5">
+                  <div className="text-right flex items-center gap-2 shrink-0 whitespace-nowrap">
                     <div>
                       <div
                         className={`text-xs sm:text-sm font-bold font-serif ${
@@ -1652,7 +1658,7 @@ export function HomeView({ onNavigate, notice }: { onNavigate: (tab: any) => voi
           <AskSeiyaDirectChatBox
             onNavigate={onNavigate}
             setPendingDirectChat={setPendingDirectChat}
-            placeholder="Ask Seiya or type an expense..."
+            placeholder="Ask or log an expense…"
           />
         </div>
 

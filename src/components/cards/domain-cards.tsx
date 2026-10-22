@@ -290,7 +290,7 @@ export function PlanCard({
           {onDelete && (
             <button
               onClick={onDelete}
-              className="p-1 rounded-full text-[#808988] hover:text-[#a34426] hover:bg-[#fcf0ee] transition-colors cursor-pointer"
+              className="p-2 -m-1 rounded-full text-[#808988] hover:text-[#a34426] hover:bg-[#fcf0ee] transition-colors cursor-pointer"
               title="Dissolve goal (Requires dual PIN consensus)"
               aria-label="Delete goal"
             >
@@ -343,9 +343,9 @@ export function PlanCard({
 
       {/* Split & Assumptions */}
       <div className="space-y-2 mb-4 text-xs">
-        <div className="flex justify-between items-center text-[#2a2b2f] bg-[#fef9ef] p-3 rounded-[12px]">
-          <span className="text-[#515151]">Split:</span>
-          <span className="font-semibold text-[#B45529]">{split}</span>
+        <div className="flex flex-col items-start gap-0.5 sm:flex-row sm:justify-between sm:items-center sm:gap-3 text-[#2a2b2f] bg-[#fef9ef] p-3 rounded-[12px]">
+          <span className="text-[#515151] shrink-0">Split</span>
+          <span className="font-semibold text-[#B45529] sm:text-right">{split}</span>
         </div>
         {typeof assumptions === "string" && assumptions.trim() && (
           <div className="text-[11px] text-[#515151] bg-[#fef9ef] p-3 rounded-[12px]">

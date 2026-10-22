@@ -79,7 +79,8 @@ export function PlanView({ onNavigate }: { onNavigate?: (tab: any) => void }) {
             <h3 className="text-base sm:text-lg font-serif font-normal text-[#2a2b2f]">Active Couple Goals</h3>
             <Badge variant="neutral">{activePlans.length} Goals</Badge>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
+          {/* Phones: Seiya first at full width, the two manual actions side by side. */}
+          <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:items-center sm:w-auto sm:flex-wrap">
             <Button
               variant="outline"
               size="sm"
@@ -88,7 +89,7 @@ export function PlanView({ onNavigate }: { onNavigate?: (tab: any) => void }) {
                   onNavigate("draft_goals");
                 }
               }}
-              className="text-xs border-[#d1c9bf] hover:bg-[#faeade]/60 text-[#2a2b2f] font-semibold flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              className="h-10 sm:h-auto text-xs border-[#d1c9bf] hover:bg-[#faeade]/60 text-[#2a2b2f] font-semibold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
             >
               <SolarIcon name="edit" size={14} className="text-[#808988]" />
               <span>Draft Goals ({draftPlans.length})</span>
@@ -101,10 +102,11 @@ export function PlanView({ onNavigate }: { onNavigate?: (tab: any) => void }) {
                   onNavigate("add_goal");
                 }
               }}
-              className="text-xs border-[#B45529]/40 hover:bg-[#faeade] text-[#B45529] font-semibold flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              className="h-10 sm:h-auto text-xs border-[#B45529]/40 hover:bg-[#faeade] text-[#B45529] font-semibold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
             >
               <SolarIcon name="plus" size={14} className="text-[#B45529]" />
-              <span>Add Goal Manually</span>
+              <span className="sm:hidden">Add Manually</span>
+              <span className="hidden sm:inline">Add Goal Manually</span>
             </Button>
             <Button
               variant="primary"
@@ -113,7 +115,7 @@ export function PlanView({ onNavigate }: { onNavigate?: (tab: any) => void }) {
                 setPendingDirectChat({ message: "Help us plan a new savings goal. Please ask me what it is for, the amount and the target date.", mode: "personal" });
                 onNavigate?.("seiya");
               }}
-              className="text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              className="col-span-2 order-first sm:order-none h-11 sm:h-auto text-sm sm:text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
             >
               <SeiyaIcon size={14} color="#fef9ef" />
               <span>Create with Seiya</span>

@@ -62,6 +62,10 @@ input[type="number"],
   font-variant-numeric: tabular-nums;
 }
 
+/* Horizontal chip rows and tab bars scroll without showing a scrollbar. */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
 /* Custom scrollbar for warm paper theme */
 ::-webkit-scrollbar {
   width: 6px;

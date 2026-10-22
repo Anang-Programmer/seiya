@@ -94,8 +94,8 @@ export function ApprovalsView() {
                 className="p-5 sm:p-6 rounded-[12px] bg-[#f5eee1] shadow-xs hover:shadow-sm transition-all space-y-4"
               >
                 {/* Header */}
-                <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-1">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5 sm:gap-4">
+                  <div className="space-y-1 min-w-0">
                     <div className="flex items-center gap-2.5 flex-wrap">
                       <span className="text-base sm:text-lg font-medium font-serif text-[#2a2b2f] leading-snug">
                         {req.title}
@@ -114,10 +114,10 @@ export function ApprovalsView() {
                       </Badge>
                     </div>
                     <span className="text-xs sm:text-[13px] text-[#515151] block">
-                      Requested by <strong className="text-[#2a2b2f]">{requesterDisplayName}</strong> • Wallet: {req.wallet.replace("_", " ")}
+                      Requested by <strong className="text-[#2a2b2f]">{requesterDisplayName}</strong> • Wallet: {req.wallet === "shared" ? "Shared" : req.wallet === "personal_a" ? partnerAName : partnerBName}
                     </span>
                   </div>
-                  <div className="text-right shrink-0">
+                  <div className="sm:text-right shrink-0 flex flex-wrap items-baseline gap-x-3 gap-y-1 sm:block">
                     <span className="text-xl sm:text-2xl font-bold font-serif text-[#2a2b2f] block leading-none">
                       {formatMoney(req.amount, reqCurrency, locale)}
                     </span>
@@ -126,7 +126,7 @@ export function ApprovalsView() {
                         ≈ {formatMoneyConverted(req.amount, reqCurrency, reportingCurrency, locale)}
                       </span>
                     )}
-                    <span className="text-xs text-[#C98A4F] font-medium font-serif block mt-1">
+                    <span className="text-xs text-[#C98A4F] font-medium font-serif block sm:mt-1">
                       Expires in ~{req.expiresInHours}h
                     </span>
                   </div>
@@ -145,16 +145,16 @@ export function ApprovalsView() {
                 </div>
 
                 {/* Action controls */}
-                <div className="flex items-center justify-between pt-2">
-                  <div className="text-xs text-[#808988] flex items-center gap-1.5 font-mono">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1 sm:pt-2">
+                  <div className="hidden sm:flex text-xs text-[#808988] items-center gap-1.5 font-mono">
                     <SolarIcon name="lock-keyhole" size={14} />
                     <span>Idempotent • Server-enforced safety boundary</span>
                   </div>
 
                   {req.status === "pending" && (
-                    <div className="flex items-center gap-2">
+                    <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
                       {isRequester ? (
-                        <div className="flex items-center gap-3 flex-wrap justify-end">
+                        <div className="col-span-2 flex items-center gap-3 flex-wrap justify-between sm:justify-end">
                           <div className="flex items-center gap-1.5 text-xs text-[#C98A4F] font-medium">
                             <SolarIcon name="clock-circle" size={14} />
                             <span>Waiting for your partner</span>
@@ -182,7 +182,7 @@ export function ApprovalsView() {
                               setSelectedApproval(req);
                               setDialogOpen(true);
                             }}
-                            className="text-xs"
+                            className="h-10 sm:h-auto text-xs justify-center"
                           >
                             <SolarIcon name="check-circle" size={14} />
                             Sign & Approve
@@ -191,7 +191,7 @@ export function ApprovalsView() {
                             variant="ghost"
                             size="sm"
                             onClick={() => declineRequest(req.id)}
-                            className="text-xs text-[#a34426] hover:bg-[#fcf0ee]"
+                            className="h-10 sm:h-auto text-xs justify-center text-[#a34426] hover:bg-[#fcf0ee] border border-[#a34426]/25 sm:border-0"
                           >
                             Decline
                           </Button>

@@ -274,7 +274,9 @@ function MainApp() {
   );
 
   return (
-    <div className="flex h-screen bg-gradient-to-b from-[#fef9ef] to-[#fefcf6] text-[#2a2b2f] overflow-hidden">
+    // h-dvh follows the visible height on phones, so the bottom navigation is
+    // never hidden behind the browser's toolbar.
+    <div className="flex h-dvh bg-gradient-to-b from-[#fef9ef] to-[#fefcf6] text-[#2a2b2f] overflow-hidden">
       {/* Desktop Collapsible Sidebar */}
       <Sidebar
         currentTab={currentTab}
@@ -285,7 +287,7 @@ function MainApp() {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden relative">
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
         <main
           id="main-scroll-container"
           className="flex-1 overflow-y-auto relative flex flex-col"
@@ -341,11 +343,12 @@ function MainApp() {
             </div>
           )}
 
+          {/* No z-index on the chat tab: its history drawer has to cover the bottom navigation. */}
           <div
-            className={`relative z-10 flex-1 ${
+            className={`relative flex-1 ${
               currentTab === "seiya"
                 ? "p-2 sm:p-4 pb-24 md:pb-4 h-full flex flex-col"
-                : "px-3.5 sm:px-8 pb-32 md:pb-8 pt-4 sm:pt-6"
+                : "z-10 px-3.5 sm:px-8 pb-32 md:pb-8 pt-4 sm:pt-6"
             }`}
           >
             {!dataStatus.loaded && currentTab !== "seiya" ? (
