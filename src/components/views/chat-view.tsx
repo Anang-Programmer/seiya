@@ -62,6 +62,7 @@ export function ChatView() {
     currentUser,
     sendChatMessage,
     loadChatHistory,
+    conversationIdFor,
     updateConversation,
     deleteConversation,
     householdId,
@@ -382,41 +383,81 @@ export function ChatView() {
     }
   };
 
-  // Restore saved conversations for this household.
+  // Restore saved conversations for this household, then keep shared ones in
+  // sync: the partner can write in them too, so their new messages (and a chat
+  // the partner just shared or made private) show up without a reload.
+  const isProcessingRef = useRef(false);
   useEffect(() => {
     let cancelled = false;
-    loadChatHistory().then((history) => {
-      if (cancelled || history.length === 0) return;
-      const startOfToday = new Date();
-      startOfToday.setHours(0, 0, 0, 0);
-      setSessions((prev) => {
-        const known = new Set(prev.map((s) => s.id));
-        const restored: ChatSession[] = history
-          .filter((h) => !known.has(`history-${h.conversationId}`))
-          .map((h) => {
-            const updated = new Date(h.updatedAt).getTime();
-            const dateGroup: ChatSession["dateGroup"] =
-              updated >= startOfToday.getTime()
-                ? "Today"
-                : updated >= startOfToday.getTime() - 86_400_000
-                ? "Yesterday"
-                : "Previous";
+    const sync = () =>
+      loadChatHistory().then((history) => {
+        if (cancelled || history.length === 0) return;
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+        setSessions((prev) => {
+          // Chats started on this page are keyed by their local id, so match them by conversation too.
+          const known = new Set(prev.map((s) => s.id));
+          const localByConversation = new Map<string, string>();
+          for (const s of prev) {
+            const cid = conversationIdFor(s.id);
+            if (cid) localByConversation.set(cid, s.id);
+          }
+          const byConversation = new Map(history.map((h) => [h.conversationId, h]));
+          const updated = prev.map((session) => {
+            const cid = session.id.startsWith("history-") ? session.id.slice("history-".length) : conversationIdFor(session.id);
+            const saved = cid ? byConversation.get(cid) : undefined;
+            if (!saved) {
+              // A partner's chat that is no longer listed was made private (or deleted).
+              // Only trusted when the list is not cut off at its 20-chat limit.
+              const fromPartner = session.creatorRole && session.creatorRole !== currentUser;
+              if (fromPartner && session.isShared && history.length < 20) {
+                return { ...session, isShared: false, mode: "personal" as const };
+              }
+              return session;
+            }
+            const localUserTurns = session.messages.filter((m) => m.sender === "user").length;
+            const savedUserTurns = saved.messages.filter((m) => m.sender === "user").length;
+            const hasNewTurns = savedUserTurns > localUserTurns && !isProcessingRef.current;
+            if (!hasNewTurns && saved.isShared === Boolean(session.isShared)) return session;
             return {
-              id: `history-${h.conversationId}`,
-              title: h.title,
-              timestamp: formatRelativeDate(h.updatedAt, locale),
-              dateGroup,
-              mode: h.isShared ? "shared" : "personal",
-              isShared: h.isShared,
-              creatorRole: h.creatorRole,
-              messages: h.messages,
+              ...session,
+              isShared: saved.isShared,
+              mode: saved.isShared ? ("shared" as const) : ("personal" as const),
+              messages: hasNewTurns ? saved.messages : session.messages,
             };
           });
-        return [...prev, ...restored];
+          const restored: ChatSession[] = history
+            .filter((h) => !known.has(`history-${h.conversationId}`) && !localByConversation.has(h.conversationId))
+            .map((h) => {
+              const updated = new Date(h.updatedAt).getTime();
+              const dateGroup: ChatSession["dateGroup"] =
+                updated >= startOfToday.getTime()
+                  ? "Today"
+                  : updated >= startOfToday.getTime() - 86_400_000
+                  ? "Yesterday"
+                  : "Previous";
+              return {
+                id: `history-${h.conversationId}`,
+                title: h.title,
+                timestamp: formatRelativeDate(h.updatedAt, locale),
+                dateGroup,
+                mode: h.isShared ? "shared" : "personal",
+                isShared: h.isShared,
+                creatorRole: h.creatorRole,
+                messages: h.messages,
+              };
+            });
+          if (restored.length === 0 && updated.every((session, i) => session === prev[i])) return prev;
+          return [...updated, ...restored];
+        });
       });
-    });
+    void sync();
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void sync();
+    }, 15_000);
     return () => {
       cancelled = true;
+      window.clearInterval(timer);
     };
   }, [householdId]); // eslint-disable-line react-hooks/exhaustive-deps
   const [newChatMode, setNewChatMode] = useState<"personal" | "shared">("personal");
@@ -425,6 +466,9 @@ export function ChatView() {
   const [inputText, setInputText] = useState("");
   const hasComposerContent = Boolean(inputText.trim() || pendingAttachment);
   const [isProcessing, setIsProcessing] = useState(false);
+  useEffect(() => {
+    isProcessingRef.current = isProcessing;
+  }, [isProcessing]);
   const [activeMenuSessionId, setActiveMenuSessionId] = useState<string | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editTitleText, setEditTitleText] = useState("");
@@ -604,9 +648,12 @@ export function ChatView() {
     setTimeout(() => setToastMessage(null), 2500);
   };
 
-  // Only the person who started a chat can rename, share, delete or continue it.
+  // Only the person who started a chat can rename, share or delete it.
   const ownsSession = (session: ChatSession | null | undefined) =>
     Boolean(session) && (session!.creatorRole ?? currentUser) === currentUser;
+  // Both partners can keep talking to Seiya in a shared chat.
+  const canReply = (session: ChatSession | null | undefined) =>
+    !session || ownsSession(session) || Boolean(session.isShared);
 
   // Delete Chat Session (saved on the server, so it stays deleted after a refresh)
   const handleDeleteSession = async (sessionId: string, e?: React.MouseEvent) => {
@@ -662,8 +709,8 @@ export function ChatView() {
   const handleSend = async (textToSend?: string): Promise<ChatMessage | null> => {
     const text = textToSend || inputText;
     if (!text.trim()) return null;
-    if (activeSession && !ownsSession(activeSession)) {
-      setToastMessage(`${partnerName} shared this chat with you. Start a new chat to ask Seiya.`);
+    if (!canReply(activeSession)) {
+      setToastMessage(`${partnerName} made this chat private. Start a new chat to ask Seiya.`);
       setTimeout(() => setToastMessage(null), 3500);
       return null;
     }
@@ -1765,10 +1812,10 @@ export function ChatView() {
                 type="text"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                disabled={Boolean(activeSession) && !ownsSession(activeSession)}
+                disabled={!canReply(activeSession)}
                 placeholder={
-                  activeSession && !ownsSession(activeSession)
-                    ? `Shared by ${partnerName} · start a new chat to reply`
+                  !canReply(activeSession)
+                    ? `Private to ${partnerName} · start a new chat`
                     : pendingAttachment
                     ? "Add a note (optional), then press Send"
                     : "Message Seiya…"

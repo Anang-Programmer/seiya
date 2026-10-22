@@ -114,14 +114,17 @@ export async function POST(request: Request) {
       .select("id, household_id, user_id, visibility")
       .eq("id", input.conversationId)
       .eq("household_id", input.householdId)
-      .eq("user_id", user.id)
       .maybeSingle();
 
     if (conversationError) {
       console.warn("[Seiya Agent] conversation lookup failed", { code: conversationError.code ?? "unknown" });
       return json({ success: false, message: "Unable to load this conversation." }, 500);
     }
-    if (!conversation) return json({ success: false, message: "Conversation not found or not accessible." }, 404);
+    // The owner can always continue; the partner only while the chat is shared
+    // (append_agent_conversation_turn enforces the same rule in the database).
+    if (!conversation || (conversation.user_id !== user.id && conversation.visibility !== "shared")) {
+      return json({ success: false, message: "This chat is no longer shared with you. Start a new chat to ask Seiya." }, 404);
+    }
 
     const { data: rows, error: historyError } = await supabase
       .from("agent_messages")

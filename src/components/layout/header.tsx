@@ -419,13 +419,21 @@ export function Header({
                     </button>
                   )}
                   {approvals.filter(a => a.status === "pending" && a.approver === currentUser).map(a => (
-                    <div key={a.id} className="py-2.5 text-xs">
-                      <div className="flex items-center justify-between text-[#2a2b2f] font-semibold mb-0.5">
-                        <span>Approval: {a.title}</span>
-                        <span className="text-[10px] text-[#B45529] font-semibold">Pending</span>
+                    <button
+                      key={a.id}
+                      type="button"
+                      onClick={() => {
+                        setShowNotifications(false);
+                        onNavigate?.("approvals");
+                      }}
+                      className="w-full text-left py-2.5 text-xs cursor-pointer hover:bg-[#f5eee1] rounded-[8px] px-1 -mx-1"
+                    >
+                      <div className="flex items-center justify-between gap-2 text-[#2a2b2f] font-semibold mb-0.5">
+                        <span className="min-w-0">Approval: {a.title}</span>
+                        <span className="text-[10px] text-[#B45529] font-semibold shrink-0">Pending</span>
                       </div>
                       <p className="text-[#515151] text-[11px]">{a.reason}</p>
-                    </div>
+                    </button>
                   ))}
                   {/* Held purchases are part of the count, so they are listed too. */}
                   {heldPurchases.filter((h) => h.status === "held").map((h) => (
@@ -446,15 +454,23 @@ export function Header({
                     </button>
                   ))}
                   {bills.filter(b => b.status !== "paid" && b.daysRemaining <= 3).map(b => (
-                    <div key={b.id} className="py-2.5 text-xs">
-                      <div className="flex items-center justify-between text-[#2a2b2f] font-semibold mb-0.5">
-                        <span>Upcoming Bill: {b.title}</span>
-                        <span className="text-[10px] text-[#a34426] font-semibold">
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => {
+                        setShowNotifications(false);
+                        onNavigate?.("bills");
+                      }}
+                      className="w-full text-left py-2.5 text-xs cursor-pointer hover:bg-[#f5eee1] rounded-[8px] px-1 -mx-1"
+                    >
+                      <div className="flex items-center justify-between gap-2 text-[#2a2b2f] font-semibold mb-0.5">
+                        <span className="min-w-0">Upcoming Bill: {b.title}</span>
+                        <span className="text-[10px] text-[#a34426] font-semibold shrink-0">
                           {b.daysRemaining < 0 ? "Overdue" : b.daysRemaining === 0 ? "Due today" : `Due in ${b.daysRemaining} day${b.daysRemaining === 1 ? "" : "s"}`}
                         </span>
                       </div>
                       <p className="text-[#515151] text-[11px]">{b.anomaly?.message || `Due ${b.dueDate}`}</p>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>

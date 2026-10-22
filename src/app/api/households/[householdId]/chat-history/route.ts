@@ -38,7 +38,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
     const { data: messages, error: messagesError } = await supabase
       .from("agent_messages")
-      .select("id, conversation_id, role, content, created_at")
+      .select("id, conversation_id, sender_user_id, role, content, created_at")
       .in("conversation_id", conversations.map((c) => c.id))
       .in("role", ["user", "assistant"])
       .order("created_at", { ascending: true })
