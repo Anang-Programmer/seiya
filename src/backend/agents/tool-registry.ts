@@ -2,6 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import type { createClient } from "@/lib/supabase/server";
 import { getHouseholdBudgetProgress } from "@/backend/services/bill-budget.service";
+import { getHouseholdSettlement } from "@/backend/services/settlement.service";
 import { requestSimulatedTransaction } from "@/backend/services/transaction.service";
 import { validateRecordExpenseInput } from "@/backend/agents/validators";
 import type { AIToolDefinition } from "@/backend/agents";
@@ -15,6 +16,9 @@ type ToolName =
   | "list_recent_transactions"
   | "get_plans_summary"
   | "check_affordability"
+  | "get_settlement_summary"
+  | "list_pending_approvals"
+  | "list_held_purchases"
   | "record_expense"
   | "record_income"
   | "draft_bill";
@@ -65,6 +69,21 @@ export const SEIYA_READ_TOOLS: AIToolDefinition[] = [
   {
     name: "get_plans_summary",
     description: "Read active household financial plans and savings goals (e.g. vacation, emergency fund, buying a house/car). Returns target amounts, current saved amounts, progress percentage, target dates, remaining amounts, and recommended monthly savings. Use when the user asks about savings goals, plans, dream progress, or how much to save monthly.",
+    parameters: EMPTY_OBJECT_SCHEMA,
+  },
+  {
+    name: "get_settlement_summary",
+    description: "Read the couple's shared expense settlement balance (IOU ledger) to see who owes whom and how much to settle up. Use when the user asks who owes whom, who paid more, settlement status, or how to settle up.",
+    parameters: EMPTY_OBJECT_SCHEMA,
+  },
+  {
+    name: "list_pending_approvals",
+    description: "Read pending Dual-Key partner approval requests. Shows items waiting for the user's PIN signature, items requested by the user waiting for their partner, amounts, and reasons. Use when user asks about pending approvals, what needs signing, or approval status.",
+    parameters: EMPTY_OBJECT_SCHEMA,
+  },
+  {
+    name: "list_held_purchases",
+    description: "Read purchases currently paused under the cooling-off safeguard period (waiting list). Shows title, amount, wallet, hold expiration time, and reason. Use when user asks about held purchases, waiting list items, or cooling-off status.",
     parameters: EMPTY_OBJECT_SCHEMA,
   },
 ];
@@ -228,6 +247,9 @@ const ALLOWED_TOOL_NAMES = new Set<ToolName>([
   "list_recent_transactions",
   "get_plans_summary",
   "check_affordability",
+  "get_settlement_summary",
+  "list_pending_approvals",
+  "list_held_purchases",
   "record_expense",
   "record_income",
   "draft_bill",
@@ -676,6 +698,161 @@ async function checkAffordability(
   };
 }
 
+async function getSettlementSummary(context: SeiyaToolContext): Promise<unknown> {
+  const [{ data: settlement, error }, { data: members }] = await Promise.all([
+    getHouseholdSettlement(context.supabase, context.householdId),
+    context.supabase.from("household_members").select("user_id, role").eq("household_id", context.householdId),
+  ]);
+
+  if (error || !settlement) {
+    console.warn("[Seiya Agent] settlement tool failed", { error });
+    return { ok: false, message: "Settlement ledger is temporarily unavailable. Do not invent balances." };
+  }
+
+  const callerMember = (members ?? []).find((m: { user_id: string }) => m.user_id === context.userId);
+  const callerRole = callerMember?.role === "owner" ? "partner_a" : "partner_b";
+
+  const { partnerBOwesA, partnerAOwesB, currency } = settlement;
+  let statusText = "Both partners are completely settled up (0 balance).";
+  let userOwes = 0;
+  let partnerOwesUser = 0;
+
+  if (callerRole === "partner_a") {
+    if (partnerBOwesA > 0) {
+      statusText = `Your partner owes you ${formatAmount(partnerBOwesA, currency)} from shared expenses.`;
+      partnerOwesUser = partnerBOwesA;
+    } else if (partnerAOwesB > 0) {
+      statusText = `You owe your partner ${formatAmount(partnerAOwesB, currency)} from shared expenses.`;
+      userOwes = partnerAOwesB;
+    }
+  } else {
+    if (partnerAOwesB > 0) {
+      statusText = `Your partner owes you ${formatAmount(partnerAOwesB, currency)} from shared expenses.`;
+      partnerOwesUser = partnerAOwesB;
+    } else if (partnerBOwesA > 0) {
+      statusText = `You owe your partner ${formatAmount(partnerBOwesA, currency)} from shared expenses.`;
+      userOwes = partnerBOwesA;
+    }
+  }
+
+  return {
+    ok: true,
+    as_of_utc_date: context.today,
+    currency,
+    partner_b_owes_partner_a: partnerBOwesA,
+    partner_a_owes_partner_b: partnerAOwesB,
+    caller_role: callerRole,
+    summary: statusText,
+    caller_owes: userOwes,
+    partner_owes_caller: partnerOwesUser,
+    is_settled_up: partnerBOwesA === 0 && partnerAOwesB === 0,
+  };
+}
+
+async function listPendingApprovals(context: SeiyaToolContext): Promise<unknown> {
+  const [{ data: rows, error }, { data: members }] = await Promise.all([
+    context.supabase
+      .from("approvals")
+      .select("id, title, category, amount, currency, wallet, requester_role, approver_role, status, reason, created_at, expires_in_hours")
+      .eq("household_id", context.householdId)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(15),
+    context.supabase.from("household_members").select("user_id, role").eq("household_id", context.householdId),
+  ]);
+
+  if (error) {
+    console.warn("[Seiya Agent] approvals tool failed", { code: error.code ?? "unknown" });
+    return { ok: false, message: "Approvals list is temporarily unavailable. Do not invent requests." };
+  }
+
+  const callerMember = (members ?? []).find((m: { user_id: string }) => m.user_id === context.userId);
+  const callerRole = callerMember?.role === "owner" ? "partner_a" : "partner_b";
+
+  const approvals = (rows ?? []).map((a: Record<string, unknown>) => {
+    const isWaitingForMe = a.approver_role === callerRole;
+    return {
+      id: safeText(a.id, 40),
+      title: safeText(a.title, 120),
+      category: safeText(a.category, 40),
+      amount: numeric(a.amount) ?? 0,
+      currency: safeText(a.currency, 3) ?? "IDR",
+      wallet: safeText(a.wallet, 20),
+      requester_role: safeText(a.requester_role, 20),
+      approver_role: safeText(a.approver_role, 20),
+      waiting_for: isWaitingForMe ? "my_signature" : "partner_signature",
+      reason: safeText(a.reason, 200),
+      expires_in_hours: numeric(a.expires_in_hours) ?? 48,
+    };
+  });
+
+  const waitingForMeCount = approvals.filter((a) => a.waiting_for === "my_signature").length;
+  const waitingForPartnerCount = approvals.filter((a) => a.waiting_for === "partner_signature").length;
+
+  return {
+    ok: true,
+    as_of_utc_date: context.today,
+    total_pending_count: approvals.length,
+    waiting_for_me_count: waitingForMeCount,
+    waiting_for_partner_count: waitingForPartnerCount,
+    caller_role: callerRole,
+    approvals,
+  };
+}
+
+async function listHeldPurchases(context: SeiyaToolContext): Promise<unknown> {
+  const { data: rows, error } = await context.supabase
+    .from("held_purchases")
+    .select("id, title, amount, currency, wallet, requester_role, status, hold_until, reason, created_at")
+    .eq("household_id", context.householdId)
+    .eq("status", "held")
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  if (error) {
+    console.warn("[Seiya Agent] held purchases tool failed", { code: error.code ?? "unknown" });
+    return { ok: false, message: "Held purchases list is temporarily unavailable. Do not invent items." };
+  }
+
+  const { data: heldTxs } = await context.supabase
+    .from("transactions")
+    .select("id, description, amount, currency, status, hold_until, created_at")
+    .eq("household_id", context.householdId)
+    .eq("status", "on_hold")
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  const directHeld = (rows ?? []).map((h: Record<string, unknown>) => ({
+    id: safeText(h.id, 40),
+    title: safeText(h.title, 120),
+    amount: numeric(h.amount) ?? 0,
+    currency: safeText(h.currency, 3) ?? "IDR",
+    wallet: safeText(h.wallet, 20) ?? "shared",
+    hold_until: safeText(h.hold_until, 40),
+    reason: safeText(h.reason, 200),
+  }));
+
+  const txHeld = (heldTxs ?? []).map((t: Record<string, unknown>) => ({
+    id: `tx:${safeText(t.id, 40)}`,
+    title: safeText(t.description, 120) || "Held Transaction",
+    amount: numeric(t.amount) ?? 0,
+    currency: safeText(t.currency, 3) ?? "IDR",
+    wallet: "shared",
+    hold_until: safeText(t.hold_until, 40),
+    reason: "Cooling-off safeguard period active",
+  }));
+
+  const allHeld = [...directHeld, ...txHeld];
+
+  return {
+    ok: true,
+    as_of_utc_date: context.today,
+    total_held_count: allHeld.length,
+    scope_note: "Items currently on cooling-off hold before execution.",
+    held_purchases: allHeld,
+  };
+}
+
 type TransactionSummary = {
   id: string | null;
   amount: number | null;
@@ -1019,6 +1196,9 @@ const READ_TOOL_NAMES = new Set<ToolName>([
   "get_wallet_summary",
   "list_recent_transactions",
   "get_plans_summary",
+  "get_settlement_summary",
+  "list_pending_approvals",
+  "list_held_purchases",
 ]);
 
 export async function executeSeiyaTool(
@@ -1043,6 +1223,9 @@ export async function executeSeiyaTool(
       case "list_recent_transactions": return await listRecentTransactions(context);
       case "get_plans_summary": return await getPlansSummary(context);
       case "check_affordability": return await checkAffordability(args, context);
+      case "get_settlement_summary": return await getSettlementSummary(context);
+      case "list_pending_approvals": return await listPendingApprovals(context);
+      case "list_held_purchases": return await listHeldPurchases(context);
       case "record_expense": return await recordExpense(args, context);
       case "record_income": return await recordIncome(args, context);
       case "draft_bill": return await draftBill(args, context);

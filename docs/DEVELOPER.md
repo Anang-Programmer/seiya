@@ -713,6 +713,9 @@ Available read-only tools tested:
 - `list_recent_transactions`
 - `get_plans_summary`
 - `check_affordability`
+- `get_settlement_summary`
+- `list_pending_approvals`
+- `list_held_purchases`
 
 ### Chat-time expense recording (`record_expense`)
 
