@@ -554,7 +554,7 @@ export interface ChatHistoryRow {
     updated_at: string | null;
     created_at: string;
   }>;
-  messages: Array<{ id: string; conversation_id: string; role: string; content: string; created_at: string }>;
+  messages: Array<{ id: string; conversation_id: string; sender_user_id?: string | null; role: string; content: string; created_at: string }>;
 }
 
 export const apiGetChatHistory = (hid: string) =>

@@ -350,6 +350,8 @@ interface AppContextType {
   }) => Promise<ContractSignatureResult>;
   sendChatMessage: (text: string, options?: { sessionKey?: string; shared?: boolean }) => Promise<ChatMessage | null>;
   loadChatHistory: () => Promise<ChatHistorySession[]>;
+  /** The saved conversation behind a chat session key, once Seiya has replied in it. */
+  conversationIdFor: (sessionKey: string) => string | undefined;
   /** Saves a rename / share change for a chat; true when saved (or not on the server yet). */
   updateConversation: (sessionKey: string, changes: { title?: string; shared?: boolean }) => Promise<boolean>;
   deleteConversation: (sessionKey: string) => Promise<boolean>;
@@ -1567,24 +1569,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const { conversations, messages } = await api.apiGetChatHistory(householdId);
       if (!conversations.length) return [];
 
+      const partnerRole: UserRole = currentUser === "partner_a" ? "partner_b" : "partner_a";
       return conversations.map((c) => {
+        const creatorRole: UserRole = c.user_id === authUser.id ? currentUser : partnerRole;
+        // Both partners can write in a shared chat, so each message is labelled
+        // by its own sender (older rows without a sender belong to the creator).
         const convMessages: ChatMessage[] = (messages ?? [])
           .filter((m) => m.conversation_id === c.id)
           .map((m) => ({
             id: m.id,
             sender: m.role === "user" ? ("user" as const) : ("seiya" as const),
-            userRole: m.role === "user" ? currentUser : undefined,
+            userRole:
+              m.role !== "user"
+                ? undefined
+                : m.sender_user_id
+                ? m.sender_user_id === authUser.id
+                  ? currentUser
+                  : partnerRole
+                : creatorRole,
             text: m.content,
             timestamp: new Date(m.created_at).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
           }));
         const firstUser = convMessages.find((m) => m.sender === "user")?.text ?? "Conversation";
-        const creatorRole: UserRole = c.user_id === authUser.id ? currentUser : currentUser === "partner_a" ? "partner_b" : "partner_a";
         conversationIds.current.set(`history-${c.id}`, c.id);
         return {
           conversationId: c.id,
           title: c.title || (firstUser.length > 32 ? `${firstUser.slice(0, 32)}...` : firstUser),
           updatedAt: c.updated_at || c.created_at,
-          messages: convMessages.map((m) => (m.sender === "user" ? { ...m, userRole: creatorRole } : m)),
+          messages: convMessages,
           isShared: c.visibility === "shared",
           creatorRole,
         };
@@ -1594,6 +1606,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return [];
     }
   };
+
+  const conversationIdFor: AppContextType["conversationIdFor"] = (sessionKey) => conversationIds.current.get(sessionKey);
 
   const updateConversation: AppContextType["updateConversation"] = async (sessionKey, changes) => {
     const conversationId = conversationIds.current.get(sessionKey);
@@ -1703,6 +1717,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         activateInitialContract,
         sendChatMessage,
         loadChatHistory,
+        conversationIdFor,
         updateConversation,
         deleteConversation,
         payBill,

@@ -17,6 +17,7 @@
     "postinstall": "node scripts/build/patch-orb.mjs",
     "test:statement": "node --env-file=.env.local scripts/test/statement-import.mjs",
     "test:security": "node --env-file=.env.local scripts/test/security.mjs",
+    "test:shared-chat": "node --env-file=.env.local scripts/test/shared-chat.mjs",
     "test:cleanup": "node --env-file=.env.local scripts/test/cleanup.mjs"
   },
   "dependencies": {
