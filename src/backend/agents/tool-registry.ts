@@ -12,6 +12,7 @@ type ToolName =
   | "list_upcoming_bills"
   | "get_household_rules"
   | "get_wallet_summary"
+  | "list_recent_transactions"
   | "record_expense"
   | "record_income"
   | "draft_bill";
@@ -52,6 +53,11 @@ export const SEIYA_READ_TOOLS: AIToolDefinition[] = [
   {
     name: "get_wallet_summary",
     description: "Read active simulated wallet balances visible to the authenticated household member: the shared wallet and only that member's personal wallet. Use when the user asks about available wallet balances. Never infer another partner's personal-wallet balance.",
+    parameters: EMPTY_OBJECT_SCHEMA,
+  },
+  {
+    name: "list_recent_transactions",
+    description: "Read recent executed and pending transactions (expenses and income) visible to the authenticated household member (shared wallet and their own personal wallet). Returns up to 25 recent transactions with date, description, amount, currency, category, type, and current month total. Use when the user asks about recent spending, transaction history, what was bought, or expenses for the current month.",
     parameters: EMPTY_OBJECT_SCHEMA,
   },
 ];
@@ -183,6 +189,7 @@ const ALLOWED_TOOL_NAMES = new Set<ToolName>([
   "list_upcoming_bills",
   "get_household_rules",
   "get_wallet_summary",
+  "list_recent_transactions",
   "record_expense",
   "record_income",
   "draft_bill",
@@ -364,6 +371,73 @@ async function getWalletSummary(context: SeiyaToolContext): Promise<unknown> {
     visibility_note: "Includes active shared wallets and only the authenticated user's own personal wallet. Another partner's personal wallet is not exposed.",
     wallet_count: wallets.length,
     wallets,
+  };
+}
+
+async function listRecentTransactions(context: SeiyaToolContext): Promise<unknown> {
+  const { data: rows, error } = await context.supabase
+    .from("transactions")
+    .select("id, amount, currency, category, description, transaction_type, status, wallet_id, created_at")
+    .eq("household_id", context.householdId)
+    .neq("status", "cancelled")
+    .order("created_at", { ascending: false })
+    .limit(25);
+
+  if (error) {
+    console.warn("[Seiya Agent] transactions tool failed", { code: error.code ?? "unknown" });
+    return { ok: false, message: "Transaction history is temporarily unavailable. Do not invent transactions." };
+  }
+
+  const { data: wallets } = await context.supabase
+    .from("wallets")
+    .select("id, wallet_type, owner_user_id, name")
+    .eq("household_id", context.householdId);
+
+  const walletMap = new Map(
+    (wallets ?? []).map((w: { id: string; wallet_type: string; owner_user_id: string | null; name: string }) => [
+      w.id,
+      w.wallet_type === "shared" ? "shared" : w.owner_user_id === context.userId ? "personal" : "partner_personal",
+    ])
+  );
+
+  const currentMonth = context.today.slice(0, 7);
+  let currentMonthExpenseTotal = 0;
+  let currentMonthExpenseCount = 0;
+
+  const transactions = (rows ?? []).map((tx: Record<string, unknown>) => {
+    const rawCreatedAt = safeText(tx.created_at, 20) ?? "";
+    const dateStr = rawCreatedAt.slice(0, 10);
+    const amountNum = numeric(tx.amount) ?? 0;
+    const typeStr = safeText(tx.transaction_type, 10) ?? "expense";
+    const statusStr = safeText(tx.status, 20) ?? "executed";
+    const walletType = walletMap.get(String(tx.wallet_id)) ?? "shared";
+
+    if (dateStr.startsWith(currentMonth) && typeStr === "expense" && statusStr !== "rejected") {
+      currentMonthExpenseTotal += amountNum;
+      currentMonthExpenseCount += 1;
+    }
+
+    return {
+      date: dateStr,
+      description: safeText(tx.description, 100),
+      amount: amountNum,
+      currency: safeText(tx.currency, 3) ?? "IDR",
+      category: safeText(tx.category, 30),
+      type: typeStr,
+      wallet: walletType,
+      status: statusStr,
+    };
+  });
+
+  return {
+    ok: true,
+    as_of_utc_date: context.today,
+    current_month: currentMonth,
+    current_month_expense_total: currentMonthExpenseTotal,
+    current_month_expense_count: currentMonthExpenseCount,
+    transactions_count: transactions.length,
+    scope_note: "Transactions visible to this member (shared wallet and member's personal wallet).",
+    transactions,
   };
 }
 
@@ -730,6 +804,7 @@ const READ_TOOL_NAMES = new Set<ToolName>([
   "list_upcoming_bills",
   "get_household_rules",
   "get_wallet_summary",
+  "list_recent_transactions",
 ]);
 
 export async function executeSeiyaTool(
@@ -751,6 +826,7 @@ export async function executeSeiyaTool(
       case "list_upcoming_bills": return await listUpcomingBills(context);
       case "get_household_rules": return await getHouseholdRules(context);
       case "get_wallet_summary": return await getWalletSummary(context);
+      case "list_recent_transactions": return await listRecentTransactions(context);
       case "record_expense": return await recordExpense(args, context);
       case "record_income": return await recordIncome(args, context);
       case "draft_bill": return await draftBill(args, context);

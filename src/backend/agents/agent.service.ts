@@ -79,6 +79,7 @@ const SYSTEM_PROMPT = `You are Seiya, an AI financial companion for couples and 
 Rules:
 - Do not fabricate balances, transactions, budgets, bills, dates, or agreements. For actual household data, use the available tools. If data cannot be retrieved or is empty, state so clearly.
 - Tools are generally read-only. The sole exception is record_expense: call it when the user reports a REAL expense that already occurred and specifies a clear amount (e.g. "today I spent 20 million on a trip to Japan"). If the amount and purpose are clear, you MUST call record_expense once; do not answer as if it was recorded without calling the tool. Do not record plans, desires, questions, hypotheticals, stories of other people, or messages without amounts; if in doubt, ask for the amount and purpose without calling the tool.
+- Viewing transaction history: call list_recent_transactions when the user asks about recent spending, transaction history, what they bought, or expenses for the current month. Report real amounts, dates, descriptions, and categories from the tool data; do not invent transactions.
 - Wallet choice in record_expense: default "shared" (shared wallet) for all household expenses, including vacations, shopping, bills, and dining together. Use "personal" only when the user explicitly specifies their own money (e.g. "from my personal money"). Balances are not visible in this turn, so do not guess; follow this default rule.
 - Money coming in (salary, bonus, refund, top-up, starting balance) that the user says ALREADY arrived: call record_income once with the full amount. Default wallet is the user's personal wallet; use shared only if they say so. Never record expected or future income.
 - Adding bills: when the user wants to add a bill or bill reminder, call draft_bill once with all the bills they named as soon as you know what each is and its amount (ask only for what is missing; the due day is optional). draft_bill saves nothing: say the draft is ready and ask them to check it and press "Add bill". Never claim a bill was added.
@@ -130,7 +131,7 @@ function isGeneralKnowledgeQuestion(message: string): boolean {
 
 function likelyRequestsHouseholdFacts(message: string): boolean {
   if (isGeneralKnowledgeQuestion(message)) return false;
-  return /\b(budget|anggaran|tagihan|bills?|due date|jatuh tempo|saldo|balance|wallet|dompet|kesepakatan|agreement|aturan keuangan|finance rules|cooling[ -]?off|approval threshold|batas persetujuan|pengeluaran|spending|sisa|remaining|terpakai|uang tersedia|dana tersedia|mampu beli|cukup untuk|afford)\b/i.test(message);
+  return /\b(budget|anggaran|tagihan|bills?|due date|jatuh tempo|saldo|balance|wallet|dompet|kesepakatan|agreement|aturan keuangan|finance rules|cooling[ -]?off|approval threshold|batas persetujuan|pengeluaran|spending|sisa|remaining|terpakai|uang tersedia|dana tersedia|mampu beli|cukup untuk|afford|transaksi|riwayat)\b/i.test(message);
 }
 
 function asksForData(message: string): boolean {
@@ -200,6 +201,12 @@ function selectRelevantTools(message: string, history: AgentHistoryMessage[]) {
 
   if (/\b(budget|spending|spent|expenses?|over[ -]?budget|remaining budget|category spending|anggaran|pengeluaran|belanja|terpakai)\b/i.test(intentText)) {
     add("get_budget_summary");
+  }
+  if (
+    /\b(transactions?|history|recent (purchases?|spending|expenses?)|past expenses?|what did i (spend|buy)|list (of )?expenses|expenses (this|last) month)\b/i.test(intentText) ||
+    /\b(transaksi|riwayat|daftar (pengeluaran|transaksi|belanja)|pengeluaran (ku|saya|kami|kita|bulan ini|minggu ini|hari ini|kemarin)|apa (aja|saja) (pengeluaran|belanjaan|yang dibeli)|belanja apa (aja|saja)|catatan pengeluaran)\b/i.test(intentText)
+  ) {
+    add("list_recent_transactions");
   }
   if (/\b(bills?|due date|overdue|unpaid|upcoming bills?|monthly bills?|tagihan|jatuh tempo|belum dibayar|telat bayar)\b/i.test(intentText)) {
     add("list_upcoming_bills");
@@ -414,7 +421,7 @@ export async function runSeiyaAgent(input: RunSeiyaAgentInput): Promise<RunSeiya
     if (likelyRequestsHouseholdFacts(input.message) && asksForData(input.message)) {
       return finalResult(
         first,
-        "I was unable to retrieve actual financial data to answer safely, so I will not guess numbers or household rules. Please ask specifically about: budget summary, simulated wallet balances, upcoming bills, or active financial rules.",
+        "I was unable to retrieve actual financial data to answer safely, so I will not guess numbers or household rules. Please ask specifically about: budget summary, recent transactions, simulated wallet balances, upcoming bills, or active financial rules.",
         [],
         turnStartedAt,
         [first],

@@ -710,6 +710,7 @@ Available read-only tools tested:
 - `get_budget_summary`
 - `list_upcoming_bills`
 - `get_household_rules`
+- `list_recent_transactions`
 
 ### Chat-time expense recording (`record_expense`)
 
