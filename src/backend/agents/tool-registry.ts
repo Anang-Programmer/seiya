@@ -13,6 +13,8 @@ type ToolName =
   | "get_household_rules"
   | "get_wallet_summary"
   | "list_recent_transactions"
+  | "get_plans_summary"
+  | "check_affordability"
   | "record_expense"
   | "record_income"
   | "draft_bill";
@@ -58,6 +60,11 @@ export const SEIYA_READ_TOOLS: AIToolDefinition[] = [
   {
     name: "list_recent_transactions",
     description: "Read recent executed and pending transactions (expenses and income) visible to the authenticated household member (shared wallet and their own personal wallet). Returns up to 25 recent transactions with date, description, amount, currency, category, type, and current month total. Use when the user asks about recent spending, transaction history, what was bought, or expenses for the current month.",
+    parameters: EMPTY_OBJECT_SCHEMA,
+  },
+  {
+    name: "get_plans_summary",
+    description: "Read active household financial plans and savings goals (e.g. vacation, emergency fund, buying a house/car). Returns target amounts, current saved amounts, progress percentage, target dates, remaining amounts, and recommended monthly savings. Use when the user asks about savings goals, plans, dream progress, or how much to save monthly.",
     parameters: EMPTY_OBJECT_SCHEMA,
   },
 ];
@@ -177,8 +184,37 @@ export const DRAFT_BILL_TOOL: AIToolDefinition = {
   },
 };
 
+export const CHECK_AFFORDABILITY_TOOL: AIToolDefinition = {
+  name: "check_affordability",
+  description:
+    "Evaluate whether the household can afford a prospective purchase or expense. " +
+    "Checks wallet balance, accounts for upcoming 30-day bills and monthly savings commitments, calculates the safe free cash buffer, and determines if partner Dual-Key approval is required. " +
+    "Use when the user asks 'can we afford', 'can I buy', 'is it safe to purchase', or whether funds are sufficient for an item.",
+  parameters: {
+    type: "object",
+    properties: {
+      amount: {
+        type: "number",
+        description: "Estimated cost of the item or purchase in the wallet currency, e.g. 5000000.",
+      },
+      description: {
+        type: "string",
+        description: "What the user wants to buy, max 100 characters, e.g. 'Sofa baru', 'Trip to Bali'.",
+      },
+      wallet: {
+        type: "string",
+        enum: ["shared", "personal"],
+        description: "shared for household/joint purchases (DEFAULT); personal only if using personal money.",
+      },
+    },
+    required: ["amount"],
+    additionalProperties: false,
+  },
+};
+
 export const SEIYA_TOOL_DEFINITIONS: AIToolDefinition[] = [
   ...SEIYA_READ_TOOLS,
+  CHECK_AFFORDABILITY_TOOL,
   RECORD_EXPENSE_TOOL,
   RECORD_INCOME_TOOL,
   DRAFT_BILL_TOOL,
@@ -190,6 +226,8 @@ const ALLOWED_TOOL_NAMES = new Set<ToolName>([
   "get_household_rules",
   "get_wallet_summary",
   "list_recent_transactions",
+  "get_plans_summary",
+  "check_affordability",
   "record_expense",
   "record_income",
   "draft_bill",
@@ -461,6 +499,181 @@ function formatAmount(value: number | null, currency: string | null): string {
   } catch {
     return `${currency ?? ""} ${value}`.trim();
   }
+}
+
+async function getPlansSummary(context: SeiyaToolContext): Promise<unknown> {
+  const { data: rows, error } = await context.supabase
+    .from("plans")
+    .select("id, title, category, target_amount, current_amount, currency, target_date, recommended_monthly, status, split_partner_a, split_partner_b")
+    .eq("household_id", context.householdId)
+    .neq("status", "cancelled")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.warn("[Seiya Agent] plans tool failed", { code: error.code ?? "unknown" });
+    return { ok: false, message: "Plans and goals information is temporarily unavailable. Do not invent goals." };
+  }
+
+  const plans = (rows ?? []).map((row: Record<string, unknown>) => {
+    const target = numeric(row.target_amount) ?? 0;
+    const current = numeric(row.current_amount) ?? 0;
+    const recommended = numeric(row.recommended_monthly) ?? 0;
+    const progress = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
+    const remaining = Math.max(0, target - current);
+
+    return {
+      id: safeText(row.id, 40),
+      title: safeText(row.title, 120),
+      category: safeText(row.category, 40),
+      target_amount: target,
+      current_amount: current,
+      remaining_amount: remaining,
+      progress_percent: progress,
+      currency: safeText(row.currency, 3) ?? "IDR",
+      target_date: safeText(row.target_date, 10),
+      recommended_monthly: recommended,
+      status: safeText(row.status, 20) ?? "active",
+    };
+  });
+
+  const totalTarget = plans.reduce((acc, p) => acc + p.target_amount, 0);
+  const totalSaved = plans.reduce((acc, p) => acc + p.current_amount, 0);
+  const totalMonthlyCommitment = plans
+    .filter((p) => p.status === "active")
+    .reduce((acc, p) => acc + p.recommended_monthly, 0);
+
+  return {
+    ok: true,
+    as_of_utc_date: context.today,
+    active_plans_count: plans.filter((p) => p.status === "active").length,
+    total_plans_count: plans.length,
+    total_target_amount: totalTarget,
+    total_current_saved: totalSaved,
+    total_monthly_savings_commitment: totalMonthlyCommitment,
+    plans,
+  };
+}
+
+async function checkAffordability(
+  args: Record<string, unknown>,
+  context: SeiyaToolContext
+): Promise<unknown> {
+  const rawAmount = numeric(args.amount);
+  if (!rawAmount || rawAmount <= 0) {
+    return {
+      ok: false,
+      message: "Please specify a positive numeric amount to evaluate affordability.",
+    };
+  }
+
+  const purchaseAmount = rawAmount;
+  const description = safeText(args.description, 100) || "Prospective purchase";
+  const requestedWalletType = args.wallet === "personal" ? "personal" : "shared";
+
+  const { data: walletRows, error: walletError } = await context.supabase
+    .from("wallets")
+    .select("id, wallet_type, owner_user_id, name, currency, simulated_balance")
+    .eq("household_id", context.householdId)
+    .eq("status", "active");
+
+  if (walletError || !walletRows) {
+    return { ok: false, message: "Wallet data unavailable to check affordability." };
+  }
+
+  const wallets = walletRows as WalletRow[];
+  const wallet = requestedWalletType === "shared"
+    ? wallets.find((w) => w.wallet_type === "shared")
+    : wallets.find((w) => w.wallet_type === "personal" && w.owner_user_id === context.userId);
+
+  if (!wallet) {
+    return {
+      ok: false,
+      message: requestedWalletType === "shared"
+        ? "No active shared wallet found."
+        : "No personal wallet found for you. You can evaluate against the shared wallet.",
+    };
+  }
+
+  const currentBalance = Number(wallet.simulated_balance) || 0;
+
+  const horizonDate = new Date(`${context.today}T00:00:00.000Z`);
+  horizonDate.setUTCDate(horizonDate.getUTCDate() + 30);
+  const horizon = horizonDate.toISOString().slice(0, 10);
+
+  const { data: upcomingBills } = await context.supabase
+    .from("bills")
+    .select("amount, currency")
+    .eq("household_id", context.householdId)
+    .in("status", ["upcoming", "overdue", "pending_approval"])
+    .lte("due_date", horizon);
+
+  const upcomingBillsTotal = (upcomingBills ?? []).reduce(
+    (sum, b: { amount: unknown }) => sum + (numeric(b.amount) ?? 0),
+    0
+  );
+
+  const { data: activePlans } = await context.supabase
+    .from("plans")
+    .select("recommended_monthly")
+    .eq("household_id", context.householdId)
+    .eq("status", "active");
+
+  const monthlyPlanCommitment = (activePlans ?? []).reduce(
+    (sum, p: { recommended_monthly: unknown }) => sum + (numeric(p.recommended_monthly) ?? 0),
+    0
+  );
+
+  const { data: rulesRow } = await context.supabase
+    .from("household_finance_rules")
+    .select("rules")
+    .eq("household_id", context.householdId)
+    .eq("status", "active")
+    .order("version", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const rulesData = isPlainRecord(rulesRow?.rules) ? rulesRow.rules : {};
+  const approvalSection = isPlainRecord(rulesData.approval) ? rulesData.approval : {};
+  const approvalThreshold = numeric(approvalSection.sharedWalletThreshold) ?? 500_000;
+  const approveEveryShared = Boolean(approvalSection.approveEverySharedPurchase);
+
+  const committedTotal = upcomingBillsTotal + monthlyPlanCommitment;
+  const safeFreeCashBuffer = currentBalance - committedTotal;
+  const remainingBufferAfterPurchase = safeFreeCashBuffer - purchaseAmount;
+
+  let verdict: "SAFE_TO_BUY" | "TIGHT_CASHFLOW" | "INSUFFICIENT_FUNDS";
+  let guidance: string;
+
+  if (currentBalance < purchaseAmount) {
+    verdict = "INSUFFICIENT_FUNDS";
+    guidance = `Saldo ${wallet.name} (${formatAmount(currentBalance, wallet.currency)}) tidak mencukupi untuk pembelian ${formatAmount(purchaseAmount, wallet.currency)}.`;
+  } else if (safeFreeCashBuffer < purchaseAmount) {
+    verdict = "TIGHT_CASHFLOW";
+    guidance = `Bisa dibayar secara saldo, namun akan memotong dana tagihan 30 hari mendatang (${formatAmount(upcomingBillsTotal, wallet.currency)}) atau komitmen tabungan (${formatAmount(monthlyPlanCommitment, wallet.currency)}). Sisa dana bebas saat ini: ${formatAmount(safeFreeCashBuffer, wallet.currency)}.`;
+  } else {
+    verdict = "SAFE_TO_BUY";
+    guidance = `Aman dibeli! Setelah disisihkan untuk tagihan 30 hari ke depan (${formatAmount(upcomingBillsTotal, wallet.currency)}) dan komitmen tabungan rencana (${formatAmount(monthlyPlanCommitment, wallet.currency)}), masih tersisa dana bebas ${formatAmount(remainingBufferAfterPurchase, wallet.currency)}.`;
+  }
+
+  const requiresDualKey = requestedWalletType === "shared" && (approveEveryShared || purchaseAmount >= approvalThreshold);
+
+  return {
+    ok: true,
+    purchase_description: description,
+    purchase_amount: purchaseAmount,
+    wallet_checked: wallet.name,
+    wallet_type: requestedWalletType,
+    currency: wallet.currency,
+    wallet_balance: currentBalance,
+    upcoming_30d_bills_total: upcomingBillsTotal,
+    monthly_plan_savings_commitment: monthlyPlanCommitment,
+    safe_free_cash_buffer_before_purchase: safeFreeCashBuffer,
+    remaining_safe_buffer_after_purchase: remainingBufferAfterPurchase,
+    verdict,
+    requires_partner_approval: requiresDualKey,
+    approval_threshold: approvalThreshold,
+    guidance,
+  };
 }
 
 type TransactionSummary = {
@@ -805,6 +1018,7 @@ const READ_TOOL_NAMES = new Set<ToolName>([
   "get_household_rules",
   "get_wallet_summary",
   "list_recent_transactions",
+  "get_plans_summary",
 ]);
 
 export async function executeSeiyaTool(
@@ -827,6 +1041,8 @@ export async function executeSeiyaTool(
       case "get_household_rules": return await getHouseholdRules(context);
       case "get_wallet_summary": return await getWalletSummary(context);
       case "list_recent_transactions": return await listRecentTransactions(context);
+      case "get_plans_summary": return await getPlansSummary(context);
+      case "check_affordability": return await checkAffordability(args, context);
       case "record_expense": return await recordExpense(args, context);
       case "record_income": return await recordIncome(args, context);
       case "draft_bill": return await draftBill(args, context);
